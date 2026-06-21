@@ -1,0 +1,61 @@
+name: Build & Deploy Anecdote
+
+on:
+  # Site/template changes.
+  push:
+  # Manual rebuild.
+  workflow_dispatch:
+  # The 10-minute trickle: a data-pile's sink fires this after each rollup.
+  repository_dispatch:
+    types: [pile-updated]
+
+# Allow the deploy job to publish to GitHub Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deploys at once; let an in-flight run finish (don't cancel,
+# so a dispatch-triggered publish isn't dropped).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Build site
+        env:
+          # Public artifacts need no token; this scaffolds future private piles.
+          ANECDOTE_PILE_TOKEN: ${{ secrets.ANECDOTE_PILE_TOKEN }}
+        # Use the committed binstub (self-contained bundler setup); it resolves
+        # the jekyll executable reliably under the pinned Bundler in Gemfile.lock.
+        run: bin/jekyll build --trace
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # Only publish from the default branch or from explicit dispatch triggers;
+    # feature-branch pushes validate the build above without deploying.
+    if: >-
+      github.ref == 'refs/heads/main' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'repository_dispatch'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

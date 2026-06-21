@@ -1,0 +1,41 @@
+---
+layout: default
+---
+{% assign pile = page.pile %}
+<article class="pile">
+  <p class="crumb"><a href="{{ '/' | relative_url }}">← all piles</a></p>
+
+  <h1>{{ pile.question | default: pile.name }}</h1>
+
+  <p class="meta">
+    {% if pile.region %}{{ pile.region.name }}
+      {% if pile.level %}<span class="level">{{ pile.level }}</span>{% endif %} · {% endif %}
+    poll <code>{{ pile.poll_id }}</code>
+    {% if pile.updated_at %} · updated <time datetime="{{ pile.updated_at }}">{{ pile.updated_at }}</time>{% endif %}
+  </p>
+
+  <h2>Options</h2>
+  <ul class="options">
+    {% for opt in pile.options %}
+      <li>
+        <span class="label">{{ opt.label }}</span>
+        <span class="tier tier-{{ opt.tier }}">{{ opt.tier }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  <p class="note">Tiers (low / med / high) are intentionally coarse — Anecdote reflects relative
+  standing, not raw vote counts.</p>
+
+  <h2>Totals</h2>
+  <p><strong>{{ pile.accepted }}</strong> accepted responses.</p>
+
+  {% if pile.rejected %}
+  <h2>Rejected</h2>
+  <ul class="rejected">
+    <li>geo: {{ pile.rejected.geo }}</li>
+    <li>signature: {{ pile.rejected.sig }}</li>
+    <li>malformed: {{ pile.rejected.malformed }}</li>
+    <li>other: {{ pile.rejected.other }}</li>
+  </ul>
+  {% endif %}
+</article>

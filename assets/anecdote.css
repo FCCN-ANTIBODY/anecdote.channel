@@ -1,0 +1,55 @@
+:root {
+  --ink: #1a1a1a;
+  --muted: #666;
+  --line: #e5e5e5;
+  --accent: #2b5dba;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font: 16px/1.6 system-ui, -apple-system, Segoe UI, sans-serif;
+  color: var(--ink);
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0 1.25rem 4rem;
+}
+
+.site-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 1.5rem 0 1rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2rem;
+}
+
+.site-title { font-weight: 700; font-size: 1.2rem; color: var(--ink); text-decoration: none; }
+.site-tag { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+a { color: var(--accent); }
+
+.meta { color: var(--muted); font-size: 0.85rem; }
+.crumb { font-size: 0.85rem; }
+.note { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+
+.level-group { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 1.5rem 0 0.25rem; }
+
+.pile-index { list-style: none; padding: 0; }
+.pile-index li { padding: 0.75rem 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; }
+.pile-index a { font-weight: 600; text-decoration: none; }
+
+.options { list-style: none; padding: 0; }
+.options li { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.options .label { font-weight: 500; }
+
+.level { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.15rem 0.6rem; border-radius: 1rem; background: #eef0f2; color: #444; }
+
+.tier { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.15rem 0.6rem; border-radius: 1rem; }
+.tier-low { background: #eef0ff; color: #3a3a8a; }
+.tier-med { background: #fff7e0; color: #8a6a00; }
+.tier-high { background: #e6f7ec; color: #1f7a44; }
+
+.rejected { color: var(--muted); font-size: 0.9rem; }
+
+.site-footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.8rem; }

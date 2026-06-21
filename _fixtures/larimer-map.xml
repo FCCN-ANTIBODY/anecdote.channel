@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="map.xsl"?>
+<map poll-id="larimer-q1" updated-at="2026-06-21T00:00:00Z" version="1">
+  <region type="county" id="larimer" name="Larimer County, Colorado"/>
+  <question>Should the county prioritize watershed restoration in its next capital plan?</question>
+  <options>
+    <option id="a" label="Yes, make it a top priority"><tier>high</tier></option>
+    <option id="b" label="No, keep current priorities"><tier>low</tier></option>
+    <option id="c" label="Only alongside wildfire mitigation"><tier>med</tier></option>
+  </options>
+  <totals accepted="1842"/>
+  <rejected geo="74" sig="11" malformed="6" other="19"/>
+  <sampling low="b" mid="c" high="a"/>
+</map>

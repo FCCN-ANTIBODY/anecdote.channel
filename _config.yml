@@ -1,0 +1,24 @@
+title: Anecdote
+description: >-
+  The apex of the anecdote.channel constellation — a reflection API that browses
+  moderated snapshots ("maps") of encompassing physical-space hierarchies
+  (county, election districts, climate zone, watershed) published by data-piles.
+url: "https://anecdote.channel"
+baseurl: ""
+
+# Custom build: we run `jekyll build` ourselves in Actions, so we are free to
+# enable any plugins (the reflection generator in _plugins/ loads automatically).
+plugins: []
+
+# Fixtures and docs are inputs/notes, not site pages.
+exclude:
+  - _fixtures/
+  - CONTRACT.md
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - bin/
+  - vendor/
+
+# Pretty URLs for generated pile pages (/larimer-q1/ instead of /larimer-q1.html).
+permalink: pretty

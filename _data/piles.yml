@@ -1,0 +1,16 @@
+# Registry of data-piles Anecdote reflects.
+#
+# Anecdote reflects *encompassing* physical-space hierarchies — geographies one
+# notch larger than the city-level civic nodes (county, major election districts,
+# climate zone, watershed). For now every entry below is produced by the same
+# data-pile location; as state-level data begins to vary, additional piles will
+# appear here and each will fire `repository_dispatch: pile-updated` at this repo.
+#
+# Each entry needs an `id` and `name`, plus a source for its published map:
+#   url:     a remote, public XML map (the canonical contract artifact)
+#   fixture: a local map under _fixtures/ (used for dev / before a sink is live)
+# If both are present, `url` is tried first and `fixture` is the offline fallback.
+- id: larimer-q1
+  name: "Larimer County — Question 1"
+  # url: "https://raw.githubusercontent.com/tiliv/public-notes/main/parts/poll/map.xml"
+  fixture: "_fixtures/larimer-map.xml"
