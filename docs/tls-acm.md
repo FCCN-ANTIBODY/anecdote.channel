@@ -61,14 +61,54 @@ requires extending `scripts/reconcile-acm.sh`.
   ```
   Confirm the matching wildcard SAN is present and the issuer is Let's Encrypt.
 
+## Onboarding a node (GitHub Pages + Cloudflare)
+
+Each node is **its own GitHub Pages site with its own DNS record**. One repo can't
+answer every deep hostname, so the content per node lives in that node's repo; the
+ACM wildcard cert covers them all at the edge. Per node:
+
+1. **Create the node's GitHub Pages repo** and, in its Pages settings, set the
+   **custom domain** to the full hostname, e.g.
+   `moniker.fort-collins.colorado.anecdote.channel`. (A GitHub Pages site allows one
+   custom domain, unique across GitHub — hence one site per node.)
+2. **Add a DNS record in Cloudflare** for that hostname → `CNAME` to
+   `<user>.github.io`, and leave it **DNS-only (grey cloud)** for now.
+3. **Let GitHub Pages provision its cert.** With the record grey, GitHub validates
+   the domain and issues the origin Let's Encrypt cert; then tick **Enforce HTTPS**
+   in the repo's Pages settings.
+4. **Flip the record to proxied (orange cloud).** Now the **ACM edge cert** is what
+   browsers see (matched by the wildcard SAN), and Cloudflare proxies to the Pages
+   origin.
+
+> **Order matters:** GitHub Pages cannot provision its origin cert while the record
+> is proxied — it can't see the real DNS. Always grey → provision → orange.
+
+### Encryption mode: use **Full**, not Full (Strict)
+
+Keep SSL/TLS → Overview on **Full** (the `Automatic` setting already resolves to
+Full). Reasons:
+
+- **Full (Strict)** validates the origin cert, and GitHub Pages' origin-cert renewal
+  *fails while proxied* — that would take nodes down roughly every 3 months.
+- **Full** still encrypts Cloudflare ↔ origin but doesn't hard-fail on origin-cert
+  issues, so a stalled Pages renewal won't break the site. Public-facing security
+  comes from the **ACM edge cert** regardless.
+- **Never Flexible** — it causes infinite redirect loops with GitHub Pages.
+
+### When does the certificate list change?
+
+- **New node in an existing city** → just add the DNS record. **No `san-list.txt`
+  change** — `*.<city>.<state>.anecdote.channel` already covers every leaf there.
+- **First node in a new city or state** → add the one matching wildcard line to
+  `config/san-list.txt` (see "Adding a city / region" above) and let the Action
+  reconcile.
+- A new node by itself **never** touches the certificate.
+
 ## Important caveats
 
 - **This only covers the browser ↔ Cloudflare (edge) certificate.** The hosts must
   be **proxied (orange cloud)** for this cert to be the one browsers see; the zone
   is DNS-only today.
-- **Content still has to be served.** The Cloudflare ↔ origin leg needs an origin
-  that actually answers for these hostnames. **GitHub Pages serves a single custom
-  domain and does not support wildcards**, so it cannot host arbitrary deep
-  subdomains — that needs a real origin, a Cloudflare Tunnel, or Workers. Choosing
-  and wiring that origin (and a `Full`/`Full (Strict)` encryption mode with a valid
-  origin cert) is a separate task from certificate coverage.
+- **Content still has to be served per node.** The Cloudflare ↔ origin leg needs an
+  origin that answers for each hostname — here, one GitHub Pages site per node (see
+  "Onboarding a node" above). The edge cert does not serve content.
