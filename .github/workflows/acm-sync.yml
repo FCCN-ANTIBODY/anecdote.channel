@@ -54,7 +54,17 @@ jobs:
             echo "flag=" >> "$GITHUB_OUTPUT"
           fi
 
+      # Until ACM is enabled and the token/zone-id are configured (a paid,
+      # manual one-time step — see docs/tls-acm.md), there is nothing to sync.
+      # Skip with a visible warning instead of failing, so the check isn't red
+      # before the feature is even set up.
+      - name: Skip — credentials not configured
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN == '' || vars.CF_ZONE_ID == '' }}
+        run: |
+          echo "::warning title=ACM sync skipped::CLOUDFLARE_API_TOKEN secret and/or CF_ZONE_ID variable not set. Complete the one-time setup in docs/tls-acm.md to enable certificate syncing."
+
       - name: Reconcile advanced certificate
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && vars.CF_ZONE_ID != '' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ZONE_ID: ${{ vars.CF_ZONE_ID }}
