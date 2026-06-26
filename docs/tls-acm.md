@@ -47,6 +47,10 @@ requires extending `scripts/reconcile-acm.sh`.
 
 ## Verifying
 
+- **Quick edge check (per host):** `scripts/check-edge.sh <host>` runs the DNS,
+  header, and certificate checks below and prints an `OK` / `GREY` / `PROBLEM`
+  verdict. Add `--md` for a Markdown table to paste into a report. Run it from a
+  normal network — TLS-intercepting networks distort the cert read.
 - **Plan locally:**
   ```sh
   export CLOUDFLARE_API_TOKEN=...   CF_ZONE_ID=...
