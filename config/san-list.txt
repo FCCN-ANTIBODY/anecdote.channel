@@ -1,0 +1,32 @@
+# san-list.txt — source of truth for the Cloudflare ACM advanced certificate.
+#
+# This file lists every hostname the edge certificate must cover. The reconcile
+# Action (.github/workflows/acm-sync.yml -> scripts/reconcile-acm.sh) keeps the
+# Cloudflare advanced certificate pack(s) in sync with this list. Cloudflare
+# issues and auto-renews; this repo only decides WHICH names are covered.
+#
+# RULES (enforced by scripts/reconcile-acm.sh — violations abort the run):
+#   * The apex `anecdote.channel` must be present (Cloudflare requires it).
+#   * A TLS wildcard matches exactly ONE label. There is no `*.*` wildcard.
+#     To cover a deep name like  moniker.fort-collins.colorado.anecdote.channel
+#     you need a wildcard at the level just above the varying leaf:
+#         *.fort-collins.colorado.anecdote.channel
+#     ...and, if names also vary one level shallower, a wildcard there too:
+#         *.colorado.anecdote.channel        (covers fort-collins.colorado....)
+#         *.anecdote.channel                 (covers colorado.anecdote.channel)
+#   * Only single-label wildcards (leading `*.`). `*.*.x` or a bare `*` are rejected.
+#   * Max 50 hosts per pack (the apex counts). Past ~49 entries, shard across
+#     additional advanced packs — see the script header for how.
+#
+# Format: one hostname per line. Blank lines and `#` comments are ignored.
+# Whitespace is trimmed and entries are lowercased + de-duplicated.
+
+# --- apex + state-level leaves -------------------------------------------------
+anecdote.channel
+*.anecdote.channel
+
+# --- per-state wildcards (covers <city>.<state>.anecdote.channel) --------------
+*.colorado.anecdote.channel
+
+# --- per-city wildcards (covers <leaf>.<city>.<state>.anecdote.channel) --------
+*.fort-collins.colorado.anecdote.channel

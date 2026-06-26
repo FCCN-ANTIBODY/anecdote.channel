@@ -1,0 +1,62 @@
+name: Sync ACM advanced certificate
+
+# Keeps the Cloudflare Advanced Certificate Manager pack in sync with
+# config/san-list.txt. Cloudflare issues and auto-renews the certificate; this
+# workflow only reconciles WHICH hostnames are covered. No private keys are
+# ever produced or stored — see scripts/reconcile-acm.sh.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - config/san-list.txt
+      - scripts/reconcile-acm.sh
+      - .github/workflows/acm-sync.yml
+  pull_request:
+    paths:
+      - config/san-list.txt
+      - scripts/reconcile-acm.sh
+      - .github/workflows/acm-sync.yml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Plan only — show intended changes without ordering/deleting packs"
+        type: boolean
+        default: true
+
+# Only one reconcile at a time, so concurrent runs can't race on pack ordering.
+concurrency:
+  group: acm-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # Decide whether this run applies changes or only plans them.
+      #   - pull_request           -> always dry-run (PRs preview the change)
+      #   - workflow_dispatch       -> honor the dry_run input (default true)
+      #   - push to main            -> apply
+      - name: Determine mode
+        id: mode
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "flag=--dry-run" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "flag=--dry-run" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reconcile advanced certificate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ vars.CF_ZONE_ID }}
+        run: |
+          bash scripts/reconcile-acm.sh ${{ steps.mode.outputs.flag }}
