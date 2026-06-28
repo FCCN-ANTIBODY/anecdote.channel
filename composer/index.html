@@ -1,0 +1,215 @@
+<!doctype html>
+<!-- anecdote.channel composer — experience prototype.
+     Type a statement; it is label-reduced locally to its kernel of intent; the "to" picker
+     shows where it can go. Nothing leaves the device. There is no event loop beyond your own
+     input, and a send is always a confirmed action (CONSTITUTION §"Mobile LLM"). The routing
+     logic is the dependency-free core in route.mjs; this file is only its view.
+
+     Run it (ES modules need http, not file://):
+       python3 -m http.server 8000   # then open http://localhost:8000/composer/ -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote · composer</title>
+<style>
+  :root {
+    --ink: #1d1d22; --muted: #6b6b78; --line: #ececf1; --edge: #d9d9e0;
+    --ok: #1f7a4d; --ok-bg: #eef8f1; --dim: #9a9aa6; --accent: #3b4cca; --shade: #f6f6f9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem; background: var(--shade); color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.25rem; margin: 0 0 .15rem; }
+  .sub { color: var(--muted); margin: 0 0 1.25rem; font-size: .9rem; }
+  .card { background: #fff; border: 1px solid var(--edge); border-radius: 12px; padding: 1.1rem 1.15rem; margin-bottom: 1rem; }
+  label.fld { display: block; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+  textarea {
+    width: 100%; min-height: 92px; resize: vertical; padding: .7rem .8rem; font: inherit;
+    color: var(--ink); border: 1px solid var(--edge); border-radius: 9px; background: #fff;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .intent { margin-top: .7rem; font-size: .9rem; color: var(--muted); min-height: 1.4em; }
+  .chip { display: inline-block; background: var(--shade); border: 1px solid var(--edge); border-radius: 999px; padding: .12rem .6rem; color: var(--ink); font-weight: 600; }
+  .grouphead { font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: .2rem 0 .55rem; }
+  .grouphead small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .dest { display: flex; align-items: flex-start; gap: .6rem; padding: .6rem .65rem; border: 1px solid var(--line); border-radius: 9px; margin-bottom: .5rem; }
+  .dest.ok { cursor: pointer; }
+  .dest.ok:hover { border-color: var(--accent); }
+  .dest.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .dest.dim { opacity: .62; background: #fcfcfd; }
+  .dest input { margin-top: .25rem; }
+  .dest .body { flex: 1; min-width: 0; }
+  .dest .name { font-weight: 600; }
+  .dest .meta { font-size: .82rem; color: var(--muted); }
+  .badge { font-size: .68rem; letter-spacing: .03em; text-transform: uppercase; padding: .08rem .42rem; border-radius: 999px; vertical-align: middle; margin-left: .35rem; }
+  .badge.atlas { background: #eef0ff; color: #3b4cca; }
+  .badge.tell { background: #eafaf2; color: var(--ok); }
+  .badge.nbr { background: #f4eefb; color: #7a3bca; }
+  .verdict { font-size: .82rem; margin-top: .15rem; }
+  .verdict.ok { color: var(--ok); }
+  .verdict.no { color: var(--dim); }
+  .mute { margin-left: auto; font-size: .76rem; color: var(--accent); background: none; border: 0; cursor: pointer; padding: .1rem .2rem; }
+  .mute:hover { text-decoration: underline; }
+  .note { font-size: .82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: .7rem; margin-top: .2rem; }
+  .send { display: flex; gap: .7rem; align-items: center; margin-top: .2rem; }
+  button.go { font: inherit; font-weight: 600; padding: .5rem .95rem; border-radius: 9px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.go:disabled { background: #c7c7d2; border-color: #c7c7d2; cursor: not-allowed; }
+  pre.prepared { background: #0e0e14; color: #d6e9ff; border-radius: 9px; padding: .75rem .85rem; font-size: .8rem; overflow: auto; margin: .6rem 0 0; }
+  .empty { color: var(--dim); font-size: .88rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Say something.</h1>
+  <p class="sub">There are no stupid statements. anecdote only asks <em>where can this go</em> — privately, on your device, before anything is sent.</p>
+
+  <div class="card">
+    <label class="fld" for="say">Your anecdote</label>
+    <textarea id="say" placeholder="e.g. Is there shade at this park? · The library needs longer hours · Looking for sex" autofocus></textarea>
+    <div class="intent" id="intent"></div>
+  </div>
+
+  <div class="card">
+    <label class="fld">To</label>
+    <div id="picker"><p class="empty">Start typing — destinations appear as your intent takes shape.</p></div>
+    <div class="note" id="count"></div>
+  </div>
+
+  <div class="card">
+    <div class="send">
+      <button class="go" id="prep" disabled>Prepare to send</button>
+      <span class="meta" id="prepmeta" style="font-size:.82rem;color:var(--muted)"></span>
+    </div>
+    <pre class="prepared" id="prepared" hidden></pre>
+    <p class="note">Nothing leaves your device here. This composer runs no event loop beyond your own
+      input; “send” only ever builds the hand-off, and only when you confirm it. Your registered
+      destinations and self-muted topics live in this origin’s local storage — domain-scoped, yours.</p>
+  </div>
+</main>
+
+<script type="module">
+  import { plan, prepare } from "./route.mjs";
+
+  // The local cache: your "installed" anecdote already knows your registered Atlases (public,
+  // by jurisdiction, with neighbor suggestions), your private direct-address Tells, and each
+  // destination's constitution shorthand. Self-muted topics persist per-origin in localStorage.
+  const cache = {
+    tells: [
+      { id: "neighbors", name: "Neighborhood Tell", kind: "tell", url: "https://nbhd.example", excludes: ["harassment"] },
+      { id: "mutualaid", name: "Mutual-Aid Tell", kind: "tell", url: "https://aid.example", excludes: [] },
+    ],
+    atlases: [
+      { id: "foco", name: "Fort Collins Civic Atlas", kind: "atlas", scope: "fort-collins", excludes: ["sex", "sale", "spam"] },
+      { id: "colorado", name: "Colorado State Atlas", kind: "atlas", scope: "colorado", excludes: ["sex", "harassment"] },
+      { id: "larimer", name: "Larimer County Atlas", kind: "atlas", scope: "larimer", neighbor: true, excludes: ["sex"] },
+    ],
+    muted: loadMutes(),
+  };
+
+  const $say = document.getElementById("say");
+  const $intent = document.getElementById("intent");
+  const $picker = document.getElementById("picker");
+  const $count = document.getElementById("count");
+  const $prep = document.getElementById("prep");
+  const $prepmeta = document.getElementById("prepmeta");
+  const $prepared = document.getElementById("prepared");
+  let selected = null;
+
+  function loadMutes() {
+    try { return JSON.parse(localStorage.getItem("anecdote:muted") || "{}"); } catch { return {}; }
+  }
+  function saveMutes() {
+    try { localStorage.setItem("anecdote:muted", JSON.stringify(cache.muted)); } catch {}
+  }
+  function mute(destId, topic) {
+    if (!topic) return;
+    (cache.muted[destId] = cache.muted[destId] || []).push(topic);
+    saveMutes(); render();
+  }
+
+  function badge(d) {
+    if (d.kind === "tell") return `<span class="badge tell">direct</span>`;
+    return `<span class="badge atlas">public · ${d.scope}</span>` + (d.neighbor ? `<span class="badge nbr">neighbor</span>` : "");
+  }
+
+  function render() {
+    const text = $say.value;
+    const p = plan(text, cache);
+
+    $intent.innerHTML = p.intent.label
+      ? `intent → <span class="chip">${esc(p.intent.label)}</span>`
+      : `<span class="empty">the kernel of what you mean appears here</span>`;
+
+    if (!text.trim()) {
+      $picker.innerHTML = `<p class="empty">Start typing — destinations appear as your intent takes shape.</p>`;
+      $count.textContent = ""; selected = null; syncPrep(); return;
+    }
+
+    const lead = p.intent.tokens[0];   // the intent's leading token — what "mute here" would mute
+    $picker.innerHTML = p.groups.map((g) => `
+      <p class="grouphead">${g.title.split(" — ")[0]} <small>— ${esc(g.title.split(" — ")[1] || "")}</small></p>
+      ${g.dests.map((d) => row(d, lead)).join("") || `<p class="empty">none registered</p>`}
+    `).join("");
+
+    // Wire eligible rows (selection) and mute buttons. Listeners only — no timers, no polling.
+    $picker.querySelectorAll(".dest.ok").forEach((el) => {
+      el.addEventListener("click", (ev) => {
+        if (ev.target.closest(".mute")) return;
+        selected = el.dataset.id; render();
+      });
+    });
+    $picker.querySelectorAll(".mute").forEach((el) => {
+      el.addEventListener("click", (ev) => { ev.stopPropagation(); mute(el.dataset.id, el.dataset.topic); });
+    });
+
+    const routable = p.routableCount;
+    $count.textContent = routable
+      ? `${routable} destination${routable === 1 ? "" : "s"} can receive this. Dimmed ones aren’t offered — and say why.`
+      : `No destination is offered this — it’s still yours to keep or to send somewhere you address directly.`;
+    syncPrep();
+  }
+
+  function row(d, lead) {
+    const v = d.verdict, ok = v.eligible, sel = ok && selected === d.id;
+    const cls = `dest ${ok ? "ok" : "dim"}${sel ? " sel" : ""}`;
+    const muteBtn = ok && lead
+      ? `<button class="mute" data-id="${d.id}" data-topic="${esc(lead)}">mute “${esc(lead)}” here</button>` : "";
+    return `<div class="${cls}" data-id="${d.id}">
+      ${ok ? `<input type="radio" name="to" ${sel ? "checked" : ""} aria-label="select ${esc(d.name)}">` : `<span style="width:13px"></span>`}
+      <div class="body">
+        <div class="name">${esc(d.name)} ${badge(d)}</div>
+        <div class="verdict ${ok ? "ok" : "no"}">${ok ? "✓ " : "— "}${esc(v.reason)}</div>
+      </div>${muteBtn}
+    </div>`;
+  }
+
+  function syncPrep() {
+    const all = plan($say.value, cache).groups.flatMap((g) => g.dests);
+    const dest = all.find((d) => d.id === selected && d.verdict.eligible);
+    $prep.disabled = !dest;
+    $prepmeta.textContent = dest ? `→ ${dest.name}` : (selected ? "" : "pick a destination above");
+    if (!dest) { $prepared.hidden = true; selected = dest ? selected : selected; }
+  }
+
+  $prep.addEventListener("click", () => {
+    const all = plan($say.value, cache).groups.flatMap((g) => g.dests);
+    const dest = all.find((d) => d.id === selected && d.verdict.eligible);
+    if (!dest) return;
+    const prepared = prepare($say.value, dest, cache);   // builds the hand-off; does NOT transmit
+    $prepared.hidden = false;
+    $prepared.textContent =
+      "// prepared — NOT sent. A confirmed send would hand this off:\n" + JSON.stringify(prepared, null, 2);
+  });
+
+  $say.addEventListener("input", render);  // the only loop: your keystrokes
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+  render();
+</script>
+</body>
+</html>

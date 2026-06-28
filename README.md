@@ -22,6 +22,22 @@ node reducer/demo.mjs   # two gatherers collide; dictionary cold-loads from a do
 See [`reducer/README.md`](reducer/README.md) for the algorithm, the local cache, and how the
 real on-device model (transformers.js + all-MiniLM) drops in behind one seam.
 
+## The composer
+
+[`composer/`](composer/) is the front-door **experience**: type a statement → it reduces to its
+kernel of intent → a **"to" picker** shows where it can go. anecdote is ingress with no
+user-side constitution; it never blocks a statement, it only **routes** it. The picker is driven
+by your local cache of destinations — **Tells** you address directly (private) and public,
+jurisdiction-scoped **Atlases** (discoverable) — dimming any a statement isn't *offered* into,
+with the reason. There are no stupid statements.
+
+```sh
+python3 -m http.server 8000   # open http://localhost:8000/composer/
+node composer/route.test.mjs  # the routing core, dependency-free
+```
+
+See [`composer/README.md`](composer/README.md) for the full experience model.
+
 ## Other contents
 
 - [`widget/`](widget/) — the baked, dormant (no event loop, no live fetch) public widget a
