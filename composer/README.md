@@ -99,11 +99,12 @@ Shape (same pure-core / thin-view split as the composer):
 - [`scripts/serve.mjs`](../scripts/serve.mjs) — tiny dependency-free static server (correct MIME
   for `.mjs`/`.wasm`/`.onnx`) so `/composer/`, `/runtime/`, `/models/` resolve from one origin.
 
-**Status:** the toy backend runs anywhere with no network. The real-MiniLM runtime is now
-**vendored offline-of-CDN** (see [`docs/DELIVERY.md`](../docs/DELIVERY.md)) and **loads + embeds on
-the main thread** (verified, 384-dim, zero CDN/HF). **Known follow-up:** inside this Worker the
-bundled tokenizer comes back non-callable, so `?real` currently falls back to `toy` *off-thread*;
-the vendoring + whole-instrument lock are done and the worker fix is tracked in DELIVERY.
+**Status:** the toy backend runs anywhere with no network. The real-MiniLM runtime is
+**vendored offline-of-CDN** (see [`docs/DELIVERY.md`](../docs/DELIVERY.md)) and now **flips to
+`minilm` off-thread in the Worker** — `?real=1` (or the toggle) routes by real meaning, e.g. "the
+bins were not emptied" → `trash pickup` (no shared tokens). The earlier in-Worker tokenizer
+failure was a full-URL `localModelPath`; using worker-relative paths fixed it. Falls back to toy on
+any failure. (Device load + per-embed timings: [`bench.html`](bench.html).)
 
 ## Not in this slice
 

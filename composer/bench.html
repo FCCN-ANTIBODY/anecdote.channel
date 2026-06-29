@@ -1,0 +1,169 @@
+<!doctype html>
+<!-- Device benchmark for the on-device instrument — preflight, before any ingress.
+     Measures the two costs that decide viability per device: model LOAD (the one-time ~46MB cold
+     hit) and per-EMBED latency (the "behind your cursor" cost). Runs the real MiniLM on the MAIN
+     thread (the proven-working path; the off-thread Worker flip is a separate follow-up) plus a
+     toy baseline. Nothing is sent anywhere. Copy the summary and compare across phones/laptops. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote · device benchmark</title>
+<style>
+  :root { --ink:#1d1d22; --muted:#6b6b78; --edge:#d9d9e0; --line:#ececf1; --accent:#3b4cca; --shade:#f6f6f9; --ok:#1f7a4d; }
+  body { margin:0; padding:2rem 1rem; background:var(--shade); color:var(--ink);
+    font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
+  main { width:100%; max-width:640px; }
+  h1 { font-size:1.25rem; margin:0 0 .15rem; }
+  .sub { color:var(--muted); margin:0 0 1.1rem; font-size:.9rem; }
+  .card { background:#fff; border:1px solid var(--edge); border-radius:12px; padding:1rem 1.15rem; margin-bottom:1rem; }
+  button { font:inherit; font-weight:600; padding:.55rem 1rem; border-radius:9px; border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; }
+  button:disabled { background:#c7c7d2; border-color:#c7c7d2; cursor:not-allowed; }
+  button.ghost { background:#fff; color:var(--accent); }
+  .status { font-size:.85rem; color:var(--muted); margin-top:.6rem; min-height:1.3em; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:.35rem .4rem; border-bottom:1px solid var(--line); }
+  td.n { text-align:right; }
+  .metric { font-weight:600; }
+  .hint { color:var(--muted); font-size:.8rem; }
+  pre { background:#0e0e14; color:#d6e9ff; border-radius:9px; padding:.75rem .85rem; font-size:.78rem; overflow:auto; white-space:pre-wrap; }
+  .note { font-size:.82rem; color:var(--muted); border-top:1px solid var(--line); padding-top:.7rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Device benchmark</h1>
+  <p class="sub">How long the on-device work takes here — model load and per-embed latency. Nothing is sent anywhere; this is preflight.</p>
+
+  <div class="card">
+    <button id="run">Run benchmark</button>
+    <button id="copy" class="ghost" disabled>Copy summary</button>
+    <div class="status" id="status">Idle. (~46 MB downloads on first run; cached after.)</div>
+  </div>
+
+  <div class="card" id="resultsCard" hidden>
+    <table id="results"></table>
+    <p class="hint" id="ctx"></p>
+  </div>
+
+  <div class="card" id="summaryCard" hidden>
+    <pre id="summary"></pre>
+  </div>
+
+  <div class="card">
+    <p class="note">Real MiniLM runs on the main thread here for clean timing; the live composer
+      runs the same model off-thread in a Worker (which now works too). Compute cost is the same
+      either way. Toy = the dependency-free baseline embedder.</p>
+  </div>
+</main>
+
+<script type="module">
+  import { toyEmbed } from "../reducer/embedders.mjs";
+  import { stats, ms, mb } from "./bench.mjs";
+
+  const $run = document.getElementById("run");
+  const $copy = document.getElementById("copy");
+  const $status = document.getElementById("status");
+  const $resultsCard = document.getElementById("resultsCard");
+  const $results = document.getElementById("results");
+  const $ctx = document.getElementById("ctx");
+  const $summaryCard = document.getElementById("summaryCard");
+  const $summary = document.getElementById("summary");
+
+  const PHRASES = [
+    "is there shade at this park", "the bins were not emptied", "cars speed down my street",
+    "we need more bus routes", "potholes on Elm", "the crosswalk feels unsafe",
+    "library hours are too short", "the water tastes off", "noise late at night",
+    "where can my dog run", "broken streetlight on 9th", "bike lane is blocked",
+    "trash pickup was late", "park needs benches", "speeding near the school",
+    "no sidewalk on Maple", "flooding when it rains", "the playground is closed",
+    "more trees downtown", "bus never comes on time",
+  ];
+  const now = () => performance.now();
+  const device = () => ({
+    ua: navigator.userAgent,
+    cores: navigator.hardwareConcurrency || "?",
+    memGB: navigator.deviceMemory || "?",
+    isolated: typeof crossOriginIsolated !== "undefined" ? crossOriginIsolated : "?",
+  });
+
+  function row(metric, value, hint = "") {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="metric">${metric}</td><td class="n">${value}</td><td class="hint">${hint}</td>`;
+    $results.appendChild(tr);
+  }
+
+  async function run() {
+    $run.disabled = true; $copy.disabled = true; $results.innerHTML = ""; $resultsCard.hidden = false; $summaryCard.hidden = true;
+    const d = device();
+    const out = { device: d, toy: null, load: null, embed: null, backend: "toy", error: null };
+
+    // Toy baseline.
+    $status.textContent = "toy baseline…";
+    const toySamples = [];
+    for (let i = 0; i < 200; i++) { const t = now(); toyEmbed(PHRASES[i % PHRASES.length]); toySamples.push(now() - t); }
+    out.toy = stats(toySamples);
+    row("toy embed (median)", ms(out.toy.median), `p95 ${ms(out.toy.p95)} · ${Math.round(out.toy.perSec)}/s`);
+
+    // Real MiniLM on the main thread.
+    try {
+      $status.textContent = "loading MiniLM (downloads ~46 MB on first run)…";
+      let bytes = 0, cached = true;
+      const t0 = now();
+      const { pipeline, env } = await import("../runtime/transformers.bundle.mjs");
+      env.allowRemoteModels = false; env.allowLocalModels = true;
+      env.localModelPath = "../models/";
+      env.backends.onnx.wasm.wasmPaths = "../runtime/";
+      const extract = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
+        dtype: "q8",
+        progress_callback: (p) => {
+          if (p.status === "download" || p.status === "progress") cached = false;
+          if (typeof p.total === "number" && p.status === "progress" && p.progress >= 100) bytes += p.total;
+          $status.textContent = `loading… ${p.file || ""} ${p.progress ? Math.round(p.progress) + "%" : ""}`;
+        },
+      });
+      out.load = now() - t0;
+      out.backend = "minilm";
+      row("model load", ms(out.load), `${cached ? "warm (cached)" : "cold, ~" + mb(bytes || 46e6)}`);
+
+      $status.textContent = "warm-up embed…";
+      const tw = now(); await extract("warm up", { pooling: "mean", normalize: true }); const firstMs = now() - tw;
+      row("first embed", ms(firstMs), "includes graph warm-up");
+
+      $status.textContent = "timing embeds…";
+      const samples = [];
+      for (const phrase of PHRASES) { const t = now(); await extract(phrase, { pooling: "mean", normalize: true }); samples.push(now() - t); }
+      out.embed = stats(samples);
+      row("MiniLM embed (median)", ms(out.embed.median), `p95 ${ms(out.embed.p95)} · ${Math.round(out.embed.perSec)}/s`);
+    } catch (e) {
+      out.error = String(e?.message || e);
+      row("MiniLM", "failed", out.error.slice(0, 60));
+    }
+
+    $ctx.textContent = `${d.cores} cores · ${d.memGB} GB · isolated=${d.isolated}`;
+    $summary.textContent = summarize(out);
+    $summaryCard.hidden = false;
+    $status.textContent = "done.";
+    $run.disabled = false; $copy.disabled = false;
+  }
+
+  function summarize(o) {
+    const L = [];
+    L.push("anecdote device benchmark");
+    L.push(`ua: ${o.device.ua}`);
+    L.push(`cores: ${o.device.cores}  mem: ${o.device.memGB}GB  isolated: ${o.device.isolated}`);
+    if (o.toy) L.push(`toy embed:    median ${ms(o.toy.median)}  p95 ${ms(o.toy.p95)}  ${Math.round(o.toy.perSec)}/s`);
+    if (o.load != null) L.push(`model load:   ${ms(o.load)}`);
+    if (o.embed) L.push(`minilm embed: median ${ms(o.embed.median)}  p95 ${ms(o.embed.p95)}  ${Math.round(o.embed.perSec)}/s`);
+    if (o.error) L.push(`error: ${o.error}`);
+    return L.join("\n");
+  }
+
+  $run.addEventListener("click", () => run().catch((e) => { $status.textContent = "error: " + (e?.message || e); $run.disabled = false; }));
+  $copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($summary.textContent); $status.textContent = "copied."; }
+    catch { $status.textContent = "select the summary text to copy."; }
+  });
+</script>
+</body>
+</html>

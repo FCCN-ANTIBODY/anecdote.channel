@@ -50,11 +50,12 @@ Three separable layers, distributed differently because they scale differently:
 asyncify build but needs COOP/COEP (SharedArrayBuffer); asyncify was chosen for no-isolation
 robustness. Trading ~11 MB for cross-origin-isolation headers is a "best-config" call to revisit.
 
-**Open follow-up (off-thread real backend):** the bundled instrument loads and embeds on the **main
-thread**, but inside the composer's **Web Worker** the tokenizer comes back non-callable
-(`this.tokenizer is not a function`) — a transformers-in-Worker bundling quirk. So the live crunch
-badge still falls back to `toy` off-thread; the vendoring/lock here is complete and the worker fix
-is tracked separately.
+**Off-thread real backend works.** The instrument loads and embeds both on the main thread and in
+the composer's **Web Worker** — the crunch badge flips to `minilm` and routes by real meaning
+(e.g. "the bins were not emptied" → `trash pickup`, no shared tokens). The earlier
+`this.tokenizer is not a function` was **a full-URL `env.localModelPath`** breaking transformers'
+tokenizer loading; using worker/page-**relative** path strings (resolved against `self.location`)
+fixed it. Per-device load + per-embed timings: `composer/bench.html`.
 
 ## The sources, ranked (DNS now → optical → mesh)
 
@@ -111,9 +112,9 @@ is a side-channel we choose to trust later.
 
 1. **Tier-0 vendor + whole-instrument lock — ✅ done.** Library + runtime committed under
    `/runtime/`, the lock extended to `runtime` + `weights` (`instrumentVersion` over both), worker
-   pointed at the in-repo copies, MiniLM proven to load + embed offline-of-CDN (main thread).
-   *Remaining:* the off-thread worker tokenizer quirk (above) so the crunch badge
-   ([`composer/crunch.html`](../composer/crunch.html)) flips to `minilm` in the Worker too.
+   pointed at the in-repo copies. MiniLM loads + embeds offline-of-CDN **both main-thread and
+   off-thread in the Worker** — the crunch badge ([`composer/crunch.html`](../composer/crunch.html))
+   flips to `minilm`. Device timings: [`composer/bench.html`](../composer/bench.html).
 2. **Tier-1 edge channel** — stand up the models origin behind the edge + the fetch-and-verify
    path; vendor the namer there; activate v1 naming.
 3. **Optical encoder/decoder** — the fountain loop + camera reader + diff-repair, as the offline
