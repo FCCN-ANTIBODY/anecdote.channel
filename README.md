@@ -42,6 +42,11 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
 
 ## Design notes
 
+- [`docs/anecdote-schema.md`](docs/anecdote-schema.md) — what a confirmed send **carries**:
+  `anecdote/v1`, the payload `route.prepare` grows into. Text rides inline; an image, a GeoJSON
+  shape, or a citation rides as a **receipt** (hash + provenance) whose bytes live in your own
+  references pile — anecdote cites and proves, it does not host. Implemented in
+  [`composer/anecdote.mjs`](composer/anecdote.mjs).
 - [`docs/label-reducer.md`](docs/label-reducer.md) — what the instrument **is**: the organ of
   **perception** (base face fact, fewest-verbs, descriptive-never-prescriptive), the amoral
   counterpart to the moralizing Judge, running *ahead* of the user's own constitution.
