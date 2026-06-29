@@ -1,55 +1,81 @@
 <!doctype html>
-<!-- Landing for the anecdote.channel preflight on GitHub Pages. Nothing here transmits a
-     submission — this is the on-device instrument getting ready in the open. -->
+<!-- Public holding page for anecdote.channel. The preflight demos (crunch / bench / composer) are
+     no longer linked here — they were pulled down from the public surface and repurposed as build
+     DIAGNOSTICS: still served as files, still reachable by direct path, but visited on purpose
+     (by you, by CI, by the headless verifier) rather than offered to a visitor.
+
+     Append ?diag to this URL to run them: each demo loads in a hidden, offscreen iframe (the
+     iframe[id] rule below parks them at -100vw) and the <code> readout becomes a pass/fail rollup
+     of whether the instrument cold-loads in each surface. Otherwise the public sees only the
+     big centered heading. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>anecdote.channel — preflight</title>
+<title>anecdote.channel</title>
 <style>
-  :root { --ink:#1d1d22; --muted:#6b6b78; --edge:#d9d9e0; --accent:#3b4cca; --shade:#f6f6f9; }
-  body { margin:0; padding:3rem 1.25rem; background:var(--shade); color:var(--ink);
-    font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
-  main { width:100%; max-width:640px; }
-  h1 { font-size:1.5rem; margin:0 0 .25rem; }
-  p.sub { color:var(--muted); margin:0 0 1.5rem; }
-  a.card { display:block; text-decoration:none; color:inherit; background:#fff; border:1px solid var(--edge);
-    border-radius:12px; padding:1rem 1.15rem; margin-bottom:.8rem; }
-  a.card:hover { border-color:var(--accent); }
-  a.card .t { font-weight:600; }
-  a.card .d { color:var(--muted); font-size:.9rem; }
-  .note { color:var(--muted); font-size:.85rem; border-top:1px solid var(--edge); margin-top:1.2rem; padding-top:.9rem; }
-  code { background:#eef0f4; border-radius:5px; padding:.05rem .35rem; }
+  :root {
+    --io: #ccad31;
+    --accent: #990049;
+    --accent-fg: #e9d8f7;
+    --accent-sh: #000000a0;
+    --bg1: #293033;
+    --bg2: #274f4b;
+    --fg1: #dfdfdf;
+    --fg2: #e9daf5;
+    --fg-inverse: #040404;
+    --sh: #18151a;
+    --stroke: #282524;
+    --shade-hard: #232224f2;
+    --shade: #23222440;
+    --border: #00000080;
+  }
+  html { width: 100vw; min-height: 100vh; place-content: center; }
+  html::before {
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(ellipse 100% 100% at 50% bottom, var(--bg2) 0%, var(--bg1) 80%, var(--bg1) 100%), var(--bg1);
+    will-change: transform; transform: translateZ(0); contain: paint; image-rendering:auto; backface-visibility:hidden;
+  }
+  body { display: flex; flex-direction: column; width: max-content; padding: 1rem; margin: auto; color: var(--fg2); }
+  code { white-space: pre; font-weight: bolder; font-size: 1.5em; font-family: "Courier New", Courier, monospace; color: var(--fg2); mix-blend-mode: overlay; text-shadow: 0 .15rem 0 var(--sh); }
+  body::before { content: ""; position: fixed; inset: 3rem; background-color: var(--shade); box-shadow: 0 0 .5rem var(--border); z-index: -1; pointer-events: none; }
+  iframe[id] { position: absolute; width: 1px; height: 1px; left: -100vw; top: -100vh; pointer-events: none; opacity: 0; user-select: none; overflow: hidden; border: none; margin: 0; padding: 0; }
 </style>
 </head>
 <body>
-<main>
-  <h1>anecdote.channel — preflight</h1>
-  <p class="sub">The on-device instrument, getting ready in the open. Nothing here sends a submission anywhere yet — it's the label-reducer learning to see before anything would ever fly into the network.</p>
+<code id="heading">Please Stand By.</code>
 
-  <a class="card" href="composer/crunch.html">
-    <div class="t">Crunch → meaning behind your cursor</div>
-    <div class="d">Type and watch nearest concepts surface live, off the main thread. Runs the toy embedder by default; the real on-device MiniLM is vendored and loads with no CDN.</div>
-  </a>
-  <a class="card" href="composer/bench.html">
-    <div class="t">Device benchmark → how long the work takes</div>
-    <div class="d">Measure model load + per-embed latency on this device (real MiniLM, main thread). Preflight before any ingress; copy the summary to compare across devices.</div>
-  </a>
-  <a class="card" href="composer/index.html">
-    <div class="t">Composer → where can this go</div>
-    <div class="d">Reduce a statement to its kernel of intent and route it — never blocked, only offered (or dimmed, with the reason).</div>
-  </a>
-  <a class="card" href="docs/label-reducer.md">
-    <div class="t">What this is</div>
-    <div class="d">The Label-Reducer: perception, not judgment — the amoral counterpart to the Judge.</div>
-  </a>
-  <a class="card" href="docs/DELIVERY.md">
-    <div class="t">How it reaches a device</div>
-    <div class="d">Content-addressed, source-agnostic: DNS now, optical fountain offline, mesh later — one hash-pinned instrument.</div>
-  </a>
-
-  <p class="note">Governed by its <a href="CONSTITUTION.md">CONSTITUTION</a>. Served as static files,
-    cold-loaded, no backend. The real off-thread MiniLM flip is a known follow-up (see DELIVERY).</p>
-</main>
+<script type="module">
+  // Public default: nothing runs, nothing loads. The heading stands by.
+  // ?diag runs the pulled-down demos as build diagnostics in hidden offscreen iframes
+  // (the iframe[id] rule parks them offscreen) and rolls their cold-load up into the readout.
+  if (new URLSearchParams(location.search).has("diag")) {
+    const DIAGS = [
+      { id: "diag-crunch",   src: "composer/crunch.html?real=1", name: "crunch" },
+      { id: "diag-bench",    src: "composer/bench.html",         name: "bench" },
+      { id: "diag-composer", src: "composer/index.html",         name: "composer" },
+    ];
+    const heading = document.getElementById("heading");
+    const state = Object.fromEntries(DIAGS.map((d) => [d.name, "…"]));
+    const render = () => {
+      heading.textContent =
+        "build diagnostics\n" +
+        DIAGS.map((d) => `  ${state[d.name].padEnd(4)} ${d.name}`).join("\n");
+    };
+    render();
+    for (const d of DIAGS) {
+      const f = document.createElement("iframe");
+      f.id = d.id;                     // the id is what the CSS hides offscreen
+      f.title = d.name;
+      const done = (mark) => { if (state[d.name] === "…") { state[d.name] = mark; render(); } };
+      f.addEventListener("load", () => done("ok"));
+      f.addEventListener("error", () => done("err"));
+      setTimeout(() => done("slow"), 30000);   // didn't finish cold-loading in time
+      f.src = d.src;
+      document.body.appendChild(f);
+    }
+  }
+</script>
 </body>
 </html>
