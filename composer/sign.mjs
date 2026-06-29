@@ -87,7 +87,40 @@ function payload(anecdote, { agent, nonce } = {}) {
   return p;
 }
 
-// ---- sign / verify -------------------------------------------------------------------------------
+// ---- attest / verify (generic: sign ANY object) --------------------------------------------------
+// The primitive under both anecdote signing and consent revocation: canonicalize an object (minus
+// any prior `sig`), sign the bytes with the identity, attach `sig`. Returns a new object.
+export async function attest(obj, identity, opts = {}) {
+  const subtle = subtleOf(opts);
+  const rest = { ...obj }; delete rest.sig;
+  const bytes = new TextEncoder().encode(canonicalize(rest));
+  const signature = new Uint8Array(await subtle.sign(ALG, identity.privateKey, bytes));
+  return { ...rest, sig: { alg: SIG_ALG, by: identity.fingerprint, key: exportPublic(identity), signature: b64(signature) } };
+}
+
+// Verify any attested object: recompute canonical bytes (sig stripped), verify against the EMBEDDED
+// key, and confirm that key's fingerprint matches `sig.by` — so swapping the key fails the
+// fingerprint check and swapping the content fails the signature. Returns { ok, by, alg, errors }.
+export async function verifyAttestation(obj, opts = {}) {
+  const errors = [];
+  if (!obj || !obj.sig) return { ok: false, by: null, alg: null, errors: ["no sig"] };
+  const { sig } = obj;
+  if (sig.alg !== SIG_ALG) return { ok: false, by: sig.by || null, alg: sig.alg, errors: [`unsupported alg ${sig.alg}`] };
+  const subtle = subtleOf(opts);
+  const rest = { ...obj }; delete rest.sig;
+  const bytes = new TextEncoder().encode(canonicalize(rest));
+  let ok = false;
+  try {
+    const key = await importPublic(sig.key, opts);
+    ok = await subtle.verify(ALG, key, unb64(sig.signature), bytes);
+  } catch (e) { errors.push("verify threw: " + e.message); }
+  if (!ok) errors.push("signature does not verify");
+  const expect = await fingerprint(unb64(sig.key));
+  if (expect !== sig.by) errors.push(`key fingerprint ${expect} ≠ sig.by ${sig.by}`);
+  return { ok: ok && errors.length === 0, by: sig.by || null, alg: sig.alg, errors };
+}
+
+// ---- sign / verify an anecdote -------------------------------------------------------------------
 
 // Sign a (valid) anecdote/v1 with a constituent identity. opts:
 //   agent  { instrument, constitution }  — the Mobile LLM co-signature (bind the pinned instrument)
@@ -96,41 +129,16 @@ function payload(anecdote, { agent, nonce } = {}) {
 export async function sign(anecdote, identity, opts = {}) {
   const shape = validate(anecdote);
   if (!shape.ok) throw new Error("sign: invalid anecdote — " + shape.errors.join("; "));
-  const subtle = subtleOf(opts);
-  const signed = payload(anecdote, opts);
-  const bytes = new TextEncoder().encode(canonicalize(signed));
-  const signature = new Uint8Array(await subtle.sign(ALG, identity.privateKey, bytes));
-  signed.sig = { alg: SIG_ALG, by: identity.fingerprint, key: exportPublic(identity), signature: b64(signature) };
-  return signed;
+  return attest(payload(anecdote, opts), identity, opts);
 }
 
-// Verify a signed anecdote. Recomputes the canonical bytes (sig stripped), verifies the signature
-// with the EMBEDDED public key, and confirms that key's fingerprint matches `sig.by` — so swapping
-// the key fails the fingerprint check and swapping the content fails the signature. Returns
-// { ok, by, alg, errors }. It reports WHO signed (`by`); whether that identity is expected/unrevoked
-// is the consumer's call against the nonce.
+// Verify a signed anecdote: the generic attestation check PLUS the anecdote shape check. Reports WHO
+// signed (`by`); whether that identity is expected/unrevoked is the consumer's call against the nonce.
 export async function verifySignature(signed, opts = {}) {
-  const errors = [];
-  if (!signed || !signed.sig) return { ok: false, by: null, alg: null, errors: ["no sig"] };
-  const { sig } = signed;
-  if (sig.alg !== SIG_ALG) return { ok: false, by: sig.by || null, alg: sig.alg, errors: [`unsupported alg ${sig.alg}`] };
+  const base = await verifyAttestation(signed, opts);
   const shape = validate(signed);
-  if (!shape.ok) errors.push(...shape.errors);
-
-  const subtle = subtleOf(opts);
-  const rest = { ...signed }; delete rest.sig;
-  const bytes = new TextEncoder().encode(canonicalize(rest));
-  let ok = false;
-  try {
-    const key = await importPublic(sig.key, opts);
-    ok = await subtle.verify(ALG, key, unb64(sig.signature), bytes);
-  } catch (e) { errors.push("verify threw: " + e.message); }
-  if (!ok) errors.push("signature does not verify");
-
-  const expect = await fingerprint(unb64(sig.key));
-  if (expect !== sig.by) errors.push(`key fingerprint ${expect} ≠ sig.by ${sig.by}`);
-
-  return { ok: ok && errors.length === 0, by: sig.by || null, alg: sig.alg, errors };
+  const errors = [...base.errors, ...(shape.ok ? [] : shape.errors)];
+  return { ok: base.ok && shape.ok, by: base.by, alg: base.alg, errors };
 }
 
 // ---- env-portable base64 (no deps) --------------------------------------------------------------

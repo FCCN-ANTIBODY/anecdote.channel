@@ -61,6 +61,16 @@ Individual Constituents will not be discoverable in aggregation reports or other
 
 Constituents retain the choice to rewrite their own CONSTITUTION and to show Anecdote to join or be removed from aggregations after the fact.
 
+## Revocation of consent
+
+Every contribution you make to Anecdote is bound to a revocable nonce — an anonymous handle that names your data without naming you, and that only you can revoke because only you can sign for it.
+
+You keep the trove. The complete record of everything you have transmitted lives on your own device, in this domain's storage — each contribution held whole, as the exact bytes you sent, for as long as you want it. Anecdote keeps no master profile of who you are to set beside it.
+
+You may withdraw consent for any contribution at any time, no matter how old, by issuing the signed revocation only your key can produce. On revocation Anecdote ceases to offer that contribution into any aggregation or derivative from that point forward. Anecdote will not pretend it can unsell a copy already delivered — but it can prove what you consented to, when, and that you revoked it. That proof is exactly what a data broker's fictitious consent can never show.
+
+When old information finds new buyers, they pay the Constituents whose information it is — not a broker who never asked. Consent here is given willingly, proven cryptographically, and revocable at will. That is the whole difference, and Anecdote exists to make it.
+
 ## Limitations
 
 You are allowed to publish aggregations from Anecdote only when all the following are true:
