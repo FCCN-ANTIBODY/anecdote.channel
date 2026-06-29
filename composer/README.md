@@ -111,3 +111,9 @@ any failure. (Device load + per-embed timings: [`bench.html`](bench.html).)
 Real on-device embeddings in the browser where the wasm loader isn't served (toy fallback covers
 it; see above), live Atlas/Tell discovery and registration, the QR/token ingress into a Tell, and
 the actual signed send. These prototypes are the **experience spine** those attach to.
+
+The **payload** that a confirmed send hands off now has a shape: [`anecdote.mjs`](anecdote.mjs)
+(`build` / `validate` / `verify`) turns `route.prepare`'s `{to,label,text}` into an `anecdote/v1` —
+text inline, attachments as receipts (hash + provenance) whose bytes live in your references pile.
+See [`docs/anecdote-schema.md`](../docs/anecdote-schema.md). Signing the receipt + envelope is the
+remaining seam.
