@@ -163,6 +163,71 @@ export async function fetchWeights(root = modelRoot()) {
   console.log(`ok — verified ${FILES.length} files for ${canonicalVersion()}`);
 }
 
+// ---- generative namer (v1) — additive; never reads or writes the embedder fields above ------
+// The namer model (default Xenova/flan-t5-small, a seq2seq with separate encoder + decoder ONNX)
+// is DEFERRED: it isn't committed yet. These helpers pin/verify it into an optional `namer` block
+// in the same lock when it lands, and otherwise report "unpinned" cleanly so everything skips.
+export const NAMER_MODEL = "Xenova/flan-t5-small";
+export const NAMER_FILES = [               // provisional T5 file set; confirmed when vendored
+  { path: "config.json" },
+  { path: "generation_config.json" },
+  { path: "tokenizer.json" },
+  { path: "tokenizer_config.json" },
+  { path: "special_tokens_map.json" },
+  { path: "spiece.model" },
+  { path: "onnx/encoder_model_quantized.onnx" },
+  { path: "onnx/decoder_model_merged_quantized.onnx" },
+];
+
+export function namerRoot() { return modelRoot(); }                       // same models/ root
+export function namerDir(root = namerRoot()) { return join(root, ...NAMER_MODEL.split("/")); }
+
+export function namerIsPinned() {
+  const n = loadLock()?.namer;
+  return Boolean(n && Array.isArray(n.files) && n.files.length === NAMER_FILES.length &&
+    NAMER_FILES.every((f) => { const e = n.files.find((x) => x.path === f.path); return e && /^[0-9a-f]{64}$/.test(e.sha256 || ""); }));
+}
+
+export function namerVersion() {
+  const n = loadLock()?.namer;
+  return n && n.version ? n.version : `${NAMER_MODEL}@q8-UNPINNED`;
+}
+
+export async function namerVerify(root = namerRoot()) {
+  const n = loadLock()?.namer;
+  if (!namerIsPinned()) return { ok: false, reason: "namer not pinned (model deferred) — run `record-namer` once vendored", missing: [], mismatch: [] };
+  const dir = namerDir(root), missing = [], mismatch = [];
+  for (const f of NAMER_FILES) {
+    const e = n.files.find((x) => x.path === f.path);
+    const p = join(dir, ...f.path.split("/"));
+    if (!existsSync(p)) { missing.push(f.path); continue; }
+    if ((await sha256(p)) !== e.sha256) mismatch.push(f.path);
+  }
+  return { ok: missing.length === 0 && mismatch.length === 0, missing, mismatch };
+}
+export async function namerPresent(root = namerRoot()) { return (await namerVerify(root)).ok; }
+
+// Pin the in-repo namer into the `namer` block (idempotent). No-ops with a message when the model
+// isn't committed, so CI never fails on the deferred model.
+export async function recordNamer(dir = namerDir()) {
+  const have = NAMER_FILES.every((f) => existsSync(join(dir, ...f.path.split("/"))));
+  if (!have) { console.log(`namer model not present under ${dir} — skipping record-namer (deferred).`); return; }
+  const files = [];
+  for (const f of NAMER_FILES) {
+    const p = join(dir, ...f.path.split("/"));
+    files.push({ path: f.path, sha256: await sha256(p), bytes: (await stat(p)).size });
+  }
+  const h = createHash("sha256");
+  for (const f of [...files].sort((a, b) => (a.path < b.path ? -1 : 1))) h.update(f.path + ":" + f.sha256 + "\n");
+  const version = `${NAMER_MODEL}@q8-${h.digest("hex").slice(0, 12)}`;
+  const cur = loadLock()?.namer;
+  const unchanged = cur && cur.version === version && JSON.stringify(cur.files) === JSON.stringify(files);
+  const generatedAt = unchanged ? cur.generatedAt : new Date().toISOString();
+  await writeLock({ namer: { id: NAMER_MODEL, version, files, generatedAt } });
+  console.log(`wrote namer pin\n  version: ${version}`);
+  files.forEach((f) => console.log(`  ${f.sha256.slice(0, 12)}…  ${(f.bytes / 1e6).toFixed(2)} MB  ${f.path}`));
+}
+
 // CLI
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, arg] = process.argv.slice(2);
@@ -176,8 +241,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     },
     record: async () => { await record(arg || undefined); },
     fetch: async () => { await fetchWeights(); },
+    "version-namer": () => console.log(namerVersion()),
+    "record-namer": async () => { await recordNamer(arg || undefined); },
+    "verify-namer": async () => {
+      if (!namerIsPinned()) { console.log(`namer UNPINNED (deferred) — ${namerVersion()}`); process.exit(0); }
+      const v = await namerVerify();
+      console.log(v.ok ? `ok — ${namerVersion()} present and verified`
+        : `not ok:${v.missing.length ? " missing: " + v.missing.join(", ") : ""}${v.mismatch.length ? " mismatch: " + v.mismatch.join(", ") : ""}`);
+      process.exit(v.ok ? 0 : 1);
+    },
   };
   const fn = run[cmd];
-  if (!fn) { console.error("usage: node reducer/weights.mjs <version|verify|record [dir]|fetch>"); process.exit(2); }
+  if (!fn) { console.error("usage: node reducer/weights.mjs <version|verify|record [dir]|fetch|version-namer|record-namer [dir]|verify-namer>"); process.exit(2); }
   Promise.resolve(fn()).catch((e) => { console.error(String(e.message || e)); process.exit(1); });
 }

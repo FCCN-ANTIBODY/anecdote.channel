@@ -8,7 +8,9 @@
   "scripts": {
     "test": "node test.mjs",
     "test:minilm": "node minilm.test.mjs",
+    "test:namer": "node namer.test.mjs",
     "record": "node weights.mjs record",
+    "record:namer": "node weights.mjs record-namer",
     "calibrate": "node calibrate.mjs",
     "weights:verify": "node weights.mjs verify",
     "weights:fetch": "node weights.mjs fetch"

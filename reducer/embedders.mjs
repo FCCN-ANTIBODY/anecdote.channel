@@ -93,3 +93,51 @@ export async function makeMiniLmEmbed(model = "Xenova/all-MiniLM-L6-v2",
   embed.reducerVersion = w.canonicalVersion();
   return embed;
 }
+
+// Generative fewest-verbs namer (v1) — the `name` seam's upgrade from the heuristic fewestVerbs.
+// A small on-device text2text model (default Xenova/flan-t5-small) rewrites an utterance into its
+// atomic, fewest-verbs concept, so labels are anchored to cleaner names and synonymy the embedder
+// can't see on raw text has a better chance of colliding. Same distribution as the embedder:
+// in-repo, hash-pinned (its own `namer` block in model.lock.json), cold-loaded.
+//
+// Deterministic by construction: greedy decode (do_sample:false, num_beams:1), no RNG — required
+// by the reducer's reproducibility and the cold-load trust model. Falls back to the heuristic
+// `fewestVerbs` whenever the model is degenerate/empty, so naming never breaks reduction.
+//
+//   const name = await makeNamer();
+//   new Reducer({ embed, name, reducerVersion: embed.reducerVersion })
+//
+// Node-only machinery, lazy-imported, so embedders.mjs stays browser-safe for the composer.
+export async function makeNamer(model = "Xenova/flan-t5-small",
+  { local = true, modelRoot, allowRemote = !local, verifyHash = local, dtype = "q8",
+    maxNewTokens = 16, prompt = (t) => `rewrite as a short topic phrase with few verbs: ${t}` } = {}) {
+  const { pipeline, env } = await import("@huggingface/transformers");
+  const w = await import("./weights.mjs");
+
+  if (local) {
+    env.allowRemoteModels = false;
+    env.allowLocalModels = true;
+    env.localModelPath = modelRoot || w.namerRoot();
+    if (verifyHash) {
+      const v = await w.namerVerify(env.localModelPath);
+      if (!v.ok) throw new Error(
+        `namer weights not verifiable at ${env.localModelPath}: ` +
+        `${v.reason || ""}${v.missing?.length ? " missing " + v.missing.join(",") : ""}` +
+        `${v.mismatch?.length ? " mismatch " + v.mismatch.join(",") : ""}.`
+      );
+    }
+  } else if (allowRemote) {
+    env.allowRemoteModels = true;
+  }
+
+  const gen = await pipeline("text2text-generation", model, { dtype });
+  const name = async (text) => {
+    const out = await gen(prompt(text), { max_new_tokens: maxNewTokens, do_sample: false, num_beams: 1 });
+    const raw = (Array.isArray(out) ? out[0]?.generated_text : out?.generated_text) || "";
+    // Normalize to a fewest-verbs phrase; fall back to the heuristic if degenerate.
+    const cleaned = content(raw).join(" ");
+    return cleaned || fewestVerbs(text);
+  };
+  name.namerVersion = w.namerVersion();
+  return name;
+}

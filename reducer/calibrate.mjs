@@ -13,8 +13,8 @@
 // run in any checkout; it only does real work once `node reducer/weights.mjs fetch` has run.
 
 import { cos } from "./reducer.mjs";
-import { fewestVerbs, makeMiniLmEmbed } from "./embedders.mjs";
-import { present, canonicalVersion, setThresholds } from "./weights.mjs";
+import { fewestVerbs, makeMiniLmEmbed, makeNamer } from "./embedders.mjs";
+import { present, canonicalVersion, setThresholds, namerPresent, namerVersion } from "./weights.mjs";
 
 try { await import("@huggingface/transformers"); }
 catch { console.log("calibrate: @huggingface/transformers not installed — `npm i` in reducer/; skipping."); process.exit(0); }
@@ -43,7 +43,11 @@ const DIFFERENT = [
 ];
 
 const embed = await makeMiniLmEmbed();
-const score = async ([a, b]) => cos(await embed(fewestVerbs(a)), await embed(fewestVerbs(b)));
+// Calibrate over whatever names the reducer will actually mint: the generative namer if it's
+// vendored, else the heuristic. Thresholds then reflect the real naming in use.
+const name = (await namerPresent()) ? await makeNamer() : fewestVerbs;
+if (name !== fewestVerbs) console.log(`(naming via generative namer ${namerVersion()})`);
+const score = async ([a, b]) => cos(await embed(await name(a)), await embed(await name(b)));
 const same = await Promise.all(SAME.map(score));
 const diff = await Promise.all(DIFFERENT.map(score));
 

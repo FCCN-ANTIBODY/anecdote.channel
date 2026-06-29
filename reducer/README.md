@@ -123,11 +123,35 @@ back to `main` (`[skip ci]`, idempotent, so steady-state runs are no-ops). Until
 SHAs/thresholds, `weights.mjs`/`calibrate.mjs`/`minilm.test.mjs` **skip cleanly** and the
 dependency-free `test.mjs`/`demo.mjs` keep passing.
 
+## Generative naming (v1) — plumbed, model deferred
+
+The `name` seam is anchored to the heuristic `fewestVerbs` by default. v1 upgrades it to a small
+**generative** namer (`makeNamer()`, default `Xenova/flan-t5-small`) that rewrites an utterance to
+its atomic fewest-verbs concept — the lever for synonymy the embedder can't resolve on raw text
+(e.g. "Dewey decimal" ≈ "library catalog"). It's distributed exactly like the embedder (in-repo,
+hash-pinned in the lock's optional `namer` block, cold-loaded) and decodes **greedily** for
+determinism; it **falls back to `fewestVerbs`** on any degenerate output, so naming never breaks
+reduction.
+
+The ~135 MB seq2seq model (separate encoder + decoder ONNX) is **deferred** — not committed yet —
+so `makeNamer`, `namer.test.mjs`, and `weights.mjs record-namer/verify-namer` all **skip/refuse
+cleanly**, and `fewestVerbs` stays the default. To activate it later, vendor the model under
+`models/Xenova/flan-t5-small/` and let CI (or in-session) run the same loop as the embedder:
+
+```sh
+node reducer/weights.mjs record-namer   # pins the namer into model.lock.json's `namer` block
+node reducer/calibrate.mjs              # re-derives thresholds over generative names
+node reducer/namer.test.mjs             # asserts naming is deterministic and helps collision
+```
+
+`makeNamer()` carries `.namerVersion` (hash-keyed like `.reducerVersion`). The reducer's `name`
+seam is async-capable, so `new Reducer({ embed, name: await makeNamer(), ... })` just works.
+
 ## Not yet (the layers above this core)
 
-- **fewest-verbs naming** is a heuristic (`fewestVerbs`); v1 is the small *generative* model
-  rewriting to atomic form — but the embedding carries the meaning regardless, so the core
-  stands without it.
+- **nudge-not-write-in approval**, **cold-load / untampered verification** of the cached model,
+  and a trust-weighted (distinct trusted signers) gatherer count are open mechanism — this core
+  is the spine they attach to.
 - **nudge-not-write-in approval**, **cold-load / untampered verification** of the cached model,
   and a trust-weighted (distinct trusted signers) gatherer count are open mechanism — this core
   is the spine they attach to.

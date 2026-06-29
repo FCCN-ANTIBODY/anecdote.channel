@@ -45,14 +45,20 @@ jobs:
 
       - name: Record pin from in-repo models/
         run: node reducer/weights.mjs record
+      - name: Record namer pin (no-op while the model is deferred)
+        run: node reducer/weights.mjs record-namer
       - name: Calibrate thresholds into the lock
         run: node reducer/calibrate.mjs | tee /tmp/calib.txt
       - name: Verify weights against the lock
         run: node reducer/weights.mjs verify
+      - name: Verify namer (clean skip while unpinned)
+        run: node reducer/weights.mjs verify-namer
       - name: Core tests (dependency-free)
         run: node reducer/test.mjs
       - name: Real-instrument integration test
         run: node reducer/minilm.test.mjs | tee /tmp/minilm.txt
+      - name: Namer integration test (skips while deferred)
+        run: node reducer/namer.test.mjs | tee /tmp/namer.txt
 
       - name: Job summary
         if: always()
@@ -62,8 +68,11 @@ jobs:
             echo ""
             echo "version: \`$(node reducer/weights.mjs version)\`"
             echo ""
+            echo "namer: \`$(node reducer/weights.mjs version-namer)\`"
+            echo ""
             echo "### calibrate"; echo '```'; cat /tmp/calib.txt 2>/dev/null || true; echo '```'
             echo "### minilm.test"; echo '```'; cat /tmp/minilm.txt 2>/dev/null || true; echo '```'
+            echo "### namer.test"; echo '```'; cat /tmp/namer.txt 2>/dev/null || true; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Commit the refreshed lock back — push to main only (PRs, incl. forks, are read-only and

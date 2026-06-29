@@ -47,7 +47,7 @@ export class Reducer {
   }
 
   async _mint(text) {
-    const name = this.name(text);
+    const name = await this.name(text);     // name may be sync (heuristic v0) or async (generative v1)
     const l = { id: ++this._n, name, vec: await this.embed(name), members: [], aliases: [] };
     this.labels.push(l);
     return l;
