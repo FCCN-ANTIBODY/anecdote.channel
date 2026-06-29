@@ -47,15 +47,47 @@ export function toyEmbed(text) {
   return v;
 }
 
-// Real on-device embedder. Requires `npm i @xenova/transformers`; downloads the model once,
-// then serves it from the origin-scoped Cache API on every subsequent load.
+// Real on-device embedder. Requires `npm i @xenova/transformers` (optional dep in reducer/).
+// Source-agnostic, local-first: by default it loads the VENDORED, hash-pinned weights (see
+// weights.mjs) with no network — the "one uniform, verifiable instrument" the CONSTITUTION
+// asks for. Pass { local:false, allowRemote:true } in an environment where huggingface.co is
+// reachable to fall back to transformers.js's own download (which the browser caches in the
+// origin-scoped Cache API; in Node it relies on NODE_EXTRA_CA_CERTS behind a proxy).
+//
 //   const embed = await makeMiniLmEmbed();
-//   new Reducer({ embed, name: fewestVerbs, reducerVersion: "Xenova/all-MiniLM-L6-v2" })
-export async function makeMiniLmEmbed(model = "Xenova/all-MiniLM-L6-v2") {
-  const { pipeline } = await import("@xenova/transformers");
+//   new Reducer({ embed, name: fewestVerbs, reducerVersion: embed.reducerVersion })
+//
+// The returned function carries `.reducerVersion` — the canonical id keyed by the weights'
+// hash — so callers anchor labels to exactly these bytes, never a look-alike quantization.
+// Node-only (the weights/path/integrity machinery uses node: builtins); this is loaded lazily
+// so the rest of embedders.mjs stays browser-safe for the composer.
+export async function makeMiniLmEmbed(model = "Xenova/all-MiniLM-L6-v2",
+  { local = true, modelRoot, allowRemote = !local, verifyHash = local } = {}) {
+  const { pipeline, env } = await import("@xenova/transformers");
+  const w = await import("./weights.mjs");
+
+  if (local) {
+    env.allowRemoteModels = false;          // cold-load only — refuse any network reach
+    env.allowLocalModels = true;
+    env.localModelPath = modelRoot || w.modelRoot();
+    if (verifyHash) {
+      const v = await w.verify(env.localModelPath);
+      if (!v.ok) throw new Error(
+        `MiniLM weights not verifiable at ${env.localModelPath}: ` +
+        `${v.reason || ""}${v.missing?.length ? " missing " + v.missing.join(",") : ""}` +
+        `${v.mismatch?.length ? " mismatch " + v.mismatch.join(",") : ""}. ` +
+        `Run \`node reducer/weights.mjs fetch\`.`
+      );
+    }
+  } else if (allowRemote) {
+    env.allowRemoteModels = true;           // for environments where HF is permitted
+  }
+
   const extract = await pipeline("feature-extraction", model);
-  return async (text) => {
+  const embed = async (text) => {
     const out = await extract(text, { pooling: "mean", normalize: true });
-    return Float64Array.from(out.data);   // already unit length
+    return Float64Array.from(out.data);     // already unit length (384-dim)
   };
+  embed.reducerVersion = w.canonicalVersion();
+  return embed;
 }

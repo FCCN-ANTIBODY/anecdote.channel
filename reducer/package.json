@@ -1,0 +1,17 @@
+{
+  "name": "anecdote-reducer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Anecdote Mobile LLM reducer. The core (reducer.mjs / embedders.mjs / store.mjs) is dependency-free; the real instrument is an optional, hash-pinned all-MiniLM-L6-v2 loaded locally.",
+  "scripts": {
+    "test": "node test.mjs",
+    "test:minilm": "node minilm.test.mjs",
+    "weights:fetch": "node weights.mjs fetch",
+    "weights:verify": "node weights.mjs verify",
+    "calibrate": "node calibrate.mjs"
+  },
+  "optionalDependencies": {
+    "@xenova/transformers": "2.17.2"
+  }
+}

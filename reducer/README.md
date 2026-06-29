@@ -43,9 +43,13 @@ problems.
 The CONSTITUTION forbids a persistent backend, so the reducer's state is cached **locally, in
 domain-scoped storage on the constituent's device** — never a server.
 
-- **The model** caches itself: with the real embedder, transformers.js stores the ~23 MB ONNX
-  weights in the browser **Cache API under the page's origin**. After the first visit the
-  instrument cold-loads with no network — a private, in-memory appliance.
+- **The model** is local. *In the browser* transformers.js stores the ~23 MB ONNX weights in
+  the **Cache API under the page's origin**, so it cold-loads with no network after first visit.
+  *In Node* — and in any environment whose policy blocks HuggingFace — the weights are
+  **vendored and hash-pinned**, served from anecdote.channel's own GitHub Release and verified
+  on load (see [Dropping in the real instrument](#dropping-in-the-real-instrument) and
+  `weights.mjs`). Either way it is a private, cold-loaded appliance, never a runtime call to a
+  third party.
 - **The dictionary** persists as *durable names only*. A snapshot (`toJSON()`) carries the
   label names, members, and aliases — **never the float vectors**. On load, every vector is
   **re-derived** from its name with the same-version embedder (`Reducer.from` /
@@ -68,22 +72,49 @@ dependency-free default the tests use, `idbStore()` is the browser's domain-scop
 
 ## Dropping in the real instrument
 
-The embedder is pluggable and may be async, so the on-device model swaps in with no change to
-the core:
+The embedder is pluggable and async, so `all-MiniLM-L6-v2` (a 384-dim bi-encoder
+feature-extraction model — mean-pooled, normalized) swaps in with no change to the core. It is
+distributed the way the CONSTITUTION § Mobile LLM and civic-node OPEN-QUESTIONS §O ask for:
+**one uniform, verifiable instrument** — vendored, **hash-pinned**, **cold-loaded**, never
+fetched from a third party at runtime.
 
 ```sh
-npm i @xenova/transformers
+cd reducer && npm i                 # @xenova/transformers (optional dep, pinned 2.17.2)
+node reducer/weights.mjs fetch      # pull + hash-verify the pinned weights into vendor/models/
+node reducer/calibrate.mjs          # print recommended assignT/mergeT for MiniLM
+node reducer/minilm.test.mjs        # synonymy collides; distinct stays distinct
 ```
 ```js
 import { makeMiniLmEmbed, fewestVerbs } from "./embedders.mjs";
 
-const embed = await makeMiniLmEmbed();      // Xenova/all-MiniLM-L6-v2, on-device
-const r = new Reducer({ embed, name: fewestVerbs, reducerVersion: "Xenova/all-MiniLM-L6-v2" });
+const embed = await makeMiniLmEmbed();              // local-first; verifies vendored weights
+const r = new Reducer({ embed, name: fewestVerbs, reducerVersion: embed.reducerVersion,
+  assignT: /* from calibrate.mjs */, mergeT: /* from calibrate.mjs */ });
 ```
 
-`all-MiniLM-L6-v2` is ~23 MB ONNX, runs in Node and the browser, ships over NPM — the literal
-shape of "one pinned package everyone runs identically." With real embeddings, synonymous
-utterances ("library catalog codes" / "Dewey numbers") collide where the toy can't.
+`makeMiniLmEmbed()` loads the vendored weights only (`allowRemoteModels=false`) and carries
+`.reducerVersion` — the canonical id **keyed by the weights' SHA-256**, so a label anchored to
+these bytes can never be confused with a different quantization. Pass `{ local:false,
+allowRemote:true }` in an environment where huggingface.co is permitted to use transformers.js's
+own download instead (relies on `NODE_EXTRA_CA_CERTS` behind a proxy).
+
+With real embeddings, synonymous utterances ("library catalog codes" / "Dewey numbers") collide
+where the toy can't — the demo's honest miss becomes a merge.
+
+### Distribution & bootstrap
+
+The weights are **not** committed to this Jekyll repo (they live in the gitignored `vendor/`)
+and **not** in git-LFS — they are a **GitHub Release asset** on `FCCN-ANTIBODY/anecdote.channel`,
+fetched over `objects.githubusercontent.com` and checked against the SHA manifest in
+`weights.mjs`. To mint that manifest once (where HuggingFace is reachable):
+
+```sh
+node reducer/weights.mjs record <downloaded-model-dir>   # prints the pinned manifest + version
+node reducer/weights.mjs verify                          # re-hash on disk vs the manifest
+```
+
+Until the manifest is pinned, `weights.mjs`, `calibrate.mjs`, and `minilm.test.mjs` all
+**skip/refuse cleanly** — the dependency-free `test.mjs` and `demo.mjs` keep passing regardless.
 
 ## Not yet (the layers above this core)
 

@@ -20,7 +20,9 @@ node reducer/demo.mjs   # two gatherers collide; dictionary cold-loads from a do
 ```
 
 See [`reducer/README.md`](reducer/README.md) for the algorithm, the local cache, and how the
-real on-device model (transformers.js + all-MiniLM) drops in behind one seam.
+real on-device model drops in behind one seam: an optional, **hash-pinned all-MiniLM-L6-v2**,
+vendored and cold-loaded (`reducer/weights.mjs`) — one uniform, verifiable instrument, never a
+runtime call to a third party.
 
 ## The composer
 
