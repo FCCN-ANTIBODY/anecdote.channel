@@ -1,0 +1,39 @@
+# Publish the preflight to GitHub Pages — the on-device readiness (composer + live "crunch"),
+# served static, no build. Nothing transmits a submission yet; this is the instrument getting
+# ready in the open. Pages can't set COOP/COEP, which is fine: the vendored onnx runtime is the
+# asyncify (single-thread) build that needs no cross-origin isolation.
+#
+# One-time: Settings → Pages → Source = "GitHub Actions" (this workflow then deploys on push).
+name: "Publish · Pages (preflight)"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Serve files as-is (no Jekyll)
+        run: touch .nojekyll
+      - uses: actions/configure-pages@v5
+      - name: Upload site (repo as static files)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+      - id: deployment
+        uses: actions/deploy-pages@v4
