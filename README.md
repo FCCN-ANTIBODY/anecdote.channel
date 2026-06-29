@@ -40,6 +40,15 @@ node composer/route.test.mjs  # the routing core, dependency-free
 
 See [`composer/README.md`](composer/README.md) for the full experience model.
 
+## Design notes
+
+- [`docs/label-reducer.md`](docs/label-reducer.md) — what the instrument **is**: the organ of
+  **perception** (base face fact, fewest-verbs, descriptive-never-prescriptive), the amoral
+  counterpart to the moralizing Judge, running *ahead* of the user's own constitution.
+- [`docs/DELIVERY.md`](docs/DELIVERY.md) — how it **reaches a device**: content-addressed and
+  source-agnostic — DNS/edge now, optical QR fountain offline, mesh later — all verified against
+  one hash-pinned lock (answering civic-node `OPEN-QUESTIONS.md` §O).
+
 ## Other contents
 
 - [`widget/`](widget/) — the baked, dormant (no event loop, no live fetch) public widget a
