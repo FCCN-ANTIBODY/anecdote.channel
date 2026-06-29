@@ -71,9 +71,42 @@ node composer/route.test.mjs     # the routing core, dependency-free
   cache (registered destinations, self-muted topics) persists in this origin's `localStorage`,
   i.e. domain-scoped to anecdote.channel.
 
+## Crunch — the worker-bus proof
+
+[`crunch.html`](crunch.html) is a runnable proof that what you type can be **crunched behind your
+cursor, chasing your meaning**: keystrokes are embedded **off the main thread** in a Web Worker
+and ranked against a small concept dictionary, surfacing live nearest-concept snippets — like
+autocorrect for intent.
+
+```sh
+node scripts/serve.mjs            # static server for the repo root
+# open http://localhost:8000/composer/crunch.html
+node composer/crunch.test.mjs     # the ranking brain, dependency-free
+```
+
+Shape (same pure-core / thin-view split as the composer):
+- [`model-bus.mjs`](model-bus.mjs) — **fluent, dependency-free** promise-RPC over a Web Worker:
+  `await bus.ready; await bus.embed(text)`. Mirrors [`widget/public.html`](../widget/public.html)'s
+  constitution — the worker announces ready **once** and is otherwise dormant, answering only the
+  RPCs you address to it; no event loop beyond your keystrokes.
+- [`model-worker.mjs`](model-worker.mjs) — hosts the embedder off-thread. **Embedder-agnostic**:
+  the pure-JS toy embedder by default (instant, zero network); with `?real=1` it tries on-device
+  **MiniLM** (browser transformers.js + the in-repo model + a **locally-served** onnx wasm
+  runtime, no CDN) and **falls back to toy** on any failure. So a heavier "next tier" model swaps
+  in behind the same bus with no change to the page.
+- [`crunch.mjs`](crunch.mjs) — the pure ranking brain (`nearest`, `cosineSim`, `debounce`),
+  Node-tested in [`crunch.test.mjs`](crunch.test.mjs).
+- [`scripts/serve.mjs`](../scripts/serve.mjs) — tiny dependency-free static server (correct MIME
+  for `.mjs`/`.wasm`/`.onnx`) so `/composer/`, `/reducer/`, `/models/` resolve from one origin.
+
+**Environment note:** the toy backend runs anywhere with no network. The real-MiniLM backend
+needs onnxruntime-web's wasm **loader**, which ships only from a CDN — so in a CDN-blocked
+environment the badge stays `toy` (graceful fallback); on a normal host (or with the loader
+vendored) it flips to `minilm`. Verified headlessly: the bus comes up, snippets re-rank live as
+you type, no console errors.
+
 ## Not in this slice
 
-Real on-device embeddings (the toy embedder routes on shared tokens, so synonyms like
-"intimacy"/"sex" don't yet collide — that's [MiniLM](../reducer/)'s job), live Atlas/Tell
-discovery and registration, the QR/token ingress into a Tell, and the actual signed send. This
-prototype is the **experience spine** those attach to.
+Real on-device embeddings in the browser where the wasm loader isn't served (toy fallback covers
+it; see above), live Atlas/Tell discovery and registration, the QR/token ingress into a Tell, and
+the actual signed send. These prototypes are the **experience spine** those attach to.
