@@ -1,0 +1,87 @@
+# Configures the reducer's real instrument from the in-repo model. The user can't run the
+# record/calibrate commands locally, so CI does: pin the committed weights (model.lock.json),
+# calibrate the MiniLM thresholds, verify, run the tests, and commit the refreshed lock back.
+# HuggingFace is never contacted — the model rides in at models/.
+name: Reducer model — record, calibrate, verify
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "models/**"
+      - "reducer/**"
+      - ".github/workflows/reducer-model.yml"
+  pull_request:
+    paths:
+      - "models/**"
+      - "reducer/**"
+      - ".github/workflows/reducer-model.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: reducer-model-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # only the commit-back step needs this
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history for the rebase-retry push
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install optional real instrument
+        working-directory: reducer
+        # --ignore-scripts: skip sharp's libvips download (transformers.js v3+ lazy-loads sharp,
+        # which text feature-extraction never needs); onnxruntime-node ships prebuilt binaries.
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Record pin from in-repo models/
+        run: node reducer/weights.mjs record
+      - name: Calibrate thresholds into the lock
+        run: node reducer/calibrate.mjs | tee /tmp/calib.txt
+      - name: Verify weights against the lock
+        run: node reducer/weights.mjs verify
+      - name: Core tests (dependency-free)
+        run: node reducer/test.mjs
+      - name: Real-instrument integration test
+        run: node reducer/minilm.test.mjs | tee /tmp/minilm.txt
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Reducer model"
+            echo ""
+            echo "version: \`$(node reducer/weights.mjs version)\`"
+            echo ""
+            echo "### calibrate"; echo '```'; cat /tmp/calib.txt 2>/dev/null || true; echo '```'
+            echo "### minilm.test"; echo '```'; cat /tmp/minilm.txt 2>/dev/null || true; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Commit the refreshed lock back — push to main only (PRs, incl. forks, are read-only and
+      # just publish the summary). [skip ci] + the diff-guard keep steady-state runs from looping.
+      - name: Commit refreshed lock
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -e
+          if git diff --quiet -- reducer/model.lock.json; then
+            echo "lock unchanged — nothing to commit"; exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add reducer/model.lock.json
+          git commit -m 'reducer: refresh model.lock.json [skip ci]'
+          for i in 1 2 3 4 5; do
+            if git push; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main || git rebase --abort
+          done
+          echo "push failed after retries" >&2; exit 1

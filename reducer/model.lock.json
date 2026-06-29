@@ -1,0 +1,39 @@
+{
+  "model": "Xenova/all-MiniLM-L6-v2",
+  "reducerVersion": "Xenova/all-MiniLM-L6-v2@q8-40700e96e5bb",
+  "files": [
+    {
+      "path": "config.json",
+      "sha256": "7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7",
+      "bytes": 650
+    },
+    {
+      "path": "tokenizer.json",
+      "sha256": "4084ce5afffa730ba5697e3e81ec5707e14b13ad1bace0cc43bb0bdb411cfdcf",
+      "bytes": 711662
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3",
+      "bytes": 366
+    },
+    {
+      "path": "special_tokens_map.json",
+      "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+      "bytes": 125
+    },
+    {
+      "path": "vocab.txt",
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+      "bytes": 231508
+    },
+    {
+      "path": "onnx/model_quantized.onnx",
+      "sha256": "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1",
+      "bytes": 22972370
+    }
+  ],
+  "generatedAt": "2026-06-29T00:55:56.990Z",
+  "assignT": 0.431,
+  "mergeT": 0.451
+}

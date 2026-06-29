@@ -43,9 +43,13 @@ problems.
 The CONSTITUTION forbids a persistent backend, so the reducer's state is cached **locally, in
 domain-scoped storage on the constituent's device** — never a server.
 
-- **The model** caches itself: with the real embedder, transformers.js stores the ~23 MB ONNX
-  weights in the browser **Cache API under the page's origin**. After the first visit the
-  instrument cold-loads with no network — a private, in-memory appliance.
+- **The model** is local. The ~23 MB quantized ONNX is **committed in this repo** under
+  `models/Xenova/all-MiniLM-L6-v2/`, so it arrives with every clone and loads cold with no
+  network — and is **hash-pinned**: `makeMiniLmEmbed` verifies every byte against
+  `reducer/model.lock.json` before use (see [Dropping in the real instrument](#dropping-in-the-real-instrument)).
+  *In the browser* transformers.js can additionally cache weights in the **Cache API under the
+  page's origin**. Either way it is a private, cold-loaded appliance, never a runtime call to a
+  third party.
 - **The dictionary** persists as *durable names only*. A snapshot (`toJSON()`) carries the
   label names, members, and aliases — **never the float vectors**. On load, every vector is
   **re-derived** from its name with the same-version embedder (`Reducer.from` /
@@ -68,22 +72,56 @@ dependency-free default the tests use, `idbStore()` is the browser's domain-scop
 
 ## Dropping in the real instrument
 
-The embedder is pluggable and may be async, so the on-device model swaps in with no change to
-the core:
+The embedder is pluggable and async, so `all-MiniLM-L6-v2` (a 384-dim bi-encoder
+feature-extraction model — mean-pooled, normalized) runs with no change to the core. It is the
+**one uniform, verifiable instrument** the CONSTITUTION § Mobile LLM and civic-node
+OPEN-QUESTIONS §O ask for: the quantized weights are **committed in-repo** at
+`models/Xenova/all-MiniLM-L6-v2/`, **hash-pinned** in `reducer/model.lock.json`, and
+**cold-loaded** — never fetched from a third party at runtime.
 
 ```sh
-npm i @xenova/transformers
+cd reducer && npm i                 # optional dep: @huggingface/transformers (transformers.js v3+)
+node reducer/weights.mjs record     # writes model.lock.json: file SHAs + canonical version
+node reducer/calibrate.mjs          # writes calibrated assignT/mergeT into the lock
+node reducer/minilm.test.mjs        # synonymy collides; distinct stays distinct
 ```
 ```js
 import { makeMiniLmEmbed, fewestVerbs } from "./embedders.mjs";
+import { thresholds } from "./weights.mjs";
 
-const embed = await makeMiniLmEmbed();      // Xenova/all-MiniLM-L6-v2, on-device
-const r = new Reducer({ embed, name: fewestVerbs, reducerVersion: "Xenova/all-MiniLM-L6-v2" });
+const embed = await makeMiniLmEmbed();              // local-first; verifies the in-repo weights
+const { assignT, mergeT } = thresholds();          // calibrated, from model.lock.json
+const r = new Reducer({ embed, name: fewestVerbs, reducerVersion: embed.reducerVersion, assignT, mergeT });
 ```
 
-`all-MiniLM-L6-v2` is ~23 MB ONNX, runs in Node and the browser, ships over NPM — the literal
-shape of "one pinned package everyone runs identically." With real embeddings, synonymous
-utterances ("library catalog codes" / "Dewey numbers") collide where the toy can't.
+`makeMiniLmEmbed()` loads the in-repo weights only (`allowRemoteModels=false`, `dtype:"q8"` for
+the committed quantized ONNX) and carries `.reducerVersion` — the canonical id **keyed by the
+weights' SHA-256**, so a label anchored to these bytes can never be confused with a different
+quantization. Pass `{ local:false, allowRemote:true }` where huggingface.co is permitted to use
+the library's own download instead.
+
+> **Package note:** uses `@huggingface/transformers` (transformers.js v3+), which lazy-loads
+> `sharp`, so text feature-extraction runs without native image libraries. The older
+> `@xenova/transformers` v2 eager-loads `sharp` at import and won't start where libvips can't be
+> fetched.
+
+**What MiniLM-L6 buys (honestly):** real embeddings collide *no-shared-token* synonyms the toy
+can't — "trash pickup" ↔ "garbage collection", "more bus routes" ↔ "expand public transit". But
+it is a small model: synonymy that needs world knowledge ("Dewey decimal" = "library catalog")
+sits below the precision-preserving merge threshold and does **not** auto-fold. `calibrate.mjs`
+reports exactly which pairs separate and which don't, and `minilm.test.mjs` encodes both the win
+and the documented limit. Better naming (the generative fewest-verbs v1) or a larger embedder is
+the lever for the hard cases.
+
+### How the lock is produced
+
+`reducer/model.lock.json` is **generated, not hand-edited**: `record` pins the committed weights'
+SHAs + version; `calibrate` writes the thresholds. Because you may not have a local Node
+environment, the **`.github/workflows/reducer-model.yml`** workflow does this in CI on any change
+under `models/` or `reducer/` — record → calibrate → verify → test → commit the refreshed lock
+back to `main` (`[skip ci]`, idempotent, so steady-state runs are no-ops). Until the lock carries
+SHAs/thresholds, `weights.mjs`/`calibrate.mjs`/`minilm.test.mjs` **skip cleanly** and the
+dependency-free `test.mjs`/`demo.mjs` keep passing.
 
 ## Not yet (the layers above this core)
 
