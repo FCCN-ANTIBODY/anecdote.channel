@@ -23,25 +23,38 @@ source below.
 
 Three separable layers, distributed differently because they scale differently:
 
-| Layer | Files | Size | Where it lives |
+| Layer | Files (committed under `/runtime/`, `/models/`) | Size | Status |
 | --- | --- | --- | --- |
-| **Library** | `transformers.web.min.js` | 0.43 MB | in-repo (Tier-0) |
-| **Runtime** | `ort-wasm-simd-threaded.jsep.mjs` (loader) + `…jsep.wasm` | 0.05 + **26.1 MB** | in-repo (Tier-0) |
-| **Weights** | MiniLM `model_quantized.onnx` + tokenizer/config | ~23 MB | in-repo (Tier-0) |
+| **Library** | `runtime/transformers.bundle.mjs` (esbuild-bundled transformers.js) | 1.21 MB | ✅ vendored |
+| **Runtime** | `ort-wasm-simd-threaded.asyncify.mjs` (loader) + `…asyncify.wasm` | 0.05 + **23.6 MB** | ✅ vendored |
+| **Weights** | MiniLM `model_quantized.onnx` + tokenizer/config | ~23 MB | ✅ vendored |
 | | namer (flan-t5) · "next tier" | ~135 MB · 250 MB+ | **Tier-1: your edge, hash-pinned, fetched + verified** |
 
-- **Tier-0 (~50 MB, committed):** library + runtime + MiniLM. Runs from a bare clone, **offline of
-  any CDN** — every Tier-0 byte is obtainable from the **npm registry** (the wasm ships inside the
-  `onnxruntime-web` package; the loader is **bundled in transformers' own dist**, *not* CDN-only as
-  once feared). The only CDN dependency was the default `wasmPaths`, overridden to a local path.
+- **Tier-0 (~48 MB, committed & hash-pinned) — done.** Library + runtime + MiniLM run from a bare
+  clone, **offline of any CDN**, all from the **npm registry**. transformers.js v4's web build
+  bare-imports `onnxruntime-web/webgpu` → `onnxruntime-common` (a graph a module Worker can't
+  resolve without an import map), so the library is **bundled** into one self-contained ESM
+  (`scripts/build-runtime.mjs`, esbuild — a build-time tool whose *output* is the vendored,
+  hash-pinned artifact). The onnx wasm it actually loads is the **asyncify** single-thread build
+  (~24 MB), which needs **no cross-origin isolation** — the robust default. Verified: MiniLM loads
+  and embeds (384-dim) from `/runtime` + `/models` with zero CDN/HF.
+- **Whole-instrument lock.** `reducer/model.lock.json` now pins **lib + runtime + weights** (a
+  `runtime` block beside the weights), and `weights.mjs instrumentVersion` digests all of it — a
+  consumer verifies the entire cold-loaded stack, not just the model.
 - **Tier-1 (big weights):** served from anecdote.channel's **own Cloudflare edge** (or a GitHub
   Release origin it fronts — `objects.githubusercontent.com` is reachable where CDNs are not),
   fetched at load and SHA-verified against the lock. Reuses the edge plumbing already here
   ([`docs/tls-acm.md`](tls-acm.md), `scripts/reconcile-acm.sh`, `scripts/check-edge.sh`).
 
-**Efficiency lever (to test):** the `jsep` wasm (26 MB) is WebGPU-capable; the plain
-`…simd-threaded.wasm` is roughly half that. The model is tiny, so wasm-only may suffice — a
-"best-config" decision that could cut Tier-0 by ~15 MB.
+**Efficiency lever (future):** the threaded wasm (`…simd-threaded.wasm`, ~13 MB) is ~half the
+asyncify build but needs COOP/COEP (SharedArrayBuffer); asyncify was chosen for no-isolation
+robustness. Trading ~11 MB for cross-origin-isolation headers is a "best-config" call to revisit.
+
+**Open follow-up (off-thread real backend):** the bundled instrument loads and embeds on the **main
+thread**, but inside the composer's **Web Worker** the tokenizer comes back non-callable
+(`this.tokenizer is not a function`) — a transformers-in-Worker bundling quirk. So the live crunch
+badge still falls back to `toy` off-thread; the vendoring/lock here is complete and the worker fix
+is tracked separately.
 
 ## The sources, ranked (DNS now → optical → mesh)
 
@@ -94,12 +107,13 @@ is exactly why **DNS is primary, optical is the resilient fallback, and "lean wh
 not aesthetic** — every megabyte trimmed is *minutes* off the worst case, and every byte left out
 is a side-channel we choose to trust later.
 
-## Roadmap (what's deferred, in order)
+## Roadmap
 
-1. **Tier-0 vendor + whole-instrument lock** — commit library + runtime, extend the lock to
-   `lib`/`runtime`/`weights`, point the worker's `wasmPaths`/`localModelPath` at the in-repo
-   copies. The crunch badge ([`composer/crunch.html`](../composer/crunch.html)) then flips to
-   `minilm` offline-of-CDN, with the whole stack verified.
+1. **Tier-0 vendor + whole-instrument lock — ✅ done.** Library + runtime committed under
+   `/runtime/`, the lock extended to `runtime` + `weights` (`instrumentVersion` over both), worker
+   pointed at the in-repo copies, MiniLM proven to load + embed offline-of-CDN (main thread).
+   *Remaining:* the off-thread worker tokenizer quirk (above) so the crunch badge
+   ([`composer/crunch.html`](../composer/crunch.html)) flips to `minilm` in the Worker too.
 2. **Tier-1 edge channel** — stand up the models origin behind the edge + the fetch-and-verify
    path; vendor the namer there; activate v1 naming.
 3. **Optical encoder/decoder** — the fountain loop + camera reader + diff-repair, as the offline

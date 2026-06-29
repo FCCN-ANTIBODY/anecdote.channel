@@ -228,11 +228,82 @@ export async function recordNamer(dir = namerDir()) {
   files.forEach((f) => console.log(`  ${f.sha256.slice(0, 12)}…  ${(f.bytes / 1e6).toFixed(2)} MB  ${f.path}`));
 }
 
+// ---- vendored browser runtime (Tier-0) — additive; the lib+wasm half of the instrument --------
+// The committed /runtime/ holds the bundled transformers.js + the onnx wasm runtime it loads. These
+// are pinned into a `runtime` block so a consumer verifies the ENTIRE cold-loaded stack (lib +
+// runtime + weights), not just the model — "one uniform, verifiable instrument" (§O). Built by
+// scripts/build-runtime.mjs.
+export const RUNTIME_FILES = [
+  { path: "transformers.bundle.mjs" },
+  { path: "ort-wasm-simd-threaded.asyncify.mjs" },
+  { path: "ort-wasm-simd-threaded.asyncify.wasm" },
+];
+export function runtimeDir() { return join(HERE, "..", "runtime"); }
+
+export function runtimeIsPinned() {
+  const r = loadLock()?.runtime;
+  return Boolean(r && Array.isArray(r.files) && r.files.length === RUNTIME_FILES.length &&
+    RUNTIME_FILES.every((f) => { const e = r.files.find((x) => x.path === f.path); return e && /^[0-9a-f]{64}$/.test(e.sha256 || ""); }));
+}
+export function runtimeVersion() {
+  const r = loadLock()?.runtime;
+  return r && r.version ? r.version : "runtime@UNPINNED";
+}
+export async function runtimeVerify(dir = runtimeDir()) {
+  const r = loadLock()?.runtime;
+  if (!runtimeIsPinned()) return { ok: false, reason: "runtime not pinned — run `record-runtime`", missing: [], mismatch: [] };
+  const missing = [], mismatch = [];
+  for (const f of RUNTIME_FILES) {
+    const e = r.files.find((x) => x.path === f.path);
+    const p = join(dir, ...f.path.split("/"));
+    if (!existsSync(p)) { missing.push(f.path); continue; }
+    if ((await sha256(p)) !== e.sha256) mismatch.push(f.path);
+  }
+  return { ok: missing.length === 0 && mismatch.length === 0, missing, mismatch };
+}
+export async function runtimePresent(dir = runtimeDir()) { return (await runtimeVerify(dir)).ok; }
+
+// Pin the vendored runtime into the `runtime` block (idempotent).
+export async function recordRuntime(dir = runtimeDir()) {
+  const have = RUNTIME_FILES.every((f) => existsSync(join(dir, ...f.path.split("/"))));
+  if (!have) { console.log(`runtime not present under ${dir} — run \`node scripts/build-runtime.mjs\` first.`); return; }
+  const files = [];
+  for (const f of RUNTIME_FILES) {
+    const p = join(dir, ...f.path.split("/"));
+    files.push({ path: f.path, sha256: await sha256(p), bytes: (await stat(p)).size });
+  }
+  const h = createHash("sha256");
+  for (const f of [...files].sort((a, b) => (a.path < b.path ? -1 : 1))) h.update(f.path + ":" + f.sha256 + "\n");
+  const version = `runtime@${h.digest("hex").slice(0, 12)}`;
+  const cur = loadLock()?.runtime;
+  const unchanged = cur && cur.version === version && JSON.stringify(cur.files) === JSON.stringify(files);
+  const generatedAt = unchanged ? cur.generatedAt : new Date().toISOString();
+  await writeLock({ runtime: { version, files, generatedAt } });
+  console.log(`wrote runtime pin\n  version: ${version}`);
+  files.forEach((f) => console.log(`  ${f.sha256.slice(0, 12)}…  ${(f.bytes / 1e6).toFixed(2)} MB  ${f.path}`));
+}
+
+// The whole-instrument id: a digest over the weights + runtime versions (the verifiable stack).
+export function instrumentVersion() {
+  const h = createHash("sha256");
+  h.update(canonicalVersion() + "\n" + runtimeVersion() + "\n");
+  return `instrument@${h.digest("hex").slice(0, 12)}`;
+}
+
 // CLI
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, arg] = process.argv.slice(2);
   const run = {
     version: () => console.log(canonicalVersion()),
+    "version-instrument": () => console.log(instrumentVersion()),
+    "version-runtime": () => console.log(runtimeVersion()),
+    "record-runtime": async () => { await recordRuntime(arg || undefined); },
+    "verify-runtime": async () => {
+      const v = await runtimeVerify();
+      console.log(v.ok ? `ok — ${runtimeVersion()} present and verified`
+        : `not ok: ${v.reason || ""}${v.missing.length ? " missing: " + v.missing.join(", ") : ""}${v.mismatch.length ? " mismatch: " + v.mismatch.join(", ") : ""}`);
+      process.exit(v.ok ? 0 : 1);
+    },
     verify: async () => {
       const v = await verify();
       console.log(v.ok ? `ok — ${canonicalVersion()} present and verified`
@@ -252,6 +323,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     },
   };
   const fn = run[cmd];
-  if (!fn) { console.error("usage: node reducer/weights.mjs <version|verify|record [dir]|fetch|version-namer|record-namer [dir]|verify-namer>"); process.exit(2); }
+  if (!fn) { console.error("usage: node reducer/weights.mjs <version|verify|record [dir]|fetch|version-instrument|version-runtime|record-runtime|verify-runtime|version-namer|record-namer [dir]|verify-namer>"); process.exit(2); }
   Promise.resolve(fn()).catch((e) => { console.error(String(e.message || e)); process.exit(1); });
 }

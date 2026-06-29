@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "The Anecdote Mobile LLM reducer. The core (reducer.mjs / embedders.mjs / store.mjs) is dependency-free; the real instrument is an optional, hash-pinned all-MiniLM-L6-v2 loaded locally.",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "node test.mjs",
     "test:minilm": "node minilm.test.mjs",
@@ -17,5 +19,8 @@
   },
   "optionalDependencies": {
     "@huggingface/transformers": "4.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }

@@ -97,7 +97,7 @@
   let bus, dict = [];
 
   async function boot() {
-    dict = [];
+    dict = []; window.__dictReady = 0;   // reset readiness for this (re)boot
     $badge.className = "badge loading"; $badge.textContent = "loading…"; $btext.textContent = "booting worker…";
     $snips.innerHTML = `<p class="empty">Suggestions appear as you type.</p>`;
     bus = makeModelBus({ real: $real.checked });
@@ -106,9 +106,10 @@
     $badge.className = `badge ${backend === "minilm" ? "minilm" : backend === "error" ? "error" : "toy"}`;
     $badge.textContent = backend;
     $btext.textContent = backend === "minilm" ? "on-device MiniLM" : backend === "error" ? "worker failed" : "toy embedder (no network)";
-    // Embed the dictionary once.
+    // Embed the dictionary once (with the real backend these are real inferences — a beat).
     const vecs = await Promise.all(LABELS.map((l) => bus.embed(l)));
     dict = LABELS.map((label, i) => ({ label, vec: vecs[i] }));
+    window.__dictReady = dict.length;   // observable readiness (harness + curiosity)
     crunchNow();   // render against whatever is already typed
   }
 

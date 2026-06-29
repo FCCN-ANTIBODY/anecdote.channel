@@ -35,5 +35,26 @@
   ],
   "generatedAt": "2026-06-29T00:55:56.990Z",
   "assignT": 0.431,
-  "mergeT": 0.451
+  "mergeT": 0.451,
+  "runtime": {
+    "version": "runtime@e161b3052e7b",
+    "files": [
+      {
+        "path": "transformers.bundle.mjs",
+        "sha256": "d6fd686a1acf567ff4bf720f341a7f04306b852652fc330d9a5b147d54bedff8",
+        "bytes": 1209003
+      },
+      {
+        "path": "ort-wasm-simd-threaded.asyncify.mjs",
+        "sha256": "5959c6733039619c9af710d8e1bae8d6e84402787990637be987c2b1bd6c5fa9",
+        "bytes": 47389
+      },
+      {
+        "path": "ort-wasm-simd-threaded.asyncify.wasm",
+        "sha256": "e0c0c6d3e73d43b8a249972f8358f845b08cc16fec3c80efafdf8bed40366786",
+        "bytes": 23567050
+      }
+    ],
+    "generatedAt": "2026-06-29T03:39:49.302Z"
+  }
 }

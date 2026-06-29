@@ -36,8 +36,6 @@ createServer(async (req, res) => {
     const s = await stat(abs).catch(() => null);
     if (!s || !s.isFile()) { res.writeHead(404).end("not found"); return; }
     res.writeHead(200, { "content-type": MIME[extname(abs)] || "application/octet-stream" });
-    // (The real-MiniLM threaded-wasm upgrade may add COOP/COEP for SharedArrayBuffer; the toy
-    //  proof and single-threaded onnx do not need cross-origin isolation.)
     res.end(await readFile(abs));
   } catch (e) {
     res.writeHead(500).end(String(e?.message || e));

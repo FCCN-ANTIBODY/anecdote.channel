@@ -1,12 +1,18 @@
 // Web Worker: hosts an embedder off the main thread and answers id-tagged RPCs from model-bus.mjs.
 // Default backend is the pure-JS toy embedder (instant, zero network) so the bus always comes up.
-// With ?real=1 it TRIES the on-device MiniLM — browser transformers.js loading the in-repo model
-// and a LOCALLY-served onnx wasm runtime (no CDN) — and falls back to toy on any failure, so a
-// missing wasm loader (as in a CDN-blocked environment) degrades gracefully instead of breaking.
+// With ?real=1 it TRIES the on-device MiniLM — the VENDORED, hash-pinned browser runtime under
+// /runtime/ loading the in-repo model, no CDN — and falls back to toy on any failure, so it
+// degrades gracefully instead of breaking.
+//
+// KNOWN ISSUE (off-thread real backend): the bundled transformers + onnx runtime loads and embeds
+// correctly on the MAIN thread (verified offline-of-CDN), but inside this Worker the tokenizer
+// comes back non-callable ("this.tokenizer is not a function"), so ?real currently falls back to
+// toy here. The vendoring/lock below is complete; fixing the in-Worker bundle is the open follow-up
+// tracked in DELIVERY.md. The default backend (toy) is unaffected.
 //
 // Imports only the browser-safe, synchronous helpers from embedders.mjs (toyEmbed/fewestVerbs);
-// the heavy path is loaded via a servable RELATIVE URL to the transformers dist, never a bare
-// specifier (which a module worker can't resolve) and never weights.mjs (which uses node: builtins).
+// the heavy path is the bundled runtime (a relative, servable URL), never a bare specifier (a
+// module worker can't resolve those) and never weights.mjs (which uses node: builtins).
 
 import { toyEmbed, fewestVerbs } from "../reducer/embedders.mjs";
 
@@ -16,16 +22,18 @@ let embedImpl = (text) => Array.from(toyEmbed(text));   // default backend
 let backend = "toy";
 
 async function tryMiniLm() {
-  // Browser ESM build of transformers.js, served from the repo's node_modules (see scripts/serve.mjs).
-  const { pipeline, env } = await import("../reducer/node_modules/@huggingface/transformers/dist/transformers.web.js");
+  // VENDORED browser runtime — committed under /runtime/, no node_modules, no CDN (see DELIVERY.md).
+  const { pipeline, env } = await import("../runtime/transformers.bundle.mjs");
   env.allowRemoteModels = false;
   env.allowLocalModels = true;
   env.localModelPath = new URL("../models/", import.meta.url).href;                 // -> /models/Xenova/...
-  env.backends.onnx.wasm.wasmPaths = new URL("../reducer/node_modules/onnxruntime-web/dist/", import.meta.url).href;
+  env.backends.onnx.wasm.wasmPaths = new URL("../runtime/", import.meta.url).href;  // vendored onnx wasm + loader
   const extract = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
     dtype: "q8",
     progress_callback: (p) => self.postMessage({ type: "progress", ...p }),
   });
+  // Smoke-test one embed so a non-callable-tokenizer failure surfaces here and we fall back to toy.
+  await extract("ready?", { pooling: "mean", normalize: true });
   return async (text) => Array.from((await extract(text, { pooling: "mean", normalize: true })).data);
 }
 
@@ -37,14 +45,20 @@ async function tryMiniLm() {
   self.postMessage({ type: "ready", backend });
 })();
 
-self.addEventListener("message", async (ev) => {
+// Serialize RPCs: the transformers pipeline is not reentrant — concurrent embed() calls (e.g. a
+// dictionary embedded with Promise.all) race on shared state ("this.tokenizer is not a function").
+// A one-at-a-time queue keeps it correct; callers still await normally.
+let queue = Promise.resolve();
+self.addEventListener("message", (ev) => {
   const { cmd, id, text } = ev.data || {};
   if (id == null) return;                       // dormant: only respond to addressed RPCs
-  try {
-    if (cmd === "embed") self.postMessage({ id, result: await embedImpl(text || "") });
-    else if (cmd === "name") self.postMessage({ id, result: fewestVerbs(text || "") });
-    else self.postMessage({ id, error: `unknown cmd: ${cmd}` });
-  } catch (e) {
-    self.postMessage({ id, error: String(e?.message || e) });
-  }
+  queue = queue.then(async () => {
+    try {
+      if (cmd === "embed") self.postMessage({ id, result: await embedImpl(text || "") });
+      else if (cmd === "name") self.postMessage({ id, result: fewestVerbs(text || "") });
+      else self.postMessage({ id, error: `unknown cmd: ${cmd}` });
+    } catch (e) {
+      self.postMessage({ id, error: String(e?.message || e) });
+    }
+  });
 });
