@@ -115,5 +115,7 @@ the actual signed send. These prototypes are the **experience spine** those atta
 The **payload** that a confirmed send hands off now has a shape: [`anecdote.mjs`](anecdote.mjs)
 (`build` / `validate` / `verify`) turns `route.prepare`'s `{to,label,text}` into an `anecdote/v1` —
 text inline, attachments as receipts (hash + provenance) whose bytes live in your references pile.
-See [`docs/anecdote-schema.md`](../docs/anecdote-schema.md). Signing the receipt + envelope is the
-remaining seam.
+And [`sign.mjs`](sign.mjs) signs it on-device: one Ed25519 constituent signature over the whole
+envelope, the Mobile LLM co-signing by its hash-pinned identity bound into the signed bytes, all
+behind a revocable nonce. See [`docs/anecdote-schema.md`](../docs/anecdote-schema.md). What remains:
+the actual transmit, and nonce minting/revocation (platform-side).

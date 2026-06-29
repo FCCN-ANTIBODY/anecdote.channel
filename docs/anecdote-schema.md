@@ -98,25 +98,60 @@ network, no event loop; the one heavy primitive behind a seam):
 - `defaultHash` — SHA-256 via SubtleCrypto (browser) or `node:crypto` (Node), dependency-free;
   pluggable like the reducer's embedder.
 
-## The signing seam (next slice)
+## Signing (implemented — [`composer/sign.mjs`](../composer/sign.mjs))
 
-The schema stops at the **unsigned** receipt on purpose. "Something signed to say you have it, and it
-came from here" needs a signature primitive, and there are two co-signers per the CONSTITUTION:
+"Something signed to say you have it, and it came from here" is now real. A signed anecdote grows
+three fields, and the signature covers **the whole envelope** (so it covers every receipt — signing
+the envelope *is* signing "you have it"):
 
-- the **constituent's revocable-nonce identity** (anonymized but accountable), and
-- the **Mobile LLM's co-signature** (§"Mobile LLM": the on-device agent "intends to co-sign any
-  submission where it becomes involved").
+```jsonc
+{
+  "schema": "anecdote/v1", "to": …, "label": …, "body": [ … ],
+  "agent": { "instrument": "minilm:sha256:…", "constitution": "anecdote:sha256:…" },
+  "nonce": "<platform-minted handle>",
+  "sig":   { "alg": "ed25519", "by": "key:sha256:…", "key": "<base64 raw pubkey>", "signature": "<base64>" }
+}
+```
 
-These drop in behind one seam exactly as the embedder, the namer, and the hash do — the core already
-isolates the exact object to sign (`receipt`, and ultimately the whole envelope).
+The honest cryptography of a **no-backend device** (CONSTITUTION: *"no persistent backend… just
+auditable evidence and signatures"*):
+
+- **One real signature — the constituent's.** The only secret-holding party on the device is the
+  person. They sign the canonical envelope with an **Ed25519** device key (matching the
+  constellation's `ssh-ed25519` identities). `alg` is in the sig block, so it is never frozen.
+- **The Mobile LLM co-signs *without a key*.** It is a public, vendored, **hash-pinned** instrument
+  (`reducer/model.lock.json`) — identical for everyone — so it cannot hold a secret; forging a
+  keypair for it would be theater. It co-signs the only honest way a content-addressed thing can: its
+  **verifiable pinned identity** (`agent.instrument`, the instrument version hash) and the
+  `constitution` it ran under are **bound into the bytes the constituent signs**. The human's
+  signature thus vouches "this exact pinned agent was involved" — which is what §"Mobile LLM" asks.
+  If a real agent-key model ever exists, it slots in as a second `sig`.
+- **Pseudonymous, accountable.** The public id is the key **fingerprint** (`sig.by`,
+  `key:sha256:…`), presented behind a **revocable `nonce`**. The nonce is bound under the signature
+  so a platform can tie an anonymous, unrevoked slot to a submission **without learning who** —
+  minting and revoking it stay the platform/Tell's job (the Tell already mints an HMAC capability;
+  the data-pile already owns join/leave).
+
+`verifySignature` recomputes the canonical bytes, checks the signature against the **embedded** key,
+and confirms that key's fingerprint equals `sig.by` — so swapping the content fails the signature and
+swapping the key fails the fingerprint. It reports *who* signed; whether that identity is
+expected/unrevoked is the consumer's call against the nonce. Canonicalization is deterministic
+(sorted keys, no whitespace) so the same logical anecdote always signs identically.
 
 ## Open questions (recorded, not resolved)
 
 - **How does the platform validate a reference whose bytes it cannot see?** Today: verify the
-  **signature** over the receipt and, when an inline copy is present, the **hash**. The bytes
-  themselves resolve later from the `pile` **under license/consent** — that resolution + its consent
-  gate is unspecified. ("I don't know how the platform validates that exactly, but this is the shape
-  of it.")
+  **envelope signature** (which covers every receipt) and, when an inline copy is present, the
+  **hash**. The bytes themselves resolve later from the `pile` **under license/consent** — that
+  resolution + its consent gate is unspecified. ("I don't know how the platform validates that
+  exactly, but this is the shape of it.")
+- **Nonce minting + revocation.** The signature binds a `nonce`, but minting it (the Tell's HMAC
+  capability is the concrete instance) and revoking it (the data-pile's join/leave) are the
+  platform's job, unspecified here. How a verifier maps an unrevoked nonce to "one anonymous,
+  accountable slot" without de-anonymizing is the live question.
+- **Private-key custody.** `generateIdentity` currently returns an extractable key for portability;
+  on-device it should be **non-extractable** and stored as a `CryptoKey` in domain-scoped IndexedDB
+  (never serialized). A hardening pass, not a shape change.
 - **Media types and limits.** Which `mediaType`s a destination will *offer* (the routing verdict
   could extend from topic tokens to attachment kinds), and the real `INLINE_MAX`.
 - **Receipt time/identity.** The receipt omits a timestamp for determinism; a signer adds time +
