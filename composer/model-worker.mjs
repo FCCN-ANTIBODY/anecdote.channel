@@ -4,11 +4,9 @@
 // /runtime/ loading the in-repo model, no CDN — and falls back to toy on any failure, so it
 // degrades gracefully instead of breaking.
 //
-// KNOWN ISSUE (off-thread real backend): the bundled transformers + onnx runtime loads and embeds
-// correctly on the MAIN thread (verified offline-of-CDN), but inside this Worker the tokenizer
-// comes back non-callable ("this.tokenizer is not a function"), so ?real currently falls back to
-// toy here. The vendoring/lock below is complete; fixing the in-Worker bundle is the open follow-up
-// tracked in DELIVERY.md. The default backend (toy) is unaffected.
+// Off-thread real backend WORKS: the earlier "this.tokenizer is not a function" was a full-URL
+// env.localModelPath breaking transformers' tokenizer loading — fixed by using worker-relative
+// path strings below (resolved against self.location). ?real now flips to minilm in the Worker.
 //
 // Imports only the browser-safe, synchronous helpers from embedders.mjs (toyEmbed/fewestVerbs);
 // the heavy path is the bundled runtime (a relative, servable URL), never a bare specifier (a
@@ -26,8 +24,11 @@ async function tryMiniLm() {
   const { pipeline, env } = await import("../runtime/transformers.bundle.mjs");
   env.allowRemoteModels = false;
   env.allowLocalModels = true;
-  env.localModelPath = new URL("../models/", import.meta.url).href;                 // -> /models/Xenova/...
-  env.backends.onnx.wasm.wasmPaths = new URL("../runtime/", import.meta.url).href;  // vendored onnx wasm + loader
+  // Page/worker-RELATIVE strings, not full hrefs: a full-URL localModelPath breaks transformers'
+  // tokenizer loading (tokenizer comes back non-callable). Relative resolves against the worker's
+  // self.location, so it's correct here and under a project-pages subpath.
+  env.localModelPath = "../models/";                  // -> <base>/models/Xenova/...
+  env.backends.onnx.wasm.wasmPaths = "../runtime/";   // vendored onnx wasm + loader
   const extract = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
     dtype: "q8",
     progress_callback: (p) => self.postMessage({ type: "progress", ...p }),
