@@ -1,0 +1,148 @@
+<!doctype html>
+<!-- anecdote.channel — "crunch behind your cursor" proof.
+     What you type is crunched OFF the main thread (a Web Worker bus) and chased to its nearest
+     meaning: live snippet suggestions from a small concept dictionary, updating as you pause.
+     Embedder-agnostic: the toy embedder runs instantly with no network; on-device MiniLM drops
+     into the same bus where its wasm runtime is served (your machine / a CDN-reachable host).
+     Nothing leaves the device; the worker is dormant except when answering your keystrokes.
+
+     Run it (ES modules + worker need http, not file://):
+       node scripts/serve.mjs            # then open http://localhost:8000/composer/crunch.html -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote · crunch</title>
+<style>
+  :root { --ink:#1d1d22; --muted:#6b6b78; --edge:#d9d9e0; --line:#ececf1; --accent:#3b4cca; --shade:#f6f6f9; --ok:#1f7a4d; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:2rem 1rem; background:var(--shade); color:var(--ink);
+    font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
+  main { width:100%; max-width:640px; }
+  h1 { font-size:1.25rem; margin:0 0 .15rem; }
+  .sub { color:var(--muted); margin:0 0 1rem; font-size:.9rem; }
+  .card { background:#fff; border:1px solid var(--edge); border-radius:12px; padding:1.1rem 1.15rem; margin-bottom:1rem; }
+  label.fld { display:block; font-size:.78rem; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin-bottom:.4rem; }
+  textarea { width:100%; min-height:84px; resize:vertical; padding:.7rem .8rem; font:inherit; color:var(--ink);
+    border:1px solid var(--edge); border-radius:9px; background:#fff; }
+  textarea:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent); }
+  .statusline { display:flex; align-items:center; gap:.5rem; margin-top:.6rem; font-size:.82rem; color:var(--muted); }
+  .badge { font-size:.68rem; letter-spacing:.03em; text-transform:uppercase; padding:.1rem .45rem; border-radius:999px; }
+  .badge.toy { background:#eef0ff; color:#3b4cca; }
+  .badge.minilm { background:#eafaf2; color:var(--ok); }
+  .badge.loading { background:#fff4e5; color:#9a6700; }
+  .badge.error { background:#fdecec; color:#b42318; }
+  .crunch { font-size:.8rem; color:var(--muted); margin-left:auto; }
+  .crunch.on { color:var(--accent); }
+  .snip { display:flex; align-items:center; gap:.6rem; padding:.4rem .55rem; border-radius:8px; }
+  .snip + .snip { margin-top:.25rem; }
+  .snip.top { background:#f3f4ff; }
+  .snip .label { font-weight:600; min-width:9.5rem; }
+  .snip .bar { flex:1; height:8px; background:#eef0f4; border-radius:999px; overflow:hidden; }
+  .snip .bar > i { display:block; height:100%; background:var(--accent); border-radius:999px; }
+  .snip .score { font-variant-numeric:tabular-nums; color:var(--muted); width:3.2rem; text-align:right; font-size:.82rem; }
+  .empty { color:#9a9aa6; font-size:.88rem; }
+  .note { font-size:.82rem; color:var(--muted); border-top:1px solid var(--line); padding-top:.7rem; margin-top:.2rem; }
+  .toggle { font-size:.82rem; color:var(--muted); }
+  .toggle input { vertical-align:middle; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Crunched behind your cursor.</h1>
+  <p class="sub">Type, and your meaning is chased off the main thread — nearest concepts surface live, like autocorrect for intent.</p>
+
+  <div class="card">
+    <label class="fld" for="say">Say something</label>
+    <textarea id="say" placeholder="e.g. is there any shade at the park · the bins weren't emptied · cars fly down my street" autofocus></textarea>
+    <div class="statusline">
+      <span id="backendBadge" class="badge loading">loading…</span>
+      <span id="backendText">booting worker…</span>
+      <span id="crunch" class="crunch">idle</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <label class="fld">Nearest concepts</label>
+    <div id="snips"><p class="empty">Suggestions appear as you type.</p></div>
+  </div>
+
+  <div class="card">
+    <p class="toggle"><label><input type="checkbox" id="real"> try on-device MiniLM (falls back to the toy embedder where its wasm runtime isn't served)</label></p>
+    <p class="note">Off the main thread, in a Web Worker that's dormant except when answering your keystrokes.
+      Nothing leaves your device. The embedder is swappable behind the bus — toy now, MiniLM (or a
+      heavier model) where its runtime is served, with no change to this page.</p>
+  </div>
+</main>
+
+<script type="module">
+  import { makeModelBus } from "./model-bus.mjs";
+  import { nearest, debounce } from "./crunch.mjs";
+  import { intentOf } from "./route.mjs";
+
+  // A small seeded concept dictionary — the labels a reducer might already hold. We embed each
+  // once (via the bus) and then rank them against what you type.
+  const LABELS = [
+    "park shade", "library hours", "trash pickup", "bus routes", "potholes",
+    "crosswalk safety", "bike lanes", "noise complaint", "water quality", "dog park",
+  ];
+
+  const $say = document.getElementById("say");
+  const $snips = document.getElementById("snips");
+  const $badge = document.getElementById("backendBadge");
+  const $btext = document.getElementById("backendText");
+  const $crunch = document.getElementById("crunch");
+  const $real = document.getElementById("real");
+
+  let bus, dict = [];
+
+  async function boot() {
+    dict = [];
+    $badge.className = "badge loading"; $badge.textContent = "loading…"; $btext.textContent = "booting worker…";
+    $snips.innerHTML = `<p class="empty">Suggestions appear as you type.</p>`;
+    bus = makeModelBus({ real: $real.checked });
+    bus.onProgress = (p) => { if (p.status) $btext.textContent = p.status + (p.progress ? ` ${Math.round(p.progress)}%` : ""); };
+    const backend = await bus.ready;
+    $badge.className = `badge ${backend === "minilm" ? "minilm" : backend === "error" ? "error" : "toy"}`;
+    $badge.textContent = backend;
+    $btext.textContent = backend === "minilm" ? "on-device MiniLM" : backend === "error" ? "worker failed" : "toy embedder (no network)";
+    // Embed the dictionary once.
+    const vecs = await Promise.all(LABELS.map((l) => bus.embed(l)));
+    dict = LABELS.map((label, i) => ({ label, vec: vecs[i] }));
+    crunchNow();   // render against whatever is already typed
+  }
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function renderSnips(rows) {
+    if (!rows.length) { $snips.innerHTML = `<p class="empty">Suggestions appear as you type.</p>`; return; }
+    $snips.innerHTML = rows.map((r, i) => {
+      const pct = Math.max(0, Math.min(1, r.score)) * 100;
+      return `<div class="snip ${i === 0 ? "top" : ""}">
+        <span class="label">${esc(r.label)}</span>
+        <span class="bar"><i style="width:${pct.toFixed(1)}%"></i></span>
+        <span class="score">${r.score.toFixed(2)}</span>
+      </div>`;
+    }).join("");
+  }
+
+  async function crunchNow() {
+    const text = $say.value.trim();
+    if (!text || !dict.length) { renderSnips([]); $crunch.textContent = "idle"; $crunch.className = "crunch"; bump(); return; }
+    $crunch.textContent = "crunching…"; $crunch.className = "crunch on";
+    const label = intentOf(text).label || text;       // chase the fewest-verbs kernel
+    const v = await bus.embed(label);
+    renderSnips(nearest(v, dict, 5));
+    $crunch.textContent = "✓ chased"; $crunch.className = "crunch"; bump();
+  }
+  // A completion counter so a harness (and curiosity) can observe each crunch settle.
+  function bump() { window.__crunchSeq = (window.__crunchSeq || 0) + 1; }
+
+  const onType = debounce(() => { crunchNow().catch((e) => { $crunch.textContent = "err"; console.error(e); }); }, 160);
+  $say.addEventListener("input", onType);     // the only loop: your keystrokes
+  $real.addEventListener("change", () => { bus?.terminate?.(); boot(); });
+
+  boot();
+</script>
+</body>
+</html>
