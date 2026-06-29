@@ -91,19 +91,19 @@ Shape (same pure-core / thin-view split as the composer):
   RPCs you address to it; no event loop beyond your keystrokes.
 - [`model-worker.mjs`](model-worker.mjs) — hosts the embedder off-thread. **Embedder-agnostic**:
   the pure-JS toy embedder by default (instant, zero network); with `?real=1` it tries on-device
-  **MiniLM** (browser transformers.js + the in-repo model + a **locally-served** onnx wasm
-  runtime, no CDN) and **falls back to toy** on any failure. So a heavier "next tier" model swaps
-  in behind the same bus with no change to the page.
+  **MiniLM** — the **vendored, hash-pinned** browser runtime under [`/runtime/`](../runtime/) (the
+  esbuild-bundled transformers.js + the onnx wasm) loading the in-repo model, **no CDN** — and
+  **falls back to toy** on any failure. A heavier "next tier" model swaps in behind the same bus.
 - [`crunch.mjs`](crunch.mjs) — the pure ranking brain (`nearest`, `cosineSim`, `debounce`),
   Node-tested in [`crunch.test.mjs`](crunch.test.mjs).
 - [`scripts/serve.mjs`](../scripts/serve.mjs) — tiny dependency-free static server (correct MIME
-  for `.mjs`/`.wasm`/`.onnx`) so `/composer/`, `/reducer/`, `/models/` resolve from one origin.
+  for `.mjs`/`.wasm`/`.onnx`) so `/composer/`, `/runtime/`, `/models/` resolve from one origin.
 
-**Environment note:** the toy backend runs anywhere with no network. The real-MiniLM backend
-needs onnxruntime-web's wasm **loader**, which ships only from a CDN — so in a CDN-blocked
-environment the badge stays `toy` (graceful fallback); on a normal host (or with the loader
-vendored) it flips to `minilm`. Verified headlessly: the bus comes up, snippets re-rank live as
-you type, no console errors.
+**Status:** the toy backend runs anywhere with no network. The real-MiniLM runtime is now
+**vendored offline-of-CDN** (see [`docs/DELIVERY.md`](../docs/DELIVERY.md)) and **loads + embeds on
+the main thread** (verified, 384-dim, zero CDN/HF). **Known follow-up:** inside this Worker the
+bundled tokenizer comes back non-callable, so `?real` currently falls back to `toy` *off-thread*;
+the vendoring + whole-instrument lock are done and the worker fix is tracked in DELIVERY.
 
 ## Not in this slice
 

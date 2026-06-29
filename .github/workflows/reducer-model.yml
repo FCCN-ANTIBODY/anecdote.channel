@@ -9,12 +9,16 @@ on:
     branches: [main]
     paths:
       - "models/**"
+      - "runtime/**"
       - "reducer/**"
+      - "scripts/build-runtime.mjs"
       - ".github/workflows/reducer-model.yml"
   pull_request:
     paths:
       - "models/**"
+      - "runtime/**"
       - "reducer/**"
+      - "scripts/build-runtime.mjs"
       - ".github/workflows/reducer-model.yml"
   workflow_dispatch:
 
@@ -49,8 +53,12 @@ jobs:
         run: node reducer/weights.mjs record-namer
       - name: Calibrate thresholds into the lock
         run: node reducer/calibrate.mjs | tee /tmp/calib.txt
+      - name: Pin the vendored runtime (committed; idempotent, no rebuild)
+        run: node reducer/weights.mjs record-runtime
       - name: Verify weights against the lock
         run: node reducer/weights.mjs verify
+      - name: Verify the vendored runtime against the lock
+        run: node reducer/weights.mjs verify-runtime
       - name: Verify namer (clean skip while unpinned)
         run: node reducer/weights.mjs verify-namer
       - name: Core tests (dependency-free)
