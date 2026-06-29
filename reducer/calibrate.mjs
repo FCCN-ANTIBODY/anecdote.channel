@@ -14,10 +14,10 @@
 
 import { cos } from "./reducer.mjs";
 import { fewestVerbs, makeMiniLmEmbed } from "./embedders.mjs";
-import { present, canonicalVersion } from "./weights.mjs";
+import { present, canonicalVersion, setThresholds } from "./weights.mjs";
 
-try { await import("@xenova/transformers"); }
-catch { console.log("calibrate: @xenova/transformers not installed — `npm i` in reducer/; skipping."); process.exit(0); }
+try { await import("@huggingface/transformers"); }
+catch { console.log("calibrate: @huggingface/transformers not installed — `npm i` in reducer/; skipping."); process.exit(0); }
 if (!(await present())) {
   console.log("calibrate: vendored MiniLM weights absent/unverified — `node reducer/weights.mjs fetch`; skipping.");
   process.exit(0);
@@ -80,6 +80,6 @@ if (margin > 0.02) {
 
 console.log("recommendation:");
 console.log(`  ${note}`);
-console.log("  paste into the MiniLM Reducer (and minilm.test.mjs / README):\n");
-console.log(`  new Reducer({ embed, name: fewestVerbs, reducerVersion: embed.reducerVersion,`);
-console.log(`    assignT: ${assignT}, mergeT: ${mergeT} })`);
+await setThresholds(assignT, mergeT);
+console.log(`  wrote assignT=${assignT}, mergeT=${mergeT} into model.lock.json`);
+console.log(`  (minilm.test.mjs and the MiniLM Reducer read these from the lock)`);

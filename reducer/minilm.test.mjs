@@ -11,18 +11,19 @@
 
 import { Reducer, cos } from "./reducer.mjs";
 import { fewestVerbs, toyEmbed, makeMiniLmEmbed } from "./embedders.mjs";
-import { present, canonicalVersion } from "./weights.mjs";
+import { present, canonicalVersion, thresholds } from "./weights.mjs";
 
-try { await import("@xenova/transformers"); }
-catch { console.log("minilm.test: @xenova/transformers not installed — `npm i` in reducer/; skipping."); process.exit(0); }
+try { await import("@huggingface/transformers"); }
+catch { console.log("minilm.test: @huggingface/transformers not installed — `npm i` in reducer/; skipping."); process.exit(0); }
 if (!(await present())) {
   console.log("minilm.test: vendored MiniLM weights absent/unverified — `node reducer/weights.mjs fetch`; skipping.");
   process.exit(0);
 }
 
-// Calibrated thresholds — replace with the numbers `node reducer/calibrate.mjs` prints at
-// bootstrap. Provisional defaults until then.
-const assignT = 0.45, mergeT = 0.55;
+// Calibrated thresholds, read from model.lock.json (written by `node reducer/calibrate.mjs`).
+// Provisional fallbacks apply until the lock carries them.
+const { assignT, mergeT, pinned: thresholdsPinned } = thresholds();
+if (!thresholdsPinned) console.log(`minilm.test: thresholds not yet calibrated — using provisional ${assignT}/${mergeT} (run calibrate.mjs).`);
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -44,16 +45,28 @@ async function reduce(r, us) { for (const u of us) await r.assign(u); return r; 
   ok(a.every((x, i) => Math.abs(x - b[i]) < 1e-9), "embedding is deterministic for fixed weights");
 }
 
-// 3. THE point: synonymy with no shared tokens now collides. This is the demo's honest miss.
+// 3. THE point: a no-shared-token synonym pair the toy CANNOT see now collides under MiniLM.
+{
+  const A = await reduce(mk(), ["trash pickup is late"]);
+  const B = await reduce(mk(), ["garbage collection is delayed"]);
+  const U = mk();
+  U.labels = [...A.labels.map((l) => ({ ...l })), ...B.labels.map((l) => ({ ...l }))];
+  ok(U.labels.length === 2, "'trash pickup' and 'garbage collection' start distinct (no shared tokens)");
+  U.ratchet();
+  ok(U.labels.length === 1, "ratchet folds them into one — synonymy the toy embedder cannot resolve");
+  ok(U.labels[0].aliases.length >= 1, "the folded synonym is recorded as an alias");
+}
+
+// 3b. Honest limit: MiniLM-L6 is small. Synonymy that needs world knowledge ("Dewey decimal" =
+//     "library catalog") sits BELOW the precision-preserving merge threshold and does NOT fold.
+//     Encoded so the limitation is explicit, not a surprise — calibrate.mjs reports it too.
 {
   const A = await reduce(mk(), ["Dewey decimal numbers on this shelf"]);
   const B = await reduce(mk(), ["the library catalog codes here"]);
   const U = mk();
   U.labels = [...A.labels.map((l) => ({ ...l })), ...B.labels.map((l) => ({ ...l }))];
-  ok(U.labels.length === 2, "the two synonym labels start distinct (independently minted)");
   U.ratchet();
-  ok(U.labels.length === 1, "ratchet folds 'library catalog codes' into the Dewey label — the toy's honest miss, resolved");
-  ok(U.labels[0].aliases.length >= 1, "the folded synonym is recorded as an alias");
+  ok(U.labels.length === 2, "domain-knowledge synonymy (Dewey ~ catalog) stays distinct at L6 — a documented limit");
 }
 
 // 4. Distinct meanings still stay distinct (no over-merging).

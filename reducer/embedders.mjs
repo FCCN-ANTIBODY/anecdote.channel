@@ -47,12 +47,14 @@ export function toyEmbed(text) {
   return v;
 }
 
-// Real on-device embedder. Requires `npm i @xenova/transformers` (optional dep in reducer/).
-// Source-agnostic, local-first: by default it loads the VENDORED, hash-pinned weights (see
-// weights.mjs) with no network — the "one uniform, verifiable instrument" the CONSTITUTION
-// asks for. Pass { local:false, allowRemote:true } in an environment where huggingface.co is
-// reachable to fall back to transformers.js's own download (which the browser caches in the
-// origin-scoped Cache API; in Node it relies on NODE_EXTRA_CA_CERTS behind a proxy).
+// Real on-device embedder. Requires `npm i` in reducer/ (optional dep: @huggingface/transformers,
+// transformers.js v3+ — it lazy-loads `sharp`, so text feature-extraction runs without native
+// image libs, unlike the older @xenova/transformers which eager-loads sharp at import).
+// Source-agnostic, local-first: by default it loads the IN-REPO, hash-pinned weights at
+// models/ (see weights.mjs) with no network — the "one uniform, verifiable instrument" the
+// CONSTITUTION asks for. `dtype: "q8"` selects the committed quantized ONNX. Pass
+// { local:false, allowRemote:true } where huggingface.co is reachable to fall back to the
+// library's own download (browser-cached in the origin Cache API; Node uses NODE_EXTRA_CA_CERTS).
 //
 //   const embed = await makeMiniLmEmbed();
 //   new Reducer({ embed, name: fewestVerbs, reducerVersion: embed.reducerVersion })
@@ -62,8 +64,8 @@ export function toyEmbed(text) {
 // Node-only (the weights/path/integrity machinery uses node: builtins); this is loaded lazily
 // so the rest of embedders.mjs stays browser-safe for the composer.
 export async function makeMiniLmEmbed(model = "Xenova/all-MiniLM-L6-v2",
-  { local = true, modelRoot, allowRemote = !local, verifyHash = local } = {}) {
-  const { pipeline, env } = await import("@xenova/transformers");
+  { local = true, modelRoot, allowRemote = !local, verifyHash = local, dtype = "q8" } = {}) {
+  const { pipeline, env } = await import("@huggingface/transformers");
   const w = await import("./weights.mjs");
 
   if (local) {
@@ -83,7 +85,7 @@ export async function makeMiniLmEmbed(model = "Xenova/all-MiniLM-L6-v2",
     env.allowRemoteModels = true;           // for environments where HF is permitted
   }
 
-  const extract = await pipeline("feature-extraction", model);
+  const extract = await pipeline("feature-extraction", model, { dtype });
   const embed = async (text) => {
     const out = await extract(text, { pooling: "mean", normalize: true });
     return Float64Array.from(out.data);     // already unit length (384-dim)
