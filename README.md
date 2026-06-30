@@ -57,6 +57,12 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   builds + signs it with a fresh nonce, leaves the receipt in our own trove, and hands back the
   artifact to put where it belongs — a Tell for private (the issue-as-input), an Atlas for
   unsolicited. Implemented in [`composer/tunnel.mjs`](composer/tunnel.mjs).
+- [`docs/egress-github.md`](docs/egress-github.md) — **out the door**: serialize a delivery into a
+  GitHub **issue or comment** (a canonical per-poll issue, responses as comments, so the comment
+  ordinal is free contemporaneous metadata) and post it with a semi-public, repo-scoped credential —
+  kept strictly out of the body and trove. The page then becomes the **detail view of its async
+  status** (your nonce, stapled to the request, queryable after a reload). Implemented in
+  [`composer/egress-github.mjs`](composer/egress-github.mjs).
 - [`docs/label-reducer.md`](docs/label-reducer.md) — what the instrument **is**: the organ of
   **perception** (base face fact, fewest-verbs, descriptive-never-prescriptive), the amoral
   counterpart to the moralizing Judge, running *ahead* of the user's own constitution.

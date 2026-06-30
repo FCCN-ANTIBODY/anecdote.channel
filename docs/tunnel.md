@@ -49,12 +49,14 @@ the poll it answered; it is passed through from the Tell, never invented by us).
 
 ## "Out the door" = the issue-as-input seam
 
-For a **Tell**, `deliver.kind = "tell-issue"`: the host posts the signed anecdote as a GitHub **Issue**
-— the ingress the Tell already expects (`tell.anecdote.channel/CONTRACT.md` → *"Ingress: QR →
-authorized Issue → digest"*). anecdote builds and signs the artifact; **the Tell's page owns the
-actual transmit** (it holds the poll token / repo). For an **Atlas**, `deliver.kind = "atlas-public"`:
-an unsolicited public submission. We decide the shape and where it belongs; we never reach out
-ourselves — nothing phones home.
+For a **Tell**, `deliver.kind = "tell-issue"`: the signed anecdote becomes a GitHub **issue or
+comment** — the ingress the Tell already expects (`tell.anecdote.channel/CONTRACT.md` → *"Ingress: QR →
+authorized Issue → digest"*). Either the host posts it itself, **or** — if `hello` supplied an `egress`
+config (repo, mode, canonical issue, run, and the semi-public post credential) — **anecdote posts it for
+the host** and records a `delivery` against the nonce, so the page becomes the **detail view of its
+async status** (queryable later via `status({nonce})`, surviving a tab close). See
+[`docs/egress-github.md`](egress-github.md). For an **Atlas**, `deliver.kind = "atlas-public"`: an
+unsolicited public submission. We never reach out except on a confirmed intake; nothing else phones home.
 
 ## Trust model (narrow on purpose)
 

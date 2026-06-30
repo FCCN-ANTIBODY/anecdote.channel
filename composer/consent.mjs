@@ -60,6 +60,7 @@ export async function record(store, signed) {
     signed,                       // the full artifact, kept whole
     status: "live",               // live = offered & earning; revoked = withdrawn
     revocation: null,
+    delivery: null,               // async acceptance: { state:"pending"|"accepted"|"rejected"|"error", placement }
     placements: [],               // where it currently lives + what it has earned (fed by the platform)
   };
   trove[signed.nonce] = receipt;
@@ -104,6 +105,21 @@ export async function forget(store, nonce) {
   const trove = await readTrove(store);
   delete trove[nonce];
   await writeTrove(store, trove);
+}
+
+// Record the async delivery status of a contribution — the seam behind the promise that you will
+// know if your input was not accepted. `delivery` is { state, placement, at? }; the page reads it to
+// become the detail view of its own submission. Also files the placement under "where your data is."
+export async function recordDelivery(store, nonce, delivery) {
+  const trove = await readTrove(store);
+  const receipt = trove[nonce];
+  if (!receipt) throw new Error("consent: no such contribution in the trove");
+  receipt.delivery = delivery;
+  if (delivery && delivery.placement && delivery.placement.url && !receipt.placements.some((p) => p.url === delivery.placement.url)) {
+    receipt.placements.push(delivery.placement);
+  }
+  await writeTrove(store, trove);
+  return receipt;
 }
 
 // Merge platform-reported placements/earnings into a receipt — "where your data is now and what it

@@ -22,12 +22,14 @@
 import { intentOf, verdict, prepare } from "./route.mjs";
 import { build } from "./anecdote.mjs";
 import { sign } from "./sign.mjs";
-import { mintNonce, record } from "./consent.mjs";
+import { mintNonce, record, recordDelivery, get as troveGet } from "./consent.mjs";
+import { post as egressPost } from "./egress-github.mjs";
 
 export const HELLO = "anecdote.tunnel.hello/v1";       // host -> guest: open the tunnel, declare context
 export const HELLO_ACK = "anecdote.tunnel.ack/v1";     // guest -> host: ready, who I am
 export const INTAKE = "anecdote.tunnel.intake/v1";     // host -> guest: a confirmed answer going out the door
-export const BUILT = "anecdote.tunnel.built/v1";       // guest -> host: signed anecdote + receipt + where it belongs
+export const BUILT = "anecdote.tunnel.built/v1";       // guest -> host: signed anecdote + receipt + delivery
+export const STATUS = "anecdote.tunnel.status/v1";     // host <-> guest: query/return a nonce's async status
 export const DECLINED = "anecdote.tunnel.declined/v1"; // guest -> host: not OFFERED here (never "blocked"), with the reason
 export const ERROR = "anecdote.tunnel.error/v1";
 
@@ -38,9 +40,12 @@ export const ERROR = "anecdote.tunnel.error/v1";
 // knows — passed through onto the receipt, never invented by us. `token` is the Tell's poll
 // capability (its server-minted HMAC `tok`); we carry it to the door for the Tell to verify — we
 // never bind it under the user's signature, because it is the Tell's authority, not the user's words.
-export function hello({ destination, poll = null, token = null } = {}) {
+// `egress` (optional) lets the host ask us to post the result straight to GitHub on its behalf:
+//   { repo:{owner,name}, mode:"comment"|"issue", canonicalIssue?, run, credential, qr?, shownGuidance? }
+// `credential` is the semi-public POST token from the QR — we use it transiently and never store it.
+export function hello({ destination, poll = null, token = null, egress = null } = {}) {
   if (!destination || !destination.id || !destination.kind) throw new Error("tunnel: hello needs a destination {id,kind}");
-  return { type: HELLO, destination, poll, token };
+  return { type: HELLO, destination, poll, token, egress };
 }
 
 // A confirmed answer going out the door. `attachments` are raw {mediaType,bytes,source,...} descriptors
@@ -49,9 +54,17 @@ export function intake({ text, attachments = [] } = {}) {
   return { type: INTAKE, text, attachments };
 }
 
+// Ask the guest for a contribution's current async status, by nonce — the "coordinated lookup relayed
+// through postMessage" that lets the sending page become the detail view even after a reload.
+export function status({ nonce } = {}) {
+  if (!nonce) throw new Error("tunnel: status needs a nonce");
+  return { type: STATUS, nonce };
+}
+
 export const isAck = (m) => m && m.type === HELLO_ACK;
 export const isBuilt = (m) => m && m.type === BUILT;
 export const isDeclined = (m) => m && m.type === DECLINED;
+export const isStatus = (m) => m && m.type === STATUS;
 
 // ---- guest side: a stateful session that answers messages purely --------------------------------
 
@@ -81,6 +94,7 @@ export function guestSession(deps = {}) {
         state.destination = msg.destination;
         state.poll = msg.poll || null;
         state.token = msg.token || null;
+        state.egress = msg.egress || null;
         state.hostOrigin = ctx.origin || null;
         state.verified = bind.verified;
         return {
@@ -111,14 +125,37 @@ export function guestSession(deps = {}) {
         const nonce = mintNonce({ randomBytes: deps.randomBytes });
         const signed = await sign(anecdote, deps.identity, { agent: deps.agent, nonce });
         const receipt = await record(deps.store, signed);            // the receipt stays in OUR trove
+        const deliver = outTheDoor(dest, signed, state.poll, state.token);
+
+        // If the host asked us to send it (and gave us the post credential), do it now and remember
+        // the result against the nonce — so the page can become the detail view of its async status,
+        // and survive a tab close. Posting failures are recorded, never silent (the promise: you will
+        // know if your input was not accepted).
+        let delivery = null;
+        if (state.egress && dest.kind === "tell") {
+          try {
+            const res = await egressPost(deliver, { ...state.egress, api: deps.egressApi, at: deps.now || null });
+            delivery = res.delivery;
+          } catch (e) {
+            delivery = { state: "error", error: e.message };
+          }
+          await recordDelivery(deps.store, receipt.nonce, delivery);
+        }
+
         return {
           type: BUILT,
           where: dest.kind === "tell" ? "private" : "unsolicited",   // a Tell for private, an Atlas for unsolicited
           verified: state.verified,                                  // how the destination proved itself at hello
-          deliver: outTheDoor(dest, signed, state.poll, state.token), // the artifact the host submits
+          deliver,                                                   // the artifact (the host may also submit it itself)
+          delivery,                                                  // async status if we posted it (else null)
           receipt: { nonce: receipt.nonce, status: receipt.status, label: receipt.label, by: receipt.by },
           signed,
         };
+      }
+
+      if (msg.type === STATUS) {
+        const r = await troveGet(deps.store, msg.nonce);
+        return { type: STATUS, nonce: msg.nonce, found: !!r, status: r ? r.status : null, delivery: r ? r.delivery : null };
       }
 
       return err(`unknown message type ${msg.type}`);
@@ -201,5 +238,6 @@ export function connectTunnel(iframeWindow, targetOrigin, { source = globalThis 
   return {
     hello: (ctx) => send(hello(ctx)),
     intake: (ctx) => send(intake(ctx)),
+    status: (ctx) => send(status(ctx)),
   };
 }
