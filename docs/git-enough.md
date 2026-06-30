@@ -92,13 +92,40 @@ seed-wrap**: `subtle` has X25519 (`deriveBits`) but **not** ChaCha20-Poly1305, s
   seed. That's the one place to vendor age (or run the wrap in an Elevated tool).
 
 Either way it's another **enough-client: `seal-enough`** — mostly WebCrypto, speaking `age` only when it
-must interoperate.
+must interoperate. **Decided: hybrid (C)** — native-local at rest, `age` synthesized only on export.
+
+### The export attestation — "possession-since"
+
+Because the artifact lived **native-local first** and is only `age`-keyed at export, the export is the
+moment to also emit a signed **provenance attestation about the pre-seal life**:
+
+> `held-since: <ISO-8601>` — *"I've had this since T0,"* asserted (and **ed25519-signed**) at export time
+> T1, riding in the export envelope **beside** the age-wrapped seed, **distinct from** the seal itself.
+
+It states the **pre-seal possession window** the seal would otherwise erase (age-keying has no memory of
+how long you held the plaintext). Properties, kept honest:
+
+- **It is a claim + `basis[]`, graded not gated** — the merged label-authority stance. A bare self-claim
+  is **antedating-spoofable** (you can name any past T0), so it is believed only as far as its basis.
+- **What crypto can and can't prove.** A commitment witnessed at `T_anchor` proves the content existed
+  **no *later* than** `T_anchor`; proving **no *earlier* than / since T0** against antedating needs an
+  anchor *at* T0. So "possession-since" is strengthened by **contemporaneous anchors**, never by assertion
+  alone.
+- **Basis candidates** (each an independent upper-bound pin, converging toward un-antedatability): the
+  `git-enough` hash-chain (proves order + integrity, not absolute time); a prior **Atlas-routed receipt**
+  or counter-signature dated at/after T0; the data-pile manifest's own `window_end`; a GitHub-timestamped
+  Tell delivery. This is the **private, self-asserted cousin of the "first to say it" credit** — and the
+  same Atlas-routed anchors are what make either one hard to game.
+- **Why it's wanted:** it lets a long-held artifact carry its **lineage** into the ecosystem the moment it
+  surfaces — *"I didn't mint this at export time; I've sat on it since T0"* — which is **stiction** (weight
+  for an anonymous claim) and dovetails with the ownership thesis: you owned it first, and here is the
+  since-when.
 
 ## Open questions
 
-- **A) Seal-enough scope.** Do history piles stay **WebCrypto-native-local** (simplest), or **always speak
-  `age`** (drop-in compatible with the whole Tell/pile/verify/prove/revocation toolchain, at the cost of a
-  vendored AEAD)? A hybrid (native-local, age-on-export) is the likely answer — confirm.
+- **A) Seal-enough scope — DECIDED: hybrid (C).** History piles seal **WebCrypto-native at rest**; `age`
+  is synthesized **only on export** to the Tell ecosystem, carrying the **possession-since** attestation
+  (above). Open sub-thread: the exact basis set that makes "held-since T0" credible enough to act on.
 - **B) Two factories, kept in lockstep.** If the seal exists both in CI (Tell submodule) and in the
   browser, they must stay **byte-compatible** — the same drift-guard discipline as `bin/check-pile-lib`.
 - **C) The staging beat.** What schedules the commit cron (a worker? the privileged-budget question from
