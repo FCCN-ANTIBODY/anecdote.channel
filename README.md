@@ -56,7 +56,9 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   saying hello**: a Tell's poll sheet embeds anecdote.channel, which canonical-labels the answer,
   builds + signs it with a fresh nonce, leaves the receipt in our own trove, and hands back the
   artifact to put where it belongs — a Tell for private (the issue-as-input), an Atlas for
-  unsolicited. Implemented in [`composer/tunnel.mjs`](composer/tunnel.mjs).
+  unsolicited. Implemented in [`composer/tunnel.mjs`](composer/tunnel.mjs); **worked end-to-end demo**
+  in [`composer/host-demo.html`](composer/host-demo.html) + [`composer/guest.html`](composer/guest.html)
+  (`node scripts/serve.mjs` → open `/composer/host-demo.html`).
 - [`docs/egress-github.md`](docs/egress-github.md) — **out the door**: serialize a delivery into a
   GitHub **issue or comment** (a canonical per-poll issue, responses as comments, so the comment
   ordinal is free contemporaneous metadata) and post it with a semi-public, repo-scoped credential —

@@ -98,9 +98,12 @@ unsolicited public submission. We never reach out except on a confirmed intake; 
 - **Allowed-origins policy** — who may open a tunnel *at all* (the coarse `allowedOrigins` gate, above
   the per-destination proof): any origin, a registered set, or "ask the user the first time a new
   origin says hello." Still open.
-- **The browser-probe handshake.** "Transmit on browser probe to anecdote.channel for a signed
-  nonce-gen when it goes out the door" — the concrete embed/probe flow (auto-iframe vs. user gesture,
-  visible vs. headless) needs a worked HTML demo, the way `crunch.html` made the worker bus tangible.
+- **The browser-probe handshake — worked demo built.** [`composer/host-demo.html`](../composer/host-demo.html)
+  (a stand-in Tell poll sheet) frames [`composer/guest.html`](../composer/guest.html) (anecdote.channel)
+  and runs the whole round-trip in a browser: hello (origin-verified) → type → reduce → build → sign →
+  post (simulated GitHub) → the guest becomes the detail view of its async status, the host mirroring
+  delivery + nonce. Open: the auto-iframe-vs-user-gesture UX and persisting a non-extractable identity
+  key across reloads.
 - **Identity persistence.** The guest is handed an identity; on device it must load/persist a
   non-extractable key in the trove store on first run.
 - **Allowed-origins policy.** Who may open a tunnel — any Tell, a registered set, or "ask the user the

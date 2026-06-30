@@ -1,0 +1,123 @@
+<!doctype html>
+<!-- DEMO host — a stand-in for a Tell's poll sheet. In production THIS page lives on the Tell's
+     own origin and is what a QR opens; here it stands in so the whole round-trip is runnable from
+     one repo. It reads the QR params (mode/canonical/run/post + pile/poll/round/tok/…), frames the
+     anecdote.channel GUEST (composer/guest.html), and opens the tunnel by saying hello. The guest
+     does the data-assisted intake and posts out the door; this page just provides context and
+     mirrors the result. It never touches the signing key or the trove — those stay in the guest.
+
+     Run it:  python3 -m http.server 8000   →  http://localhost:8000/composer/host-demo.html
+     A real QR would carry params, e.g.:
+       …/host-demo.html?pile=cd04-q1&poll=budget&round=1&tok=<hmac>&mode=comment&canonical=7&run=spring&q=How%20should%20we%20spend%20it%3F -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tell · poll (demo host)</title>
+<style>
+  :root { --ink:#1d1d22; --muted:#6b6b78; --edge:#d9d9e0; --line:#ececf1; --accent:#3b4cca; --shade:#f6f6f9; --ok:#1f7a4d; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:1.5rem 1rem; background:var(--shade); color:var(--ink);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
+  main { width:100%; max-width:760px; display:grid; gap:1rem; grid-template-columns:1fr; }
+  @media(min-width:720px){ main { grid-template-columns:1fr 1fr; } }
+  .card { background:#fff; border:1px solid var(--edge); border-radius:12px; padding:1rem 1.1rem; }
+  h1 { font-size:1.15rem; margin:0 0 .1rem; } h2 { font-size:.95rem; margin:0 0 .5rem; }
+  .sub { color:var(--muted); font-size:.85rem; margin:0 0 .9rem; }
+  .k { color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.78rem; word-break:break-all; }
+  table { width:100%; border-collapse:collapse; font-size:.82rem; }
+  td { padding:.18rem .2rem; vertical-align:top; border-bottom:1px solid var(--line); }
+  td.kk { color:var(--muted); white-space:nowrap; padding-right:.6rem; }
+  iframe { width:100%; min-height:360px; border:1px solid var(--edge); border-radius:10px; background:#fff; }
+  .live { font-size:.82rem; color:var(--muted); } .live b { color:var(--ok); }
+  pre { background:#0e0e14; color:#d6e9ff; border-radius:9px; padding:.6rem; font-size:.76rem; white-space:pre-wrap; word-break:break-all; }
+</style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <h1 id="q">Poll</h1>
+    <p class="sub">This is the Tell's poll sheet (the demo host). It scanned a QR and is handing the
+      answer-building to anecdote.channel in the frame beside it — proving who it is by origin, and
+      passing the poll token + egress config across the tunnel.</p>
+    <h2>What the QR carried</h2>
+    <table id="params"></table>
+    <p class="live" id="live">opening tunnel…</p>
+  </section>
+
+  <section class="card">
+    <h2>anecdote.channel — the intake (iframed)</h2>
+    <iframe id="guest" src="./guest.html" title="anecdote intake"></iframe>
+    <p class="k" style="margin-top:.6rem">what the guest handed back</p>
+    <pre id="out">—</pre>
+  </section>
+</main>
+
+<script type="module">
+  import { hello } from "./tunnel.mjs";
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+  const P = new URLSearchParams(location.search);
+  const g = (k, d="") => P.get(k) ?? d;
+
+  // Defaults so the page is runnable with a bare URL; a real QR overrides them.
+  const pile = g("pile", "cd04-q1"), poll = g("poll", "budget"), round = g("round", "1");
+  const question = g("q", "How should we spend the participatory budget?");
+  const repoStr = g("repo", "FCCN-ANTIBODY/tell.anecdote.channel");
+  const [owner, name] = repoStr.split("/");
+
+  // The destination this host claims to be. Origin-bind: in the demo the guest is same-origin, so
+  // the destination url IS our origin and the proof passes. In production this is the Tell's url.
+  const destination = { kind: "tell", id: name || "demo-tell", url: location.origin, excludes: [] };
+  const pollCtx = { pile, poll, round, asker: g("asker", "clerk"), question, shown_guidance: g("guidance", "") };
+  const token = g("tok", "demo-hmac-tok");                 // the HMAC capability bin/authz checks
+  const egress = {                                          // how the guest posts out the door
+    repo: { owner, name }, mode: g("mode", "comment"),
+    canonicalIssue: Number(g("canonical", "7")) || 7,
+    run: g("run", "demo-run"),
+    credential: g("post", "SIMULATED-credential"),          // semi-public; demo egress is simulated
+  };
+
+  document.getElementById("q").textContent = question;
+  document.getElementById("params").innerHTML = Object.entries({
+    pile, poll, round, mode: egress.mode, canonical: egress.canonicalIssue, run: egress.run,
+    tok: token.slice(0, 16) + (token.length > 16 ? "…" : ""), repo: repoStr,
+    post: P.get("post") ? "(carried — semi-public)" : "(none → simulated)",
+  }).map(([k, v]) => `<tr><td class="kk">${esc(k)}</td><td class="mono">${esc(v)}</td></tr>`).join("");
+
+  const frame = document.getElementById("guest");
+  const live = document.getElementById("live");
+  const out = document.getElementById("out");
+  const targetOrigin = location.origin;                     // explicit — never "*"
+
+  function sayHello() {
+    frame.contentWindow.postMessage(
+      hello({ destination, poll: pollCtx, token, egress }), targetOrigin);
+  }
+
+  // Listen for the guest's messages. ack on hello; loaded triggers hello; built is pushed when the
+  // user sends inside the guest — the host learns the outcome without ever holding the key/trove.
+  window.addEventListener("message", (ev) => {
+    if (ev.origin !== targetOrigin) return;
+    const d = ev.data; if (!d || typeof d.type !== "string" || !d.type.startsWith("anecdote.tunnel.")) return;
+    if (d.type === "anecdote.tunnel.loaded/v1") { sayHello(); }
+    else if (d.type === "anecdote.tunnel.ack/v1") { live.innerHTML = `tunnel open — destination <b>verified by ${esc(d.verified)}</b>, co-signer <span class="mono">${esc(d.instrument || "?")}</span>`; }
+    else if (d.type === "anecdote.tunnel.built/v1") {
+      const st = d.delivery ? d.delivery.state : "ready";
+      live.innerHTML = `response sent — status <b>${esc(st)}</b> (nonce <span class="mono">${esc(d.receipt.nonce)}</span>)`;
+      out.textContent = JSON.stringify({ where: d.where, verified: d.verified, receipt: d.receipt, delivery: d.delivery }, null, 2);
+    } else if (d.type === "anecdote.tunnel.declined/v1") {
+      live.textContent = "declined: " + d.reason; out.textContent = JSON.stringify(d, null, 2);
+    }
+  });
+  // Fallback if the loaded ping is missed (e.g. cached iframe): say hello on load too.
+  frame.addEventListener("load", () => setTimeout(sayHello, 0));
+  // And once more right now: the iframe may have finished — and fired its single 'loaded' ping —
+  // before this module's import graph resolved and attached the listener above. If the guest is
+  // already up, this reaches it; if not, the load/loaded paths cover the reverse race. (Posting to a
+  // still-loading frame is simply dropped — harmless.)
+  try { sayHello(); } catch {}
+</script>
+</body>
+</html>

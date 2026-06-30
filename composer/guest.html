@@ -1,0 +1,166 @@
+<!doctype html>
+<!-- anecdote.channel GUEST — the iframe a host (a Tell's poll sheet) opens and says hello to.
+     This is the runtime tunnel made real (composer/tunnel.mjs, docs/tunnel.md): it runs on the
+     anecdote.channel origin, so the signing key and the trove live HERE, on one origin, across
+     every Tell you ever answer — the host can never reach them.
+
+     The flow: the host posts `hello` (its destination + poll context + the egress config). We
+     prove the destination, then show a tiny composer. You type; it canonical-labels locally
+     (the reducer); on a CONFIRMED send we build → sign (with a fresh revocable nonce, the Mobile
+     LLM co-signing by its pinned id) → record the receipt in our trove → post it out the door →
+     and the page BECOMES the detail view of its async status. Nothing runs on a loop but your
+     keystrokes and the host's messages (CONSTITUTION §"Mobile LLM").
+
+     Served same-origin in the demo (composer/host-demo.html frames it). In production the host is
+     a Tell origin and this is the anecdote.channel origin — two origins, one narrow door. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote · intake</title>
+<style>
+  :root { --ink:#1d1d22; --muted:#6b6b78; --edge:#d9d9e0; --line:#ececf1; --ok:#1f7a4d; --okbg:#eef8f1;
+          --warn:#9a6b00; --warnbg:#fbf4e6; --accent:#3b4cca; --shade:#f6f6f9; --dim:#9a9aa6; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:1rem; background:#fff; color:var(--ink);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  h1 { font-size:1.05rem; margin:0 0 .1rem; }
+  .sub { color:var(--muted); font-size:.85rem; margin:0 0 .9rem; }
+  textarea { width:100%; min-height:84px; resize:vertical; padding:.6rem .7rem; font:inherit; color:var(--ink);
+             border:1px solid var(--edge); border-radius:9px; }
+  textarea:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent); }
+  .intent { margin:.5rem 0; font-size:.86rem; color:var(--muted); min-height:1.3em; }
+  .chip { display:inline-block; background:var(--shade); border:1px solid var(--edge); border-radius:999px;
+          padding:.1rem .55rem; font-weight:600; color:var(--ink); }
+  button.go { font:inherit; font-weight:600; padding:.45rem .9rem; border-radius:9px; border:1px solid var(--accent);
+              background:var(--accent); color:#fff; cursor:pointer; }
+  button.go:disabled { background:#c7c7d2; border-color:#c7c7d2; cursor:not-allowed; }
+  .panel { border:1px solid var(--line); border-radius:10px; padding:.8rem .9rem; margin-top:.7rem; }
+  .k { color:var(--muted); font-size:.8rem; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.8rem; word-break:break-all; }
+  .state { display:inline-block; padding:.08rem .5rem; border-radius:999px; font-size:.74rem; font-weight:600;
+           text-transform:uppercase; letter-spacing:.03em; }
+  .state.pending { background:var(--warnbg); color:var(--warn); }
+  .state.accepted { background:var(--okbg); color:var(--ok); }
+  .state.rejected,.state.error { background:#fbeaea; color:#b3261e; }
+  .note { font-size:.8rem; color:var(--muted); margin-top:.6rem; }
+  .waiting { color:var(--dim); font-size:.9rem; }
+  .sim { font-size:.72rem; color:var(--warn); background:var(--warnbg); border-radius:6px; padding:.1rem .4rem; }
+</style>
+</head>
+<body>
+<main id="app"><p class="waiting" id="wait">Waiting for the host to say hello…</p></main>
+
+<script type="module">
+  import { guestSession, BUILT, HELLO_ACK, HELLO, INTAKE, STATUS } from "./tunnel.mjs";
+  import { generateIdentity } from "./sign.mjs";
+  import { intentOf } from "./route.mjs";
+  import { fewestVerbs } from "../reducer/embedders.mjs";
+  import { idbStore, memoryStore } from "../reducer/store.mjs";
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+  // --- deps: everything that gives a constituent power lives on THIS origin -----------------
+  // The reducer's heuristic namer is the canonical-labeling instrument here (instant, offline).
+  // The real pinned MiniLM/namer drops in behind the same `name` seam via the worker bus
+  // (composer/model-bus.mjs) — that is the "llm agent wiring" upgrade; the agent id below would
+  // then carry the model's hash-pinned reducerVersion instead of this heuristic tag.
+  const agent = { instrument: "reducer:fewestVerbs/heuristic", constitution: location.origin + "/CONSTITUTION.md" };
+
+  // SIMULATED GitHub — the demo posts nothing to the network. A real deploy injects the github
+  // fetch api (composer/egress-github.mjs defaultApi) and a real semi-public credential.
+  let simSeq = 1;
+  async function simulatedGithub({ path }) {
+    const n = simSeq++;
+    const url = "https://github.com" + path.replace(/^\/repos/, "").replace(/\/comments$/, "#issuecomment-" + (1000 + n));
+    return { status: 201, json: { id: 1000 + n, html_url: url, number: n } };
+  }
+
+  let store; try { store = idbStore("anecdote", "trove"); } catch { store = memoryStore(); }
+  const identity = await generateIdentity();   // demo: ephemeral; production persists a non-extractable key
+  const deps = { identity, store, agent, name: fewestVerbs, egressApi: simulatedGithub };
+  const session = guestSession(deps);
+
+  let hostOrigin = null, ctx = null;
+
+  // --- the narrow door: messages from the host (hello / status) ----------------------------
+  // We only ever ANSWER the host; we never act on our own except on your confirmed send.
+  window.addEventListener("message", async (ev) => {
+    const d = ev && ev.data;
+    if (!d || typeof d.type !== "string" || !d.type.startsWith("anecdote.tunnel.")) return;
+    if (d.type === HELLO) {
+      hostOrigin = ev.origin;
+      // Same-origin demo: allow the parent's origin. (Production: an allowlist of host origins.)
+      const reply = await session.handle(d, { origin: ev.origin });
+      if (reply.type === HELLO_ACK) { ctx = d; renderCompose(reply); }
+      else renderError(reply.message || "host could not open the tunnel");
+      post(reply);
+    } else if (d.type === STATUS) {
+      post(await session.handle(d, { origin: ev.origin }));
+    }
+  });
+  function post(msg) { if (window.parent && window.parent !== window && hostOrigin) window.parent.postMessage(msg, hostOrigin); }
+
+  // Announce we're loaded (dormant otherwise), exactly once.
+  if (window.parent && window.parent !== window) window.parent.postMessage({ type: "anecdote.tunnel.loaded/v1" }, "*");
+
+  // --- the composer UI (only appears once the host has said hello) --------------------------
+  const app = document.getElementById("app");
+
+  function renderCompose(ack) {
+    const dest = ctx.destination, poll = ctx.poll || {};
+    app.innerHTML = `
+      <h1>${esc(poll.question || "Say something.")}</h1>
+      <p class="sub">to <strong>${esc(dest.id)}</strong> · ${dest.kind === "tell" ? "private" : "public"} ·
+        verified by ${esc(ack.verified || "—")} · co-signed by <span class="mono">${esc(ack.instrument || "?")}</span></p>
+      <textarea id="say" placeholder="Write your answer…" autofocus></textarea>
+      <div class="intent" id="intent"></div>
+      <button class="go" id="send" disabled>Send — sign &amp; post</button>
+      <p class="note">Your words are signed on this device with a fresh, revocable nonce, kept in your
+        trove here, and posted ${ctx.egress ? "to the Tell" : "(no egress configured)"} only when you confirm.</p>`;
+    const $say = app.querySelector("#say"), $intent = app.querySelector("#intent"), $send = app.querySelector("#send");
+    $say.addEventListener("input", () => {       // the only loop: your keystrokes
+      const i = intentOf($say.value, fewestVerbs);
+      $intent.innerHTML = i.label ? `intent → <span class="chip">${esc(i.label)}</span>` : "";
+      $send.disabled = !$say.value.trim();
+    });
+    $send.addEventListener("click", async () => {
+      $send.disabled = true; $send.textContent = "Signing…";
+      const out = await session.handle({ type: INTAKE, text: $say.value }, { origin: hostOrigin });
+      if (out.type === BUILT) { renderStatus(out); post(out); }
+      else { renderError(out.reason || out.message || "not sent"); post(out); }
+    });
+  }
+
+  function renderStatus(built) {
+    const dv = built.delivery, pl = dv && dv.placement;
+    const state = dv ? dv.state : (built.deliver ? "ready" : "—");
+    app.innerHTML = `
+      <h1>Sent. <span class="state ${esc(state)}">${esc(state)}</span> <span class="sim">simulated post</span></h1>
+      <p class="sub">This page is now the detail view of what you sent. Close the tab if you like — it is
+        remembered in your trove, stapled to its nonce.</p>
+      <div class="panel">
+        <div><span class="k">you said</span> ${esc(built.signed.body[0].text)}</div>
+        <div><span class="k">label</span> <span class="chip">${esc(built.signed.label || "")}</span></div>
+        <div><span class="k">nonce</span> <span class="mono">${esc(built.receipt.nonce)}</span></div>
+        <div><span class="k">signer</span> <span class="mono">${esc(built.receipt.by)}</span></div>
+        ${pl ? `<div><span class="k">landed</span> <span class="mono">${esc(pl.url || "(receipt only)")}</span></div>` : ""}
+      </div>
+      <p class="note">Acceptance is <strong>not instant</strong>: the Tell sweeps its mailbox on a schedule
+        (≈hourly once enabled — civic-node has no live cadence yet), then this flips to
+        <span class="state accepted">accepted</span> or <span class="state rejected">rejected</span>.
+        <button class="go" id="recheck" style="margin-left:.4rem;padding:.2rem .55rem;font-size:.8rem">Re-check status</button></p>
+      <pre class="mono" id="raw" style="white-space:pre-wrap;background:#0e0e14;color:#d6e9ff;border-radius:9px;padding:.6rem"></pre>`;
+    app.querySelector("#raw").textContent = JSON.stringify(built.delivery || built.deliver, null, 2);
+    app.querySelector("#recheck").addEventListener("click", async () => {
+      const st = await session.handle({ type: STATUS, nonce: built.receipt.nonce }, { origin: hostOrigin });
+      app.querySelector("#raw").textContent = JSON.stringify(st, null, 2);
+    });
+  }
+
+  function renderError(msg) {
+    app.innerHTML = `<h1>Couldn’t do that</h1><p class="sub">${esc(msg)}</p>`;
+  }
+</script>
+</body>
+</html>

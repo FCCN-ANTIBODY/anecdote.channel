@@ -117,5 +117,19 @@ The **payload** that a confirmed send hands off now has a shape: [`anecdote.mjs`
 text inline, attachments as receipts (hash + provenance) whose bytes live in your references pile.
 And [`sign.mjs`](sign.mjs) signs it on-device: one Ed25519 constituent signature over the whole
 envelope, the Mobile LLM co-signing by its hash-pinned identity bound into the signed bytes, all
-behind a revocable nonce. See [`docs/anecdote-schema.md`](../docs/anecdote-schema.md). What remains:
-the actual transmit, and nonce minting/revocation (platform-side).
+behind a revocable nonce. See [`docs/anecdote-schema.md`](../docs/anecdote-schema.md).
+
+It all comes together in the **runtime tunnel** ([`docs/tunnel.md`](../docs/tunnel.md),
+[`docs/egress-github.md`](../docs/egress-github.md)) — a host iframes anecdote.channel and says hello;
+the guest builds, signs, posts out the door, and becomes the status view. A **worked end-to-end demo**
+runs in a browser:
+
+```sh
+node scripts/serve.mjs                         # or: python3 -m http.server 8000
+# open http://localhost:8000/composer/host-demo.html
+```
+
+[`host-demo.html`](host-demo.html) (a stand-in Tell poll sheet) frames [`guest.html`](guest.html)
+(anecdote.channel): hello (origin-verified) → type → reduce → build → sign → post (simulated GitHub)
+→ the guest becomes the detail view of its async status. What remains for production: a live GitHub
+post credential + nonce minting/revocation (platform-side), and persisting a non-extractable key.
