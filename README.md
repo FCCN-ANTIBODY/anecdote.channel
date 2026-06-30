@@ -42,6 +42,12 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
 
 ## Design notes
 
+- [`docs/origin.md`](docs/origin.md) — **Milestone: Origin** (vision + broad-strokes contract): the
+  offline-first **shipyard of data:chambers**. The held copy eclipses the served origin (first-contact
+  signer-pinning); the trove is home base; a powerless `data:` chamber is handed powers — including
+  `crypto.subtle`, which it lacks because it isn't a secure context — down a **probe line** from the
+  Elevated `anecdote.channel` origin; an offline **git origin** + a vendorless **git-enough** client make
+  it long-term storage. DNS-first, store-never, optical-eventually.
 - [`docs/anecdote-schema.md`](docs/anecdote-schema.md) — what a confirmed send **carries**:
   `anecdote/v1`, the payload `route.prepare` grows into. Text rides inline; an image, a GeoJSON
   shape, or a citation rides as a **receipt** (hash + provenance) whose bytes live in your own
