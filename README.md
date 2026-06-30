@@ -52,6 +52,10 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   or no-op for incognito), git-as-capability-shorthand, the **LM-as-historian** indexing, the **history
   pile** (the pile's "question" as an ingress filter), and the **`seal-enough`** factory — almost all
   WebCrypto, with `age` spoken only at the Tell-interop boundary.
+- [`docs/probe-line.md`](docs/probe-line.md) — shaping (edges first) the **probe line** between a powerless
+  `data:` chamber and the **Elevated anecdote app**: the ingress tunnel **inverted** (capability = a
+  transferred `MessagePort`, since a `data:` origin is null), the enough-clients vended as ops, the consent
+  ladder, and how the demos become clients once they load from offline arch + MiniLM.
 - [`docs/anecdote-schema.md`](docs/anecdote-schema.md) — what a confirmed send **carries**:
   `anecdote/v1`, the payload `route.prepare` grows into. Text rides inline; an image, a GeoJSON
   shape, or a citation rides as a **receipt** (hash + provenance) whose bytes live in your own
