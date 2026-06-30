@@ -115,6 +115,20 @@ encoded payload). **Edges:** iframe(`sandbox="allow-scripts"`) vs. a new tab; de
 **teardown** (closing the port/tab revokes every capability at once — the "completely clean bunker" is
 re-established by *destroying* it, not cleaning it).
 
+**VERIFIED (Chromium 141, headless) — the inverted `hello` and revocation-by-close both hold.** Same
+sandboxed-iframe chamber: it boots, posts `ready` to `window.parent`, the Elevated side replies with the
+init message carrying the port (the t=0 inverted hello), and a port round-trip succeeds (digest matched
+`sha256sum` exactly). Then the Elevated side calls **`port.close()`** on *its* end and tells the chamber
+to try again. The chamber's subsequent `port.postMessage(...)` over the same port **does not throw**
+(`post_threw: null`) and **no reply ever arrives** (the chamber waited 800 ms; `revoked_after_close:
+true`). So:
+
+- **closing the privileged end revokes the capability cleanly and unilaterally** — the chamber keeps a
+  live-looking port object but nothing answers it; the "destroy, don't clean" teardown is real.
+- **revocation is failure-*silent*** — the chamber gets no error, just silence, and **cannot locally
+  distinguish "revoked" from "slow."** Design consequence: every chamber-side call needs **its own
+  timeout** (or a heartbeat) to notice it's been cut off; the protocol can't rely on an error event.
+
 **VERIFIED (Chromium 141, headless) — iframe vs. tab is settled: a `data:` chamber must be an iframe.**
 A served (localhost, secure) opener tried three `window.open` targets and watched for the popup page +
 the chamber's inverted-hello to its `opener`:
@@ -155,4 +169,6 @@ The spawn-time **secret nonce** is demoted to a *fallback* for a transport that 
 **Settled by the Edge 6 test:** **iframe vs. tab is not a fork for chambers** — a `data:` document can't be
 a top-level tab (Chrome blocks the navigation), and the things that *can* be tabs (`blob:`, served)
 inherit the opener's origin and powers, so they aren't chambers at all. The chamber is an iframe, full
-stop; tabs are reserved for spawning another *powered* surface.
+stop; tabs are reserved for spawning another *powered* surface. **Revocation-by-close is real but
+silent** — `port.close()` on the privileged end cuts the chamber off unilaterally with no error, so every
+chamber-side call needs its own timeout to notice.
