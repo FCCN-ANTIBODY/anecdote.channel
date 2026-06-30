@@ -4,7 +4,7 @@
 import { memoryStore } from "../reducer/store.mjs";
 import { generateIdentity, verifySignature } from "./sign.mjs";
 import { get as troveGet } from "./consent.mjs";
-import { guestSession, hello, intake, HELLO_ACK, BUILT, DECLINED, ERROR } from "./tunnel.mjs";
+import { guestSession, hello, intake, status, HELLO_ACK, BUILT, STATUS, DECLINED, ERROR } from "./tunnel.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -122,6 +122,43 @@ async function guest(extra = {}) {
   let threw = false;
   try { hello({}); } catch { threw = true; }
   ok(threw, "hello() refuses to open a tunnel with no destination");
+}
+
+// 10. Egress: when the host hands us a post credential, we send it to GitHub on intake, record the
+//     delivery against the nonce, and never leak the credential. The page can then read the status.
+{
+  const CRED = "ghs_secret_post_token";
+  let posted = null;
+  const egressApi = async (call) => { posted = call; return { status: 201, json: { id: 7, html_url: "https://github.com/o/r/issues/9#issuecomment-7" } }; };
+  const store = memoryStore();
+  const g = guestSession({ identity: await generateIdentity(), store, agent, egressApi });
+  await g.handle(hello({
+    destination: tell,
+    poll: { pile: "cd04", poll: "shade", round: 1 },
+    token: "HMAC-tok",
+    egress: { repo: { owner: "o", name: "r" }, mode: "comment", canonicalIssue: 9, run: "run-1", credential: CRED },
+  }), { origin: "https://nbhd.example" });
+  const out = await g.handle(intake({ text: "The park needs more shade" }), { origin: "https://nbhd.example" });
+  ok(out.delivery && out.delivery.state === "pending", "intake posts and returns a pending delivery");
+  ok(out.delivery.placement.url.endsWith("#issuecomment-7"), "the delivery records where it landed");
+  ok(posted.token === CRED, "the post credential is used in the api call");
+  ok(!JSON.stringify(posted.body).includes(CRED), "the credential is never in the posted body");
+
+  // the page can re-query status by nonce — even 'after a reload' (a fresh request to the trove)
+  const st = await g.handle(status({ nonce: out.receipt.nonce }), { origin: "https://nbhd.example" });
+  ok(st.type === STATUS && st.found && st.delivery.state === "pending", "status(nonce) returns the async delivery from the trove");
+  const miss = await g.handle(status({ nonce: "nonce:absent" }), { origin: "https://nbhd.example" });
+  ok(miss.type === STATUS && miss.found === false, "status() for an unknown nonce reports not-found");
+}
+
+// 11. Egress failure is recorded, not swallowed (the promise: you will know if it wasn't accepted).
+{
+  const store = memoryStore();
+  const egressApi = async () => ({ status: 403, json: { message: "no" } });
+  const g = guestSession({ identity: await generateIdentity(), store, agent, egressApi });
+  await g.handle(hello({ destination: tell, egress: { repo: { owner: "o", name: "r" }, mode: "issue", credential: "x" } }), { origin: "https://nbhd.example" });
+  const out = await g.handle(intake({ text: "more bus routes" }), { origin: "https://nbhd.example" });
+  ok(out.delivery && out.delivery.state === "error", "a failed post is surfaced as a delivery error, not silent");
 }
 
 console.log(fails ? `\n${fails} FAILED` : "\nall passed");
