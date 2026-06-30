@@ -55,9 +55,8 @@ authorize it.** Everything below follows from replacing origin with a capability
   with asymmetric tools: **Elevated authorizes the chamber by possession of the port; the chamber
   authorizes Elevated by the init message's `event.origin`** (it can refuse a port that didn't come from
   its expected Elevated origin). Record this — the chamber isn't blindly trusting whoever postMessages it.
-- **Remaining edges:** (b) **iframe vs. `window.open`** (the verified path is iframe; the tab path is
-  untested); (c) the chamber's bootstrap must **listen for exactly one init message**, then talk only down
-  the port.
+- **Remaining edges:** (b) iframe vs. `window.open` — **now resolved, see Edge 6**; (c) the chamber's
+  bootstrap must **listen for exactly one init message**, then talk only down the port.
 
 ## Edge 2 — the op surface, and which way data flows
 
@@ -116,13 +115,44 @@ encoded payload). **Edges:** iframe(`sandbox="allow-scripts"`) vs. a new tab; de
 **teardown** (closing the port/tab revokes every capability at once — the "completely clean bunker" is
 re-established by *destroying* it, not cleaning it).
 
+**VERIFIED (Chromium 141, headless) — iframe vs. tab is settled: a `data:` chamber must be an iframe.**
+A served (localhost, secure) opener tried three `window.open` targets and watched for the popup page +
+the chamber's inverted-hello to its `opener`:
+
+| `window.open` target | handle returned? | top-level page actually loaded? | chamber origin / powers |
+|---|---|---|---|
+| `data:text/html,…` | **yes (truthy)** | **NO — silently blocked** | n/a (never ran) |
+| `blob:…` (opener-created) | yes | yes | **`http://localhost:8015`** (the opener's), `isSecureContext: true`, **has `crypto.subtle`** |
+| served `http://…` | yes | yes | the served origin (powered) |
+
+Two findings, both load-bearing:
+
+- **Top-level navigation to a `data:` URL is blocked** (Chrome's long-standing anti-phishing rule).
+  `window.open` returns a *truthy* handle — so a naive caller thinks it worked — but no page is created,
+  no opener message ever arrives, the chamber code never executes. **So a `data:` chamber cannot be a
+  tab/window; the verified iframe is the only host for it.**
+- **A tab can only host a *powered* context.** The two targets that *do* open as tabs (`blob:`, served)
+  **inherit the opener's origin**, become secure contexts, and **get `crypto.subtle`** — the exact
+  opposite of the chamber's defining powerlessness. A `blob:` "chamber" is effectively same-origin with
+  Elevated, so there's nothing to delegate and nothing the port-capability is protecting.
+
+**Conclusion:** the chamber's null-origin powerlessness and its iframe-hosting are *the same fact* — only
+an iframe can carry a `data:` document, and only a `data:` document is null-origin/`subtle`-less. "Tab vs.
+iframe" was never a real fork for chambers: choose a tab and you've chosen a *different, powered* thing
+(blob/served), not a chamber. Tabs remain available for spawning **another Elevated-origin surface**
+(a full app window), never a chamber.
+
 ## Not deciding yet (multiple paths)
 
-iframe vs. tab; whether a toy labeler ever runs in-chamber; the exact op schema and correlation-id
-framing. We're mapping **edges**; the protocol spec follows once we've walked them. The first three
-(capability primitive, op direction, consent ladder) are the load-bearing ones.
+Whether a toy labeler ever runs in-chamber; the exact op schema and correlation-id framing. We're mapping
+**edges**; the protocol spec follows once we've walked them. The first three (capability primitive, op
+direction, consent ladder) are the load-bearing ones.
 
 **Settled by the Edge 1 test:** **port-transfer is the default, not a co-equal path** — it's verified to
 cross into a (sandboxed) `data:` chamber, it needs no guessable secret, and closing it revokes cleanly.
-The spawn-time **secret nonce** is demoted to a *fallback* for a transport that can't carry a port. The
-iframe path is verified; the **tab (`window.open`) path is the next thing to churn**.
+The spawn-time **secret nonce** is demoted to a *fallback* for a transport that can't carry a port.
+
+**Settled by the Edge 6 test:** **iframe vs. tab is not a fork for chambers** — a `data:` document can't be
+a top-level tab (Chrome blocks the navigation), and the things that *can* be tabs (`blob:`, served)
+inherit the opener's origin and powers, so they aren't chambers at all. The chamber is an iframe, full
+stop; tabs are reserved for spawning another *powered* surface.
