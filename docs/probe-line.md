@@ -39,11 +39,25 @@ authorize it.** Everything below follows from replacing origin with a capability
   `chamber.postMessage(initMsg, '*', [port2])`, **transferring a port**. **Possession of the port *is* the
   capability** — no guessable secret, no origin check — and **closing the port revokes** it cleanly. A
   spawn-time **secret nonce** is the fallback if a port can't be transferred.
-- **Edges:** (a) can a `MessagePort` be transferred *into* a `data:` document (transfer with
-  `targetOrigin: '*'` to an opaque-origin window — believed yes; **verify**)? (b) **iframe vs.
-  `window.open`** for the chamber, and whether `parent`/`opener` survives long enough for the t=0 handoff;
-  (c) the chamber's bootstrap (the `make-datachamber` payload) must **listen for exactly one init message**
-  and then talk only down the port.
+- **VERIFIED (Chromium 141, headless).** A real `data:text/html` iframe inside a served (localhost,
+  secure) parent: the parent did `iframe.contentWindow.postMessage({type:'init'}, '*', [port2])` and the
+  chamber received the port on `event.ports[0]` and ran a full **capability-by-port round-trip** — it asked
+  the parent to `SHA-256` a string, the parent computed it with `crypto.subtle`, and the chamber got the
+  correct digest back over the port. The chamber reported: `gotPort: true`, `isSecureContext: false`,
+  `typeof crypto.subtle === 'undefined'`, `location.origin === "null"`. The same worked with the iframe
+  hardened to **`sandbox="allow-scripts"`** (no `allow-same-origin`). So:
+  - **the port transfers into a `data:` (even sandboxed) chamber** — the capability primitive holds;
+  - **the chamber genuinely lacks `subtle` and is not a secure context** — it *must* delegate (Edge 2),
+    confirmed empirically, not assumed;
+  - **its origin is `null`** — origin-bind is impossible, so the port-capability is the only option.
+- **Bonus finding — mutual auth, two different primitives.** The chamber *also* sees `event.origin` of the
+  init message = the **Elevated origin** (`http://localhost:8011` in the test). So the trust is symmetric
+  with asymmetric tools: **Elevated authorizes the chamber by possession of the port; the chamber
+  authorizes Elevated by the init message's `event.origin`** (it can refuse a port that didn't come from
+  its expected Elevated origin). Record this — the chamber isn't blindly trusting whoever postMessages it.
+- **Remaining edges:** (b) **iframe vs. `window.open`** (the verified path is iframe; the tab path is
+  untested); (c) the chamber's bootstrap must **listen for exactly one init message**, then talk only down
+  the port.
 
 ## Edge 2 — the op surface, and which way data flows
 
@@ -104,6 +118,11 @@ re-established by *destroying* it, not cleaning it).
 
 ## Not deciding yet (multiple paths)
 
-iframe vs. tab; port-transfer vs. spawn-secret; whether a toy labeler ever runs in-chamber; the exact op
-schema and correlation-id framing. We're mapping **edges**; the protocol spec follows once we've walked
-them. The first three (capability primitive, op direction, consent ladder) are the load-bearing ones.
+iframe vs. tab; whether a toy labeler ever runs in-chamber; the exact op schema and correlation-id
+framing. We're mapping **edges**; the protocol spec follows once we've walked them. The first three
+(capability primitive, op direction, consent ladder) are the load-bearing ones.
+
+**Settled by the Edge 1 test:** **port-transfer is the default, not a co-equal path** — it's verified to
+cross into a (sandboxed) `data:` chamber, it needs no guessable secret, and closing it revokes cleanly.
+The spawn-time **secret nonce** is demoted to a *fallback* for a transport that can't carry a port. The
+iframe path is verified; the **tab (`window.open`) path is the next thing to churn**.
