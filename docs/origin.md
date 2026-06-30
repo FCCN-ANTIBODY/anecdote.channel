@@ -231,7 +231,29 @@ rest. Spawn a **read-only** study with these instructional parameters:
   needs a human call** · a one-paragraph **bottom line** (how big is "enough," and the 2–3 hardest pieces).
 - **Constraint:** read-only; conclusion only, not file dumps.
 
-The first instance — *how much Jekyll the Journal lights up* — is running; its findings land below when done.
+### First study — how much Jekyll the Journal lights up
+
+**Bottom line: ~5% of Jekyll. SMALL** — a template renderer over simple YAML data; **no** plugins,
+collections, pagination, Sass, or Ruby. `jekyll-enough` is genuinely small.
+
+- **Liquid tags to implement:** `for`, `if`/`unless`, `assign`, `capture`, `include`, `include_relative`,
+  `comment` (incl. `forloop.last`, the `and` operator, hash access by `[0]`/`[1]`).
+- **Liquid filters to implement:** `default`, `jsonify`, `where`, `split`, `join`, `relative_url`.
+- **Jekyll features:** YAML front matter (`layout`/`title`/`permalink` + custom fields); `_data/*.yml`
+  loaded and iterated as `site.data.<name>` (including **nested** hashes, e.g. Tell's
+  `site.data.constitutions[pile][poll]`); single-level `_layouts`; `_includes` fragments; pretty
+  permalinks; `site.*` / `page.*` variables; Kramdown markdown→HTML.
+- **Dark — ignore:** collections / `_posts`, pagination, Sass/SCSS, plugins/gems, `_plugins/`, themes, and
+  the long filter tail (`date`/`slugify`/`markdownify`/`sort`/`group_by`/`map`/`replace`/…).
+- **The 3 hardest to replicate offline:** (1) **`jsonify`** — precise JSON escaping of YAML scalars;
+  (2) **Ruby-style nested-hash iteration** (`for k,v in hash`, unpacking `pile[1]`) in a JS engine;
+  (3) **Kramdown block-attribute shorthand** (`{: .journal-font}`) — non-standard markdown needing a
+  Kramdown-ish pass.
+- **Build trigger / caveat:** the journal-engine is a **submodule** (`journal/autumn-ryan` + `.journal-engine`)
+  that advances + builds on a weekly cron; no custom `jekyll build` flags or plugins surfaced. The
+  submodule's *own* templates aren't in this workspace, so the surface above is measured from the
+  constellation's shared Liquid usage (Tell/Atlas/civic-node) plus what's visible — **re-run the study
+  against the journal-engine repo once it's in scope** to confirm nothing exotic hides there.
 
 ## Broad-strokes contract (the invariants this milestone must keep)
 
