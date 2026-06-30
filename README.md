@@ -52,6 +52,11 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   everything you've sent (the exact bytes — the reproducible QR), and **removal of consent** is a
   signed act only you can make (CONSTITUTION §"Revocation of consent"). Implemented in
   [`composer/consent.mjs`](composer/consent.mjs).
+- [`docs/tunnel.md`](docs/tunnel.md) — the **runtime tunnel** a host opens by **iframing us and
+  saying hello**: a Tell's poll sheet embeds anecdote.channel, which canonical-labels the answer,
+  builds + signs it with a fresh nonce, leaves the receipt in our own trove, and hands back the
+  artifact to put where it belongs — a Tell for private (the issue-as-input), an Atlas for
+  unsolicited. Implemented in [`composer/tunnel.mjs`](composer/tunnel.mjs).
 - [`docs/label-reducer.md`](docs/label-reducer.md) — what the instrument **is**: the organ of
   **perception** (base face fact, fewest-verbs, descriptive-never-prescriptive), the amoral
   counterpart to the moralizing Judge, running *ahead* of the user's own constitution.
