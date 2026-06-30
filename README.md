@@ -48,6 +48,10 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   `crypto.subtle`, which it lacks because it isn't a secure context — down a **probe line** from the
   Elevated `anecdote.channel` origin; an offline **git origin** + a vendorless **git-enough** client make
   it long-term storage. DNS-first, store-never, optical-eventually.
+- [`docs/git-enough.md`](docs/git-enough.md) — shaping the offline origin's **steady beat** (stage/commit,
+  or no-op for incognito), git-as-capability-shorthand, the **LM-as-historian** indexing, the **history
+  pile** (the pile's "question" as an ingress filter), and the **`seal-enough`** factory — almost all
+  WebCrypto, with `age` spoken only at the Tell-interop boundary.
 - [`docs/anecdote-schema.md`](docs/anecdote-schema.md) — what a confirmed send **carries**:
   `anecdote/v1`, the payload `route.prepare` grows into. Text rides inline; an image, a GeoJSON
   shape, or a citation rides as a **receipt** (hash + provenance) whose bytes live in your own

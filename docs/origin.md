@@ -211,10 +211,10 @@ Refinements toward deliverables (still vision, but sharpening):
   and workers sometimes carry **privileged powers**. The **sum of privileged-environment needs** — and
   where even the "elevated" browser context needs *more* — is unknown; that uncertainty is exactly what
   motivates shipping a **library of tools for data:chamber dives**.
-- **The "enough-client" family.** `git-enough` (deliverable #1) and now **`jekyll-enough`**: the Journal's
-  GitHub workflows (Ruby/Jekyll/Liquid) must run in an offline web-app context, and we want a **narrow
-  client compatible with the Liquid/Jekyll the Journal actually uses — not API parity** (scope = the study
-  below).
+- **The "enough-client" family.** `git-enough` (deliverable #1), `jekyll-enough`, and the `seal-enough`
+  encryption factory: each is a **narrow client compatible with the features actually used — not API
+  parity**. `git-enough` is shaped in [`docs/git-enough.md`](git-enough.md) (the staging beat, the op set,
+  the history-pile, and the seal-enough analysis); `jekyll-enough` is scoped by the study below.
 
 ## Research idiom — the "subsystem-surface study" (reusable brief)
 
