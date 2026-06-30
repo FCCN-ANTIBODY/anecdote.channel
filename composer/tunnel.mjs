@@ -35,10 +35,12 @@ export const ERROR = "anecdote.tunnel.error/v1";
 
 // Open the tunnel. `destination` is the host's own hub: { kind:"tell"|"atlas", id, url, excludes? }.
 // `poll` carries the solicitation context (poll id, round, asker, the question) the Tell already
-// knows — passed through onto the receipt, never invented by us.
-export function hello({ destination, poll = null } = {}) {
+// knows — passed through onto the receipt, never invented by us. `token` is the Tell's poll
+// capability (its server-minted HMAC `tok`); we carry it to the door for the Tell to verify — we
+// never bind it under the user's signature, because it is the Tell's authority, not the user's words.
+export function hello({ destination, poll = null, token = null } = {}) {
   if (!destination || !destination.id || !destination.kind) throw new Error("tunnel: hello needs a destination {id,kind}");
-  return { type: HELLO, destination, poll };
+  return { type: HELLO, destination, poll, token };
 }
 
 // A confirmed answer going out the door. `attachments` are raw {mediaType,bytes,source,...} descriptors
@@ -72,13 +74,19 @@ export function guestSession(deps = {}) {
       if (msg.type === HELLO) {
         if (deps.allowOrigin && ctx.origin && !deps.allowOrigin(ctx.origin)) return err("origin not allowed", ctx.origin);
         if (!msg.destination || !msg.destination.id || !msg.destination.kind) return err("hello needs a destination");
+        // Prove the host is who it says it is going to talk to — before we will sign anything to it.
+        const bind = verifyDestination(msg.destination, ctx.origin, deps);
+        if (!bind.ok) return err(bind.reason, ctx.origin);
         state.ready = true;
         state.destination = msg.destination;
         state.poll = msg.poll || null;
+        state.token = msg.token || null;
         state.hostOrigin = ctx.origin || null;
+        state.verified = bind.verified;
         return {
           type: HELLO_ACK,
           ready: true,
+          verified: bind.verified,            // how we proved it: "origin" (served from the url) | "registry"
           instrument: (deps.agent && deps.agent.instrument) || null,
           constitution: (deps.agent && deps.agent.constitution) || null,
           // We tell the host what we will route here, but the host cannot make us sign anything but a
@@ -106,7 +114,8 @@ export function guestSession(deps = {}) {
         return {
           type: BUILT,
           where: dest.kind === "tell" ? "private" : "unsolicited",   // a Tell for private, an Atlas for unsolicited
-          deliver: outTheDoor(dest, signed, state.poll),             // the artifact the host submits
+          verified: state.verified,                                  // how the destination proved itself at hello
+          deliver: outTheDoor(dest, signed, state.poll, state.token), // the artifact the host submits
           receipt: { nonce: receipt.nonce, status: receipt.status, label: receipt.label, by: receipt.by },
           signed,
         };
@@ -123,13 +132,35 @@ export function guestSession(deps = {}) {
 
 // What "out the door" means per destination kind. A Tell receives the issue-as-input (private,
 // solicited — the Tell's page posts it as a GitHub Issue carrying the signed anecdote, the seam
-// CONTRACT.md → "Ingress: QR → authorized Issue → digest" already expects). An Atlas receives an
-// unsolicited public submission. We hand the host the shape; the host owns the actual transmit.
-function outTheDoor(dest, signed, poll) {
+// CONTRACT.md → "Ingress: QR → authorized Issue → digest" already expects), with the poll `token`
+// carried alongside so the Tell can verify the capability at its door (bin/authz) — NOT under our
+// signature. An Atlas receives an unsolicited public submission. We hand the host the shape; the
+// host owns the actual transmit.
+function outTheDoor(dest, signed, poll, token) {
   if (dest.kind === "tell") {
-    return { kind: "tell-issue", to: { id: dest.id, kind: dest.kind, url: dest.url }, poll, anecdote: signed };
+    return { kind: "tell-issue", to: { id: dest.id, kind: dest.kind, url: dest.url }, poll, token: token || null, anecdote: signed };
   }
   return { kind: "atlas-public", to: { id: dest.id, kind: dest.kind, url: dest.url }, anecdote: signed };
+}
+
+// Prove the host is the destination it claims. Two honest ways, no secret in the browser:
+//   - origin-bind: the embedding page must be SERVED FROM the destination's own url. The browser
+//     attests event.origin and cannot be made to lie, so this proves domain control for free. This is
+//     the rule for a Tell (private, listed nowhere — its url IS its identity).
+//   - registry: an Atlas is public and in our OWN cache of registered Atlases, so we verify the claim
+//     against what we already know (deps.knownAtlas), never trusting the host's word. Used when
+//     present; otherwise an Atlas falls back to the same origin-bind.
+// We never ask the host to prove anything about the USER — that one-directionality is the anonymity.
+function verifyDestination(dest, origin, deps) {
+  if (dest.kind === "atlas" && deps.knownAtlas) {
+    return deps.knownAtlas(dest) ? { ok: true, verified: "registry" } : { ok: false, reason: `unknown atlas ${dest.id}` };
+  }
+  if (!origin) return { ok: false, reason: "no embedding origin to bind the destination to" };
+  if (!dest.url) return { ok: false, reason: "destination has no url to bind" };
+  let o;
+  try { o = new URL(dest.url).origin; } catch { return { ok: false, reason: `destination url is not a url: ${dest.url}` }; }
+  if (o !== origin) return { ok: false, reason: `destination ${o} is not the embedding origin ${origin}` };
+  return { ok: true, verified: "origin" };
 }
 
 function err(message, origin) { return { type: ERROR, message, ...(origin ? { origin } : {}) }; }

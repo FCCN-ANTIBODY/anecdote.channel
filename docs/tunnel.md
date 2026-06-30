@@ -58,22 +58,44 @@ ourselves — nothing phones home.
 
 ## Trust model (narrow on purpose)
 
-- **Origin-checked both ways.** The guest validates `event.origin` against an `allowedOrigins` policy
-  before opening a tunnel; the host connects with an **explicit** anecdote `targetOrigin` and ignores
-  messages from any other (`connectTunnel` refuses `"*"`).
-- **Nothing signs or records except on an `intake`.** `hello` only establishes context. An intake
-  represents the user's confirmed "send" — consistent with §"Mobile LLM" (no event loop for anything
-  but a user-confirmed action; confirmation never mandatory in the UX the host wraps around us).
+- **The host must prove who it is going to talk to — at `hello`, before we sign anything.** Two honest
+  ways, no secret in the browser (`verifyDestination`):
+  - **origin-bind (a Tell).** The embedding page must be **served from the destination's own `url`** —
+    the browser attests `event.origin` and cannot be made to lie, so this proves domain control for
+    free. A page therefore cannot claim to *be* a Tell it isn't served from. (A Tell is listed
+    nowhere; its `url` *is* its identity.) The ack reports `verified: "origin"`.
+  - **registry (an Atlas).** An Atlas is public and in anecdote's **own** cache of registered Atlases,
+    so we verify the claim against what we already know (`deps.knownAtlas`), never the host's word —
+    even cross-origin. The ack reports `verified: "registry"`. Without a registry, an Atlas falls back
+    to origin-bind.
+  This is **one-directional on purpose**: the host proves *itself*; we never ask it to prove anything
+  about the **user** — that asymmetry is the anonymity.
+- **The poll token rides to the door, not under the signature.** `hello` may carry the Tell's
+  server-minted poll capability (`tok`); we thread it onto `deliver` so the **Tell verifies it at its
+  own door** (`bin/authz`), and we deliberately keep it **out of the signed anecdote** — it is the
+  Tell's authority, not the user's words.
+- **Origin-checked transport, too.** The guest also gates by an `allowedOrigins` policy before opening;
+  the host connects with an **explicit** anecdote `targetOrigin` and ignores any other
+  (`connectTunnel` refuses `"*"`).
+- **Nothing signs or records except on an `intake`.** `hello` only establishes (and proves) context. An
+  intake represents the user's confirmed "send" — consistent with §"Mobile LLM" (no event loop for
+  anything but a user-confirmed action; confirmation never mandatory in the UX the host wraps around us).
 - **The host never touches the key or the trove.** It receives only the finished, signed artifact to
   deliver and a receipt *summary*; the full record stays on the anecdote origin.
 - **Never blocked, only routed.** A statement a destination doesn't offer comes back `declined` with
   the reason — the composer's "no stupid statements," enforced at the tunnel.
+- **A backstop beneath the handshake.** The user's signature binds `to` (the destination) under it, so
+  even a lie that slipped the handshake is recorded in the trove and rejected on a `to`-mismatch at the
+  receiver.
 
 ## Open questions (recorded, not resolved)
 
-- **The Tell-issue payload mapping.** `deliver` carries the signed anecdote + poll context; mapping it
-  onto the Tell's exact `tell.submission/v1` Issue body (and where the poll **token** comes from) is
-  the cross-repo seam the Tell page closes.
+- **The Tell-issue payload mapping.** `deliver` now carries the signed anecdote + poll context + the
+  carried `token`; mapping that onto the Tell's exact `tell.submission/v1` Issue body is the cross-repo
+  seam the Tell page closes (it already mints the `tok` it now hands us back).
+- **Allowed-origins policy** — who may open a tunnel *at all* (the coarse `allowedOrigins` gate, above
+  the per-destination proof): any origin, a registered set, or "ask the user the first time a new
+  origin says hello." Still open.
 - **The browser-probe handshake.** "Transmit on browser probe to anecdote.channel for a signed
   nonce-gen when it goes out the door" — the concrete embed/probe flow (auto-iframe vs. user gesture,
   visible vs. headless) needs a worked HTML demo, the way `crunch.html` made the worker bus tangible.
