@@ -176,6 +176,63 @@ What the Elevated context hands a data:chamber to start:
 2. **The git-enough client** (deliverable #1) — vendorless JS, checkout + stage/commit against the offline
    origin, omitting the ops we reject.
 
+## Taking shape — the workspace is the firmware
+
+Refinements toward deliverables (still vision, but sharpening):
+
+- **The app pulls itself down, with the update-allowed lever ON for exploration.** During this phase
+  updates are accepted freely; in the real thing the holder **pulls the lever** — and *dev's roll-forward
+  is the direct stand-in* for the **in-app "accept the roll-forward diff" consent** the holder will own.
+- **Modules carry functions and become probe-exposed.** Group a capability into a module (e.g. the
+  **polling frontend**) and it is *runnable in concept* and **offered over the probe API to others**. We
+  are **not** designing a full sync+async bus — we are *enabling peers to*. When one frame iframes another
+  they already know how to **greet** and exchange **signatures to learn/remember** each other; the async
+  **consent** questions are deferred, but the greeting+signature handshake is the seam.
+- **The `file:` candidate backbone.** The manifest's loader strategies (`candidates`) gain a **`file:`**
+  backbone — the unspoken default, likely a name we **invent and map to a blob**. Loading is us
+  **"submoduling" the snapshot we hold**; we have **no upstreams**, so we cannot roll our own version
+  without being **puppeted by outside tooling** (in dev we must be — same roll-forward-consent stand-in as
+  above). A `file:`/blob reference **can point anywhere**, so a holder may bring **vendored-whatever**: our
+  **license is done — we ship the nervous system without vendors**; a whole UI framework their journal
+  build wants is on them.
+- **civic-node is the firmware.** `civic-node` **is the offline origin** — a giant metaphor replacement for
+  **firmware + the DNS/QR bootstrap**. The workspace **ignores QR packaging for now** but must be able to
+  fabricate the **real v1 seed**: one that boots **aware it's taking its preloaded modules for granted**.
+  **`anecdote.channel` is submoduled in the workspace root** alongside the other tools, its job to
+  **provide the JS runtime to the offline origin**.
+- **Distribution beyond DNS.** Allocate the space, then **phone-to-phone transfer**, or a **raw QR-video
+  (≈60 fps, loop as many times as a bad camera needs; or 30 fps interleaved so there's one to watch)**.
+  **Offline and airgapped — not offline-because-down:** you can still pull in a QR of anything DNS could
+  have delivered.
+- **Tools are the point (v0's humble truth).** v0 couldn't assemble the workspace; the workspace is what we
+  built — but v0 captured the desire for **tools** here: the **LLM agent** (foundational), the **data-pile
+  browser + monitor**. Offline, yet able to ingest a QR of anything DNS could've sent.
+- **Privileged behaviors are an open budget.** Some behaviors are **worker-like** (e.g. **cron tasks**),
+  and workers sometimes carry **privileged powers**. The **sum of privileged-environment needs** — and
+  where even the "elevated" browser context needs *more* — is unknown; that uncertainty is exactly what
+  motivates shipping a **library of tools for data:chamber dives**.
+- **The "enough-client" family.** `git-enough` (deliverable #1) and now **`jekyll-enough`**: the Journal's
+  GitHub workflows (Ruby/Jekyll/Liquid) must run in an offline web-app context, and we want a **narrow
+  client compatible with the Liquid/Jekyll the Journal actually uses — not API parity** (scope = the study
+  below).
+
+## Research idiom — the "subsystem-surface study" (reusable brief)
+
+When we adopt an "enough-client" (git-enough, jekyll-enough, …), the first move is to measure **how much
+of the upstream subsystem the product actually lights up**, so we implement the used surface and skip the
+rest. Spawn a **read-only** study with these instructional parameters:
+
+- **Target & dependency:** which product (e.g. the Journal) and which upstream to scope (e.g. Jekyll/Liquid).
+- **Framing:** "compatible with the features used, NOT API parity."
+- **Inventory dimensions:** the upstream's feature axes (for Liquid: tags, filters; for Jekyll: front
+  matter, collections, `_data`, includes/layouts, permalinks, pagination, plugins/gems, Sass, the build
+  trigger) — each with `file:line` evidence.
+- **Output shape:** **Lit up — must implement** (ranked easy→hard) · **Dark — can ignore** · **Uncertain —
+  needs a human call** · a one-paragraph **bottom line** (how big is "enough," and the 2–3 hardest pieces).
+- **Constraint:** read-only; conclusion only, not file dumps.
+
+The first instance — *how much Jekyll the Journal lights up* — is running; its findings land below when done.
+
 ## Broad-strokes contract (the invariants this milestone must keep)
 
 - **The held copy is authoritative over the server.** A pinned first-contact signer; a later payload that
@@ -190,6 +247,12 @@ What the Elevated context hands a data:chamber to start:
 - **DNS-first, store-never, optical-eventually.** It must keep working for a holder when every distribution
   channel is gone.
 - **The trove is Origin.** Your data is owned-in-the-first-place, proven, revocable — and it lives here.
+- **No self-roll without consent.** We hold a *snapshot*, not an upstream; the app cannot roll its own
+  version except by being **puppeted** (dev tooling now; the holder's accept-the-diff lever later). A
+  `file:` reference can point anywhere, but *our* update is never silent.
+- **The nervous system, without vendors.** We ship the connective tissue; a holder may bring their own
+  vendored frameworks/tools (`file:`/blob can point anywhere), and that is on them, not us. Our license
+  ends at the nervous system.
 
 ## Open questions / the trilogy
 
