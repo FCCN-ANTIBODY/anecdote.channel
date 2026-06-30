@@ -280,6 +280,8 @@ collections, pagination, Sass, or Ruby. `jekyll-enough` is genuinely small.
 
 - The exact **probe-line protocol** (which powers, how requested, how the Elevated context authorizes a
   chamber it spawned) — the message-API analogue of the postMessage tunnel we already built for ingress.
+  Edges mapped in [`docs/probe-line.md`](probe-line.md) (capability = a transferred `MessagePort`, not
+  origin; the ingress tunnel inverted; the op surface, consent ladder, and layering).
 - The **git-enough op set**: the minimum to checkout + stage + commit our offline origin, and which ops we
   reject outright.
 - **First-contact-from-QR** end to end (camera decode of the esoteric, byte-deflated QR; the
