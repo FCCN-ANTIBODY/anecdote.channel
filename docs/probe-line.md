@@ -39,11 +39,24 @@ authorize it.** Everything below follows from replacing origin with a capability
   `chamber.postMessage(initMsg, '*', [port2])`, **transferring a port**. **Possession of the port *is* the
   capability** — no guessable secret, no origin check — and **closing the port revokes** it cleanly. A
   spawn-time **secret nonce** is the fallback if a port can't be transferred.
-- **Edges:** (a) can a `MessagePort` be transferred *into* a `data:` document (transfer with
-  `targetOrigin: '*'` to an opaque-origin window — believed yes; **verify**)? (b) **iframe vs.
-  `window.open`** for the chamber, and whether `parent`/`opener` survives long enough for the t=0 handoff;
-  (c) the chamber's bootstrap (the `make-datachamber` payload) must **listen for exactly one init message**
-  and then talk only down the port.
+- **VERIFIED (Chromium 141, headless).** A real `data:text/html` iframe inside a served (localhost,
+  secure) parent: the parent did `iframe.contentWindow.postMessage({type:'init'}, '*', [port2])` and the
+  chamber received the port on `event.ports[0]` and ran a full **capability-by-port round-trip** — it asked
+  the parent to `SHA-256` a string, the parent computed it with `crypto.subtle`, and the chamber got the
+  correct digest back over the port. The chamber reported: `gotPort: true`, `isSecureContext: false`,
+  `typeof crypto.subtle === 'undefined'`, `location.origin === "null"`. The same worked with the iframe
+  hardened to **`sandbox="allow-scripts"`** (no `allow-same-origin`). So:
+  - **the port transfers into a `data:` (even sandboxed) chamber** — the capability primitive holds;
+  - **the chamber genuinely lacks `subtle` and is not a secure context** — it *must* delegate (Edge 2),
+    confirmed empirically, not assumed;
+  - **its origin is `null`** — origin-bind is impossible, so the port-capability is the only option.
+- **Bonus finding — mutual auth, two different primitives.** The chamber *also* sees `event.origin` of the
+  init message = the **Elevated origin** (`http://localhost:8011` in the test). So the trust is symmetric
+  with asymmetric tools: **Elevated authorizes the chamber by possession of the port; the chamber
+  authorizes Elevated by the init message's `event.origin`** (it can refuse a port that didn't come from
+  its expected Elevated origin). Record this — the chamber isn't blindly trusting whoever postMessages it.
+- **Remaining edges:** (b) iframe vs. `window.open` — **now resolved, see Edge 6**; (c) the chamber's
+  bootstrap must **listen for exactly one init message**, then talk only down the port.
 
 ## Edge 2 — the op surface, and which way data flows
 
@@ -102,8 +115,60 @@ encoded payload). **Edges:** iframe(`sandbox="allow-scripts"`) vs. a new tab; de
 **teardown** (closing the port/tab revokes every capability at once — the "completely clean bunker" is
 re-established by *destroying* it, not cleaning it).
 
+**VERIFIED (Chromium 141, headless) — the inverted `hello` and revocation-by-close both hold.** Same
+sandboxed-iframe chamber: it boots, posts `ready` to `window.parent`, the Elevated side replies with the
+init message carrying the port (the t=0 inverted hello), and a port round-trip succeeds (digest matched
+`sha256sum` exactly). Then the Elevated side calls **`port.close()`** on *its* end and tells the chamber
+to try again. The chamber's subsequent `port.postMessage(...)` over the same port **does not throw**
+(`post_threw: null`) and **no reply ever arrives** (the chamber waited 800 ms; `revoked_after_close:
+true`). So:
+
+- **closing the privileged end revokes the capability cleanly and unilaterally** — the chamber keeps a
+  live-looking port object but nothing answers it; the "destroy, don't clean" teardown is real.
+- **revocation is failure-*silent*** — the chamber gets no error, just silence, and **cannot locally
+  distinguish "revoked" from "slow."** Design consequence: every chamber-side call needs **its own
+  timeout** (or a heartbeat) to notice it's been cut off; the protocol can't rely on an error event.
+
+**VERIFIED (Chromium 141, headless) — iframe vs. tab is settled: a `data:` chamber must be an iframe.**
+A served (localhost, secure) opener tried three `window.open` targets and watched for the popup page +
+the chamber's inverted-hello to its `opener`:
+
+| `window.open` target | handle returned? | top-level page actually loaded? | chamber origin / powers |
+|---|---|---|---|
+| `data:text/html,…` | **yes (truthy)** | **NO — silently blocked** | n/a (never ran) |
+| `blob:…` (opener-created) | yes | yes | **`http://localhost:8015`** (the opener's), `isSecureContext: true`, **has `crypto.subtle`** |
+| served `http://…` | yes | yes | the served origin (powered) |
+
+Two findings, both load-bearing:
+
+- **Top-level navigation to a `data:` URL is blocked** (Chrome's long-standing anti-phishing rule).
+  `window.open` returns a *truthy* handle — so a naive caller thinks it worked — but no page is created,
+  no opener message ever arrives, the chamber code never executes. **So a `data:` chamber cannot be a
+  tab/window; the verified iframe is the only host for it.**
+- **A tab can only host a *powered* context.** The two targets that *do* open as tabs (`blob:`, served)
+  **inherit the opener's origin**, become secure contexts, and **get `crypto.subtle`** — the exact
+  opposite of the chamber's defining powerlessness. A `blob:` "chamber" is effectively same-origin with
+  Elevated, so there's nothing to delegate and nothing the port-capability is protecting.
+
+**Conclusion:** the chamber's null-origin powerlessness and its iframe-hosting are *the same fact* — only
+an iframe can carry a `data:` document, and only a `data:` document is null-origin/`subtle`-less. "Tab vs.
+iframe" was never a real fork for chambers: choose a tab and you've chosen a *different, powered* thing
+(blob/served), not a chamber. Tabs remain available for spawning **another Elevated-origin surface**
+(a full app window), never a chamber.
+
 ## Not deciding yet (multiple paths)
 
-iframe vs. tab; port-transfer vs. spawn-secret; whether a toy labeler ever runs in-chamber; the exact op
-schema and correlation-id framing. We're mapping **edges**; the protocol spec follows once we've walked
-them. The first three (capability primitive, op direction, consent ladder) are the load-bearing ones.
+Whether a toy labeler ever runs in-chamber; the exact op schema and correlation-id framing. We're mapping
+**edges**; the protocol spec follows once we've walked them. The first three (capability primitive, op
+direction, consent ladder) are the load-bearing ones.
+
+**Settled by the Edge 1 test:** **port-transfer is the default, not a co-equal path** — it's verified to
+cross into a (sandboxed) `data:` chamber, it needs no guessable secret, and closing it revokes cleanly.
+The spawn-time **secret nonce** is demoted to a *fallback* for a transport that can't carry a port.
+
+**Settled by the Edge 6 test:** **iframe vs. tab is not a fork for chambers** — a `data:` document can't be
+a top-level tab (Chrome blocks the navigation), and the things that *can* be tabs (`blob:`, served)
+inherit the opener's origin and powers, so they aren't chambers at all. The chamber is an iframe, full
+stop; tabs are reserved for spawning another *powered* surface. **Revocation-by-close is real but
+silent** — `port.close()` on the privileged end cuts the chamber off unilaterally with no error, so every
+chamber-side call needs its own timeout to notice.
