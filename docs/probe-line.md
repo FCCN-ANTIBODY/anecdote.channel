@@ -76,6 +76,31 @@ services**: `label` (LM/MiniLM), `sign` / `subtle.*` (crypto), `stage` / `commit
 - **Edge — streaming:** label/seal results may stream; the port carries a request id ↔ many response
   frames (the tunnel was one-shot req/reply; the probe line needs correlation ids).
 
+**VERIFIED (Chromium 141, headless) — the multiplexed streaming op surface holds.** The sandboxed `data:`
+chamber asked Elevated for a `label` op that streams a frame **per token**, while Elevated did the
+per-token `crypto.subtle` digest the chamber can't. Findings:
+
+- **Correlation ids genuinely disambiguate concurrent streams.** The chamber fired two `label` requests
+  (ids `A`, `B`) at once; with a realistic per-token delay the frames **interleaved on the wire**
+  (arrival order `ABABABABBB`), yet each stream **reassembled in seq order with no cross-contamination**
+  (`A`→"the quick brown fox", `B`→"lorem ipsum dolor sit amet consectetur"). One port multiplexes many
+  ops; the **id is what keeps them apart** — without it the interleaved frames are unreadable.
+- **One request → many frames + a terminator.** Each response frame carries `{id, seq, …, final}`; the
+  chamber treats `final:true` as end-of-stream. Frame ordering per id is preserved by the port.
+- **Errors are just another correlated frame.** An empty input returned `{type:'error', id}` against the
+  right id — the error path rides the same correlation, no side channel.
+- **Cancel works mid-stream and is correlated.** The chamber sent `{type:'cancel', id}` after the first
+  frame of a stream; Elevated stopped (the chamber got one frame, then `cancelled` at seq 1, never
+  `final`). This is the **cooperative, in-band** counterpart to Edge 6's *unilateral, silent*
+  `port.close()` — and it's the concrete mechanism behind Edge 3's "revoke a behavior mid-stream."
+- **Scheduling caveat worth keeping:** naive per-request `async` loops on one port can *serialize* (drain
+  one request before starting the next) unless each op actually yields between frames — observed directly
+  (no-delay run produced `AAAABBBBBB`, not interleaved, and the cancel arrived too late to bite). A real
+  streaming op must yield per frame for both fair interleaving **and** timely cancel.
+
+So the message shape is no longer hand-wavy: **`{type, id, seq?, final?}` request/stream/error/cancel
+frames over the one transferred port** — de-risked, ready to harden into `probe-line/v1`.
+
 ## Edge 3 — the consent ladder for probe ops (the async question)
 
 The tunnel rule was "nothing signs or records except on a user-confirmed intake." The probe line must
@@ -158,9 +183,10 @@ iframe" was never a real fork for chambers: choose a tab and you've chosen a *di
 
 ## Not deciding yet (multiple paths)
 
-Whether a toy labeler ever runs in-chamber; the exact op schema and correlation-id framing. We're mapping
-**edges**; the protocol spec follows once we've walked them. The first three (capability primitive, op
-direction, consent ladder) are the load-bearing ones.
+Whether a toy labeler ever runs in-chamber; the exact field names and types of the op schema (the *shape*
+is now de-risked — see Edge 2 — but `probe-line/v1` still has to pin it down). We're mapping **edges**;
+the protocol spec follows once we've walked them. The first three (capability primitive, op direction,
+consent ladder) are the load-bearing ones — **the first two are now verified.**
 
 **Settled by the Edge 1 test:** **port-transfer is the default, not a co-equal path** — it's verified to
 cross into a (sandboxed) `data:` chamber, it needs no guessable secret, and closing it revokes cleanly.
@@ -172,3 +198,9 @@ inherit the opener's origin and powers, so they aren't chambers at all. The cham
 stop; tabs are reserved for spawning another *powered* surface. **Revocation-by-close is real but
 silent** — `port.close()` on the privileged end cuts the chamber off unilaterally with no error, so every
 chamber-side call needs its own timeout to notice.
+
+**Settled by the Edge 2 test:** the **multiplexed streaming op surface** holds — one port carries many
+concurrent ops disambiguated by **correlation id**, each request fans out to seq-ordered frames with a
+`final` terminator, errors are correlated frames, and **mid-stream cancel** works (the cooperative,
+in-band counterpart to `port.close()`'s unilateral cut). Caveat: a streaming op **must yield per frame**
+or it serializes and cancel lands too late. Message shape de-risked: `{type, id, seq?, final?}`.
