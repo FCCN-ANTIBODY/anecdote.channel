@@ -118,18 +118,52 @@ probe line **is** the spark: it takes the load off the QR's data-tank by deliver
 decode, `crypto.subtle`, git) to the chamber over the message API. So DNS-first distribution makes the QR
 the *resilient fallback*, not the bootstrap — exactly the layering DELIVERY.md already argues for the model.
 
-## v0 prototype — `tiliv/anecdote` (recorded from the operator; not yet read here)
+## v0 prototype — `tiliv/anecdote` (reconciled against a source snapshot)
 
-> Out of this session's granted repo scope, so captured from description, to be reconciled against the
-> source. Its main listing reveals the hierarchy of concerns.
+> Read from a snapshot the operator provided (the live repo is out of this session's git scope). The
+> README states five need-layers: a long-lived QR+Aztec that loads signed resources with a public key; a
+> network-free label-reducing mobile LLM; query privacy; community-documentation TTL workflows; live
+> passive polling with implicit moderation. The seams the milestone needs are **already present in
+> embryo** — Origin is mostly *naming and hardening* them, not inventing them.
 
-- A **two-step build system** that fabricates the QR prediction **into the thing it contains**; otherwise a
-  **manifest of what the bootstrapper should fetch** — resources named and **signed by a prototype key**
-  (hand-made, lean, focused, deliberately incomplete), served over DNS for now.
-- Already has: the **blob cache layer**, a **widget content-type** concept, and **custom manifests that
-  describe loading the agent**.
-- Its initial (failed) job as a data:chamber factory: it **couldn't, alone, reach an environment with
-  extended custom code** to puppet a camera API — the missing spark the Elevated probe line now supplies.
+**The build chain (`bin/build.sh`)** is the "fabricate the prediction into the thing it contains":
+copy-vendors → minify `_data/payload.js` → Jekyll build (standard `_site`) → **Jekyll build the QR
+variant (`_site_qr`)** → `sign-manifest.js` → `make-bytes.sh` (→ `index.qr.bin`) → `make-permatank.mjs`
+(the **Aztec "permatank"** — CBOR-framed, CRC32-per-chunk, currently one symbol for the whole deflated
+blob) → `make-qr.mjs` → **`make-datachamber.js`**, which is literally
+`data:text/html,` + `encodeURIComponent(_site_qr/index.html)`. So **the data:chamber *is* the QR-variant
+site**, and the QR/Aztec are its optical carriers.
+
+**The seams already there (build the probe line on these):**
+
+- **The resolver — `docs/_data/payload.js`.** Fetches `.well-known/manifest.json` and turns each resource
+  into a live behavior **by content-type** — the embryonic "submodules of behavior": `module`/`script` →
+  `<script>` (Blob-URL), `text/css` → `<link>`, **`application/manifest+html` (WIDGET) → a sandboxed
+  `<iframe>`**, **`application/vnd.anecdote.worker` (WORKER) → `navigator.serviceWorker.register`**, and
+  **`application/manifest+json` (BUNDLE) → recursively load a sub-manifest**. Recursion + content-type
+  dispatch is exactly the extension mechanism Origin formalizes; `candidates` (today just `dns: /resources/`)
+  is the strategy switch where `optical` / `blob-cache` / `peer` slot in.
+- **The verification/probe seam — `docs/resources/integrity.mjs`.** Reads a `public-key-fingerprint`
+  meta, fetches the **canonical** `manifest.json` + `.sig` (fully-qualified, because "the QR instance never
+  builds its own"), and verifies with **`crypto.subtle?.`** — the optional-chaining is the smoking gun:
+  the prototype **already anticipates the chamber lacking `subtle`**. On failure it injects
+  `"verification":"failed"`. This is precisely the seam the Elevated probe line replaces "supply `subtle`
+  + verified manifest down the line."
+- **The blob cache — `docs/resources/medium.js`** (the `▒` worker). An **IndexedDB** blob store driven
+  over a **BroadcastChannel** (`retain`/`retrieve`/`prefixed`, NFC-normalized keys, `{bytes,type,date_added}`)
+  — the runtime **shelving** for the trove / git objects.
+- **The widget store-probe — `docs/resources/manifest.html` + `widget.js`.** A `layout: widget`, strict-CSP
+  iframe that answers an **origin-checked `postMessage`** by returning its `[id]` DOM as a structured
+  object (gated on a `for:` meta). This is "browse your own stores via postMessage" and the companion-app
+  message line, in miniature.
+- **The agent bundle — `docs/resources/assistant.json`** (a recursive BUNDLE): loads `assistant.html` +
+  `assistant.js` and declares **`tasks`** mapping a job (MNLI/QNLI) → a model → a `@xenova/transformers`
+  pipeline (zero-shot / text-classification on `mobilebert`). The offline label-reducer, manifest-loaded.
+
+**Signing (a reconciliation point):** the prototype signs the manifest with **RSA-PSS / SHA-256** in
+WebCrypto (`sign-manifest.js`, `make-key.sh` → `public.pem`/`local/private.pem`), not the constellation's
+`ssh-ed25519`. A wrong signature is currently **non-fatal by design** (the runtime self-marks
+`verification: failed`) "until sources and sub-manifests are signed in distribution."
 
 ## Distributed resources — the shipyard's first stock
 
@@ -167,3 +201,25 @@ What the Elevated context hands a data:chamber to start:
   data-vs-code-QR split; the recursive favicon fingerprint as the day-one signer record).
 - **Revocability "with the right connectivity"** — the hat trick teased as part of a **trilogy of
   surprises**; recorded here as a pointer, not yet drawn.
+
+### Reconciliation deltas (v0 prototype → constellation)
+
+Surfaced by reading the snapshot; each is a decision, not a blocker:
+
+- **Signing primitive: RSA-PSS (v0) vs. `ssh-ed25519` (Tell/anecdote).** WebCrypto now does Ed25519, and
+  the rest of the constellation is Ed25519 — unifying on it lets the **same key** anchor the firmware-pin,
+  the digest manifests, and the anecdote signature. Decide before the firmware-pin hardens.
+- **The WORKER content-type registers a service worker (v0) vs. "the chamber is not a service worker."**
+  No conflict once split by context: in the **served** origin a worker may be a SW; in a **`data:`
+  chamber** `navigator.serviceWorker` is absent (the v0 already optional-chains it), so the medium must load
+  as a **module / Blob worker** there. Name the two load paths explicitly.
+- **Model set: v0 ships `mobilebert` MNLI/QNLI (zero-shot/NLI) via `@xenova/transformers`; mainline vendors
+  MiniLM-L6 embeddings + a flan-t5 namer.** Same offline-pipeline pattern, different weights — converge the
+  `tasks`→model map onto one hash-pinned lock (`reducer/model.lock.json`) so a chamber and the reducer agree.
+- **`candidates` strategies.** v0 has only `dns: /resources/`; the resolver's `strategy` switch is the
+  extension point for `optical` (QR/Aztec), `blob-cache` (the `medium.js` store), and `peer` — the same
+  source-agnostic, verify-the-bytes stance as [`DELIVERY.md`](DELIVERY.md).
+- **Probe line vs. origin-binding.** The ingress tunnel proved the host by **origin**; a `data:` chamber
+  has an **opaque (`null`) origin**, so the probe line must authorize by a **spawn-time capability secret**
+  the Elevated context mints into the chamber (postMessage `targetOrigin: "*"`, validated by the secret),
+  not by origin. This is the one place the tunnel pattern inverts.
