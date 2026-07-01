@@ -36,6 +36,8 @@ export const OP_CATALOG = {
   "poll.view":               { rung: 0, persists: false },  // the poll-answer view (anecdote shaped by a QR)
   "poll.compose":            { rung: 0, persists: false },  // build the reply link — the submit is the user's click
   "poll.mint":               { rung: 1, persists: false },  // mint a poll's QR — a shareable authorization (secret stays Elevated)
+  "poll.remember":           { rung: 1, persists: true  },  // remember a poll you answered (Elevated persistence)
+  "poll.answered":           { rung: 0, persists: false },  // list the polls you've answered
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.

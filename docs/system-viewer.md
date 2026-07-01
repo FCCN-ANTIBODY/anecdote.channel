@@ -172,9 +172,20 @@ forward and its composer CSS + landing test are retired to match; the Tell *engi
 (`collect-submissions` / `authz` / `govern` / `deliver`) is untouched. See that repo's
 `docs/answer-runtime.md`.
 
-So `anecdote.poll/v1` now has **author** (`authorPoll`), **project** (`mintQR`), **answer** (`poll-answer`),
-and **host** (`pollView`) all built; only **remember** (the polls you've answered, linked to the trove items
-you got by answering — the one face needing Elevated persistence) is still ahead.
+**Built (the remember face — the polls you've answered):** [`composer/answered.mjs`](../composer/answered.mjs)
+is the responder-side memory. Where the trove of nonsense lives (`composer/consent.mjs`), connected to it are
+the polls you answered to get those items — so a remembered answer can point at the trove **receipt** it
+produced. Same store contract as the trove/grants (an injected `{ get, set, delete }`); one record per
+(pile, poll, round). `rememberAnswer` persists what you replied + the exact composed `tell.submission/v1` +
+the reply link + an optional `receipt` link; `answeredView` lists them newest-first, each **joined to the
+trove item** it produced (via an injected `resolveReceipt`, wired to `consent.get`). Vended as `poll.remember`
+(Rung 1 — the one poll face that persists, so incognito refuses it) + `poll.answered` (Rung 0). Worked demo
+[`composer/answered-demo.html`](../composer/answered-demo.html), **Chromium-verified** in a powerless `data:`
+chamber: it lists remembered answers with their trove links and a Rung-1 click remembers a new one.
+
+So `anecdote.poll/v1` is now **complete**: **author** (`authorPoll`), **project** (`mintQR`), **answer**
+(`poll-answer`), **host** (`pollView`), and **remember** (`rememberAnswer`) are all built. The only deferred
+piece is the optional QR provenance **signature** (SSHSIG/Ed25519), per `qr-provenance.md`.
 
 ## Why this is the right "thrust"
 
