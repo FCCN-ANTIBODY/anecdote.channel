@@ -133,6 +133,130 @@ export async function recordPlacements(store, nonce, placements) {
   return receipt;
 }
 
+// ---- STANDING GRANTS (probe-line Edge 3) --------------------------------------------------------
+// The behavior-shaped cousin of the nonce. Where a NONCE governs one ARTIFACT you sent, a GRANT governs
+// one standing BEHAVIOR that runs on your behalf over time (the git-enough staging beat, slow LM
+// indexing). Same signing primitive (attest), same store, same "only the original signer may revoke,"
+// same tombstone-on-revoke. So owning a running behavior is expressed with the exact machinery as owning
+// a sent artifact. See docs/probe-line-consent.md (Rung 2 of the consent ladder).
+
+export const GRANT = "probe.grant/v1";
+export const GRANT_RECORD = "probe.grant.record/v1";
+export const GRANT_REVOCATION = "probe.grant.revocation/v1";
+const GRANTS_KEY = "anecdote:grants";
+
+// Deterministic clock seam: pass opts.now (an ISO-8601 string) in tests; real callers get wall time.
+function nowISO(opts = {}) { return opts.now || new Date().toISOString(); }
+
+async function readGrants(store) { const raw = await store.get(GRANTS_KEY); return raw ? JSON.parse(raw) : {}; }
+async function writeGrants(store, g) { await store.set(GRANTS_KEY, JSON.stringify(g)); }
+
+// Mint a standing grant: an explicit, SIGNED authorization for one behavior over a scope — the Rung-2
+// analogue of a confirmed send. `spec` = { behavior, scope?, cadence?, basis?, expiry? }. Returns the
+// stored record: the attested grant kept whole (re-verifiable) plus mutable bookkeeping outside it.
+export async function mintGrant(store, spec, identity, opts = {}) {
+  if (!spec || !spec.behavior) throw new Error("consent: a grant needs a behavior");
+  const rng = opts.randomBytes || ((n) => { const u = new Uint8Array(n); globalThis.crypto.getRandomValues(u); return u; });
+  const grantObj = {
+    schema: GRANT,
+    grant: "grant:" + b64url(rng(16)),
+    behavior: spec.behavior,
+    scope: spec.scope || {},
+    cadence: spec.cadence || null,
+    granted_at: nowISO(opts),
+    basis: spec.basis || null,     // what the user saw when they granted it (kept honest, signed in)
+    expiry: spec.expiry || null,   // optional ISO-8601; null = until revoked
+  };
+  const signed = await attest(grantObj, identity, opts);
+  const record = {
+    schema: GRANT_RECORD,
+    grant: signed.grant,
+    behavior: signed.behavior,     // convenience copies for listing (mirrors the receipt's to/label)
+    scope: signed.scope,
+    by: signed.sig.by,             // the pseudonymous signer this behavior is bound to
+    signed,                        // the attested grant, kept whole
+    status: "live",                // live = authorized to run; revoked = withdrawn
+    revocation: null,
+    last_activity: null,           // updated by the runtime as the behavior acts (the panel's "last seen")
+  };
+  const grants = await readGrants(store);
+  grants[signed.grant] = record;
+  await writeGrants(store, grants);
+  return record;
+}
+
+// The full ledger of behaviors you have ever authorized (live + revoked tombstones).
+export async function listGrants(store) { return Object.values(await readGrants(store)); }
+export async function getGrant(store, id) { return (await readGrants(store))[id] || null; }
+
+// Pure predicates (pass opts.now for determinism). ISO-8601 UTC strings compare lexicographically.
+export function grantExpired(record, opts = {}) {
+  return !!(record && record.signed && record.signed.expiry && record.signed.expiry <= nowISO(opts));
+}
+export function grantLive(record, opts = {}) {
+  return !!record && record.status === "live" && !grantExpired(record, opts);
+}
+
+// The behaviors currently authorized to run — what the "running on my behalf" panel and the phase-2
+// authorize() gate read. Live = not revoked and not expired.
+export async function liveGrants(store, opts = {}) {
+  return (await listGrants(store)).filter((r) => grantLive(r, opts));
+}
+
+// Note that a granted behavior acted — feeds the panel's "last activity" without touching the signed
+// grant (so re-verification still holds).
+export async function touchGrant(store, id, opts = {}) {
+  const grants = await readGrants(store);
+  const record = grants[id];
+  if (!record) throw new Error("consent: no such grant");
+  record.last_activity = nowISO(opts);
+  await writeGrants(store, grants);
+  return record;
+}
+
+// Withdraw a standing grant: produce a SIGNED revocation (the instrument that proves you stopped it) and
+// mark the record revoked. Only the ORIGINAL granter may revoke — the identity's fingerprint must match
+// the grant's `by`. Returns the signed revocation (the runtime also sends a `cancel`/`port.close()`).
+export async function revokeGrant(store, id, identity, opts = {}) {
+  const grants = await readGrants(store);
+  const record = grants[id];
+  if (!record) throw new Error("consent: no such grant");
+  if (identity.fingerprint !== record.by)
+    throw new Error("consent: only the original granter may revoke this grant");
+  const revocation = await attest({ schema: GRANT_REVOCATION, grant: id, target: record.signed.sig.signature }, identity, opts);
+  record.status = "revoked";
+  record.revocation = revocation;
+  await writeGrants(store, grants);
+  return revocation;
+}
+
+// Verify a grant record: its embedded grant is well-attested (content + key fingerprint). { ok, by, errors }.
+export async function verifyGrant(record, opts = {}) {
+  if (!record || !record.signed || record.signed.schema !== GRANT)
+    return { ok: false, by: null, errors: ["not a grant"] };
+  const v = await verifyAttestation(record.signed, opts);
+  return { ok: v.ok, by: v.by, errors: v.errors };
+}
+
+// Verify a grant revocation: well-signed AND by the same identity that made the grant it withdraws.
+export async function verifyGrantRevocation(record, revocation, opts = {}) {
+  const errors = [];
+  if (!revocation || revocation.schema !== GRANT_REVOCATION) return { ok: false, errors: ["not a grant revocation"] };
+  const boundBy = record.by || (record.signed && record.signed.sig && record.signed.sig.by);
+  const v = await verifyAttestation(revocation, opts);
+  if (!v.ok) errors.push(...v.errors);
+  if (v.by && boundBy && v.by !== boundBy) errors.push("grant revoked by someone other than the original granter");
+  return { ok: v.ok && errors.length === 0, by: v.by, errors };
+}
+
+// Hard local delete of a grant record (distinct from revoke, which keeps the tombstone). Forgetting does
+// NOT withdraw a grant already relied upon; revoke first.
+export async function forgetGrant(store, id) {
+  const grants = await readGrants(store);
+  delete grants[id];
+  await writeGrants(store, grants);
+}
+
 function b64url(u8) {
   const b64 = typeof Buffer !== "undefined"
     ? Buffer.from(u8).toString("base64")

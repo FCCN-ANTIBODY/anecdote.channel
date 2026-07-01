@@ -55,7 +55,12 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
 - [`docs/probe-line.md`](docs/probe-line.md) — shaping (edges first) the **probe line** between a powerless
   `data:` chamber and the **Elevated anecdote app**: the ingress tunnel **inverted** (capability = a
   transferred `MessagePort`, since a `data:` origin is null), the enough-clients vended as ops, the consent
-  ladder, and how the demos become clients once they load from offline arch + MiniLM.
+  ladder, and how the demos become clients once they load from offline arch + MiniLM. Edges 1/2/6
+  (capability primitive, streaming op surface, iframe-vs-tab + teardown) are **verified in Chromium**.
+- [`docs/probe-line-consent.md`](docs/probe-line-consent.md) — the probe line's **consent ladder**
+  (implementation plan, Edge 3): three rungs (ambient / confirmed / standing), and the **standing grant**
+  as the behavior-shaped cousin of the revocable nonce — signed, legible in a "running-on-my-behalf" panel,
+  and revoked mid-stream (`cancel` + `port.close()`) with **the commit as the atomic revocation unit**.
 - [`docs/anecdote-schema.md`](docs/anecdote-schema.md) — what a confirmed send **carries**:
   `anecdote/v1`, the payload `route.prepare` grows into. Text rides inline; an image, a GeoJSON
   shape, or a citation rides as a **receipt** (hash + provenance) whose bytes live in your own
