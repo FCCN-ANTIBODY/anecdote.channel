@@ -169,12 +169,24 @@ Pure, dependency-free, testable in the house style — the same shape as `compos
    Elevated page spawned a powerless `data:` chamber (`subtle: undefined`, not secure, `origin: null`)
    that drove label/commit requests over the transferred port — a Rung-1 op was refused with
    `needsConfirm`, a confirmed op and a grant-covered op both persisted, and the refused op left no trace.
-4. **Grants panel** — the glanceable "running on my behalf" surface + one-tap revoke (wired to
-   `revokeGrant` + `cancel`).
+4. **Grants panel — ✅ DONE.** [`composer/grants-panel.mjs`](../composer/grants-panel.mjs) — a pure
+   view-model (`buildPanel` / `panelView` / `grantState` / `scopeText`) + a thin DOM `renderPanel`. Every
+   row states its **state and the artifact that proves it** — borrowing the civic-node poll-lifecycle
+   *"Proven by"* idiom: a live grant is proven by its signed grant, a revoked one by its signed
+   revocation, an expired one by its expiry. Live behaviors sort first; the recording toggle rides above
+   as the master switch. Revoke is one tap (a signed act only you can make). Covered by
+   [`composer/grants-panel.test.mjs`](../composer/grants-panel.test.mjs) (16 pure assertions) and a
+   working demo [`composer/grants-panel-demo.html`](../composer/grants-panel-demo.html) (real grants API
+   + IndexedDB), **verified in Chromium**: mint → live rows with proof + revoke; revoke → a signed-revocation
+   tombstone shown in the panel; the recording toggle flips to incognito.
 5. **Capstone demo** — a mock staging-beat behavior: grant it, watch it emit, **revoke mid-stream**, and
    **assert** (a) it stops at a commit boundary, (b) no half-written object, (c) the grant tombstone
    remains. *This tests **our gate + atomicity discipline**, not the browser (that's Edges 1/2/6) — worth
-   doing, honestly labeled.*
+   doing, honestly labeled.* **Substantially covered:** the keystone assertion (a)+(b) is proven by
+   `probe-line.test.mjs` (a granted beat cancelled after 2 of 4 commits ends with exactly 2 commits, no
+   `final`), (c) by `grants.test.mjs` (revoked tombstone persists), and the whole path runs end-to-end in
+   the phase-3 Chromium verification. A single UI demo stitching all three into one screen is the only
+   remaining nicety.
 
 ## Open sub-questions (carried, not blocking)
 

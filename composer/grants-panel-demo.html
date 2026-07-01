@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Running on your behalf — grants panel</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; } .lede { color: #555; }
+  .controls { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; align-items: center; }
+  button { font: inherit; padding: .35rem .7rem; border: 1px solid #bbb; border-radius: .4rem; background: #fafafa; cursor: pointer; }
+  button:hover { background: #f0f0f0; }
+  #panel { margin-top: 1rem; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; border-bottom: 1px solid #ddd; padding-bottom: .4rem; }
+  .recording { font-weight: 400; font-size: .85rem; padding: .1rem .5rem; border-radius: 1rem; }
+  .recording.on { background: #e6f4ea; color: #137333; } .recording.off { background: #fce8e6; color: #a50e0e; }
+  .empty { color: #777; font-style: italic; }
+  .grant { border: 1px solid #e0e0e0; border-radius: .5rem; padding: .7rem 1rem; margin: .7rem 0; }
+  .grant.revoked, .grant.expired { opacity: .6; }
+  .grant h3 { margin: 0 0 .4rem; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; }
+  .state { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .1rem .45rem; border-radius: 1rem; }
+  .state.live { background: #e6f4ea; color: #137333; } .state.expired { background: #fef7e0; color: #9a6700; } .state.revoked { background: #fce8e6; color: #a50e0e; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: .1rem .8rem; margin: .3rem 0 .5rem; font-size: .88rem; }
+  dt { color: #777; } dd { margin: 0; }
+  .revoke { border-color: #d9a; color: #a50e0e; }
+</style>
+<body>
+<h1>Running on your behalf</h1>
+<p class="lede">The per-behavior breaker under the recording master switch. A standing behavior you can't
+see running has no business running — so every row shows its state and <em>the artifact that proves it</em>.
+This is a live demo of <code>composer/grants-panel.mjs</code> over the real grants API and IndexedDB.</p>
+
+<div class="controls">
+  <button id="mint-beat">Grant: staging beat</button>
+  <button id="mint-lm">Grant: LM history-indexing</button>
+  <button id="tick">Simulate activity</button>
+  <label style="margin-left:auto"><input type="checkbox" id="rec" checked> recording on</label>
+</div>
+
+<section id="panel" aria-live="polite"></section>
+
+<script type="module">
+import { idbStore } from "../reducer/store.mjs";
+import { generateIdentity } from "./sign.mjs";
+import { mintGrant, touchGrant, revokeGrant, liveGrants } from "./consent.mjs";
+import { panelView, renderPanel } from "./grants-panel.mjs";
+
+const store = idbStore();
+const identity = await generateIdentity();     // one device identity for the session (revoke needs the minter)
+const panel = document.getElementById("panel");
+
+async function refresh() {
+  const view = await panelView(store, { recordingOn: document.getElementById("rec").checked });
+  renderPanel(panel, view, { onRevoke: async (grant) => { await revokeGrant(store, grant, identity); refresh(); } });
+}
+
+document.getElementById("mint-beat").addEventListener("click", async () => {
+  await mintGrant(store, { behavior: "git-enough:staging-beat", scope: { piles: ["history"] },
+                           cadence: "on-change", basis: { shown: "Keep a running history of this session" } }, identity);
+  refresh();
+});
+document.getElementById("mint-lm").addEventListener("click", async () => {
+  await mintGrant(store, { behavior: "lm:index-history", scope: { piles: ["history"] },
+                           cadence: "idle", basis: { shown: "Let the on-device labeler index your history in the background" } }, identity);
+  refresh();
+});
+document.getElementById("tick").addEventListener("click", async () => {
+  const live = await liveGrants(store);          // simulate a granted behavior acting
+  if (live.length) await touchGrant(store, live[Math.floor(Math.random() * live.length)].grant);
+  refresh();
+});
+document.getElementById("rec").addEventListener("change", refresh);
+
+refresh();
+</script>
