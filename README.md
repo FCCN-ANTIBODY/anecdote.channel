@@ -66,7 +66,9 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   fetch + delta-resolving pack reader + `clone`
   ([`git-enough/fetch-pack.mjs`](git-enough/fetch-pack.mjs), [`git-enough/unpack.mjs`](git-enough/unpack.mjs))
   — is built and **offline-verified against a real `git upload-pack`** (a deltified pack fetched, deltas
-  resolved, the full lineage imported and read back by git).
+  resolved, the full lineage imported and read back by git). Byte-accurate inflate is **browser-native**
+  ([`git-enough/inflate.mjs`](git-enough/inflate.mjs) — `DecompressionStream` + gallop/binary-search on the
+  zlib member boundary), so the whole stack runs vendorless in the browser, not just Node.
 - [`docs/probe-line.md`](docs/probe-line.md) — shaping (edges first) the **probe line** between a powerless
   `data:` chamber and the **Elevated anecdote app**: the ingress tunnel **inverted** (capability = a
   transferred `MessagePort`, since a `data:` origin is null), the enough-clients vended as ops, the consent
