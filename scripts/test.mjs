@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const dirs = ["reducer", "composer", "git-enough"];
+const dirs = ["reducer", "composer", "git-enough", "viewer"];
 
 const files = [];
 for (const d of dirs) {

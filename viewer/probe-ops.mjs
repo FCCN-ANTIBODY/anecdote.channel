@@ -1,0 +1,40 @@
+// viewer/probe-ops.mjs — the system viewer as probe-line capabilities (docs/system-viewer.md). The viewer
+// is a main op and almost entirely Rung 0 (enumerate + read); the graded actions (push/discard/shred) hang
+// off items via the git.* / consent ops. A chamber widget calls these and renders the result on ice.
+//
+// deps: { registry } — a viewer/repos.js repoRegistry. (Kept registry-shaped so raw-storage enumerators can
+// feed the same surface later, showing what's on the device even when the repo registry is empty.)
+
+import { repoListView } from "./repos.mjs";
+import { repoDetail, readFile } from "./repo-detail.mjs";
+import { parseAnecdoteUrl } from "./anecdote-url.mjs";
+
+export function viewerOps({ registry } = {}) {
+  if (!registry) throw new Error("viewer ops: need a repoRegistry");
+  const resolve = (idOrLabel) => {
+    const p = parseAnecdoteUrl(idOrLabel);
+    return registry.get(p ? p.id : idOrLabel);
+  };
+  return {
+    // Rung 0 — the account-page index of everything you host locally.
+    "viewer.repos": async (_input, api) => { api.emit({ view: repoListView(registry) }); },
+
+    // Rung 0 — open a repo on ice: its commit timeline + tree at a ref. (`repo` is the anecdote:// id;
+    // never call a payload field `id` — that's the frame's correlation id.)
+    "viewer.repo": async (input, api) => {
+      const entry = resolve(input.id);
+      if (!entry) return api.emit({ error: "no such repo", repo: input.id });
+      api.emit({ repo: input.id, label: entry.label, kind: entry.kind, downstreams: entry.downstreams,
+                 detail: repoDetail(entry.repo, { ref: input.ref, limit: input.limit }) });
+    },
+
+    // Rung 0 — a single file's contents at a ref (the on-ice document view; text-decoded).
+    "viewer.file": async (input, api) => {
+      const entry = resolve(input.id);
+      if (!entry) return api.emit({ error: "no such repo", repo: input.id });
+      const f = readFile(entry.repo, input.ref, input.path);
+      api.emit(f ? { repo: input.id, path: input.path, content: new TextDecoder().decode(f.content), size: f.size }
+                 : { error: "no such file", path: input.path });
+    },
+  };
+}

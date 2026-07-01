@@ -94,7 +94,10 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   surfaces**, and each **type** brings its own **widget** (an HTML fragment rendered in a chamber; installing
   one is a signer-pinned firmware-trust act). Reconciles the offline **repo plurality** (native session
   piles, Tell-twinned poll piles, the private keyring) and **poll-as-data-object** (the Tell is addressable,
-  not the pile — steering `tell.anecdote.channel` toward the poll-authoring app).
+  not the pile — steering `tell.anecdote.channel` toward the poll-authoring app). First slice built:
+  [`viewer/repos.mjs`](viewer/repos.mjs) (the "your repositories" account-page view — local
+  `anecdote://` ids, downstream mirrors, per-repo trust grade) + [`viewer/anecdote-url.mjs`](viewer/anecdote-url.mjs)
+  (the local URL scheme).
 - [`docs/archive-browser.md`](docs/archive-browser.md) — shaping the **data-pile archive browser** (the
   use case that gives the staging beat its meaning): a session's activity is a data-pile; a **launchpad**
   (your piles on a tape-line) + an **on-ice viewer** (a sensory-deprivation `data:` chamber puppeted over

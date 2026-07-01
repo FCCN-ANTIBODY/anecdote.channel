@@ -90,7 +90,8 @@ export function elevatedSession(deps = {}) {
     inflight.set(id, s);
     let seq = 0;
     const api = {
-      emit: (data = {}) => deps.emit({ type: FRAME, id, seq: seq++, final: false, ...data }),
+      // Envelope fields are authoritative — a payload key (e.g. `id`) can never clobber the correlation.
+      emit: (data = {}) => deps.emit({ ...data, type: FRAME, id, seq: seq++, final: false }),
       cancelled: () => s.cancelled,
       tick: async (ms = 0) => { await turn(ms); if (s.cancelled) throw new Cancelled(); },
     };
