@@ -155,9 +155,26 @@ carries index.md's own `issueUrl` construction as a frozen oracle, so anecdote c
 the Tell's client page (`index.md` / `assets/tell.css` / `widget/public.html`) can retire, while the Tell
 *engine* (`collect-submissions` / `authz` / `govern` / `deliver`) stays as the recipient anecdote submits to.
 
-This is the **answer** face of `anecdote.poll/v1`; the object's other faces are **author** (`authorPoll`) and
-**host** (`pollView`, above), with **project** (object → QR) and **remember** (the polls you've answered,
-linked to the trove items you got by answering) still ahead.
+**Built (the project face — anecdote mints its own QR):** [`composer/qr-mint.mjs`](../composer/qr-mint.mjs)
+derives the authorization token exactly as `tell.anecdote.channel`'s `bin/qr` does
+(`k_pile = HMAC(secret, "qr:"+pile)`, `tok = HMAC(k_pile, "tok:pile:poll:round")`, byte-parity verified
+against the real `tl_token` + `bin/qr`) and assembles a byte-identical QR from an `anecdote.poll/v1` object.
+The secret stays Elevated (`poll.mint` is Rung-1; the powerless chamber requests a mint and gets back the
+URL, never the secret). So an offline operator who holds the pile's `TELL_QR_SECRET` runs the whole loop —
+**author → mint → answer → host → tally** — with the Tell minting nothing. (The optional provenance
+*signature* — SSHSIG/Ed25519 over the canonical preimage `qrCanon` builds — is the one deferred bit, per
+`qr-provenance.md`; a token-bearing QR is fully working without it.)
+
+**Built (the retirement — the Tell landing page moved here):** anecdote now serves
+[`poll.html`](../poll.html), the production answer runtime (the QR opens it directly, or
+`tell.anecdote.channel` forwards an older QR to it, verbatim). `tell.anecdote.channel/index.md` is now a thin
+forward and its composer CSS + landing test are retired to match; the Tell *engine*
+(`collect-submissions` / `authz` / `govern` / `deliver`) is untouched. See that repo's
+`docs/answer-runtime.md`.
+
+So `anecdote.poll/v1` now has **author** (`authorPoll`), **project** (`mintQR`), **answer** (`poll-answer`),
+and **host** (`pollView`) all built; only **remember** (the polls you've answered, linked to the trove items
+you got by answering — the one face needing Elevated persistence) is still ahead.
 
 ## Why this is the right "thrust"
 
