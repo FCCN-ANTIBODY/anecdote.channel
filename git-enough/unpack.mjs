@@ -6,13 +6,14 @@
 // resolve OFS_DELTA (base by in-pack offset) and REF_DELTA (base by oid) and apply the copy/insert delta
 // instructions. Every reconstructed object is checked: its SHA-1 must equal git's oid.
 //
-// The one non-native seam: byte-accurate zlib. A pack concatenates zlib members with no length prefix, so
-// the reader must know how many COMPRESSED bytes each member consumed to find the next object. Node gives
-// this; the browser's DecompressionStream throws on trailing bytes and never reports consumption — so the
-// caller passes an `inflate(bytes, offset) -> { content, consumed }`. (Browser recipe: a tiny vendored
-// raw-inflate that reports consumed, the same "one vendored primitive" shape as seal-enough's age AEAD.)
+// Byte-accurate zlib: a pack concatenates zlib members with no length prefix, so the reader must know how
+// many COMPRESSED bytes each member consumed to find the next object. The default `inflate` seam is
+// ./inflate.mjs — browser-native (DecompressionStream + gallop/binary-search on the member boundary), so
+// there is no vendored zlib and no runtime split. A faster inflate (e.g. Node's _processChunk) can still
+// be injected via { inflate }.
 
 import { oid } from "./objects.mjs";
+import { inflate as nativeInflate } from "./inflate.mjs";
 
 const TYPE_NAME = { 1: "commit", 2: "tree", 3: "blob", 4: "tag" };
 const dec = new TextDecoder();
@@ -69,8 +70,8 @@ export function applyDelta(base, delta) {
 
 // Read a whole v2 packfile into a Map oid -> { type, content }. `inflate(bytes, offset)` must inflate the
 // zlib member at `offset` and return { content, consumed }.
-export async function readPack(bytes, { inflate } = {}) {
-  if (typeof inflate !== "function") throw new Error("unpack: an inflate(bytes, offset) seam is required");
+export async function readPack(bytes, { inflate = nativeInflate } = {}) {
+  if (typeof inflate !== "function") throw new Error("unpack: inflate must be a function");
   if (dec.decode(bytes.subarray(0, 4)) !== "PACK") throw new Error("unpack: not a PACK file");
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const version = dv.getUint32(4, false), count = dv.getUint32(8, false);

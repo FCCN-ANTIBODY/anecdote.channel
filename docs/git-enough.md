@@ -56,11 +56,12 @@ offer the swap as a choice of two configurations:
   `want`/`done` → strip the NAK → unpack → `clone` into a fresh `repo()`). Verified against a real
   `git upload-pack`: a deltified pack fetched, deltas resolved, all objects + refs imported, and a real
   `git` reads the **full lineage** back from our clone. It carries the old repo's **foreign authorship**
-  across (that's the point — full lineage). The one non-native seam is **byte-accurate inflate** (a pack
-  concatenates zlib members with no length; the browser's `DecompressionStream` throws on trailing bytes
-  and never reports consumption) — passed in as an `inflate(bytes, offset)→{content, consumed}`; Node has
-  it, the browser wants a tiny vendored raw-inflate (the same "one vendored primitive" shape as
-  seal-enough's `age` AEAD).
+  across (that's the point — full lineage). The one-time non-native worry — **byte-accurate inflate** (a
+  pack concatenates zlib members with no length prefix) — is **closed natively**:
+  [`git-enough/inflate.mjs`](../git-enough/inflate.mjs) turns `DecompressionStream`'s strictness into a
+  feature (too-short rejects, exact resolves, too-long throws "trailing junk" — a monotonic signal) and
+  **gallops + binary-searches the member boundary** in O(log n) attempts. No vendored zlib; identical in
+  the browser and Node. It is the default seam, and a faster inflate can still be injected via `{ inflate }`.
 - **The King's Leap** — *the king leaves the castle and leaps to new ground.* **Photocopy the current
   tree** (GitHub's tarball/contents API — plain files, no git protocol) and **stage it ourselves as a fresh
   root commit** under **your** identity. A deliberate **hard break in ownership history** — and that's a
@@ -144,8 +145,10 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   force-with-lease, thin/negotiated packs (only send what the downstream lacks), multi-downstream fan-out.
 - **Read-side — the Castle (✅ built, complements the push track).** `git-upload-pack` fetch + pack
   reading with delta resolution + `clone` into a fresh origin — see **The Castle** above. This is the
-  inbound "kidnap full history" path; the King's Leap remains the content-only default. Later degrees: a
-  browser byte-accurate inflate; incremental fetch with `have`s (only what we lack); shallow clone.
+  inbound "kidnap full history" path; the King's Leap remains the content-only default. Byte-accurate
+  inflate is now browser-native ([`git-enough/inflate.mjs`](../git-enough/inflate.mjs)), so the whole
+  read-side runs in the Elevated app, not just Node. Later degrees: incremental fetch with `have`s (only
+  what we lack); shallow clone; a faster inflate if pack sizes demand it.
 
 Each phase is a probe-line **capability** (Rung 1 `commit`/`stage`, Rung 2 the staging beat, and push as a
 consequential Rung-1 op gated like any egress). *(Run the subsystem-surface study to confirm each phase's
