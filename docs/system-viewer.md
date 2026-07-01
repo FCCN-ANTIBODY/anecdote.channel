@@ -183,9 +183,28 @@ trove item** it produced (via an injected `resolveReceipt`, wired to `consent.ge
 [`composer/answered-demo.html`](../composer/answered-demo.html), **Chromium-verified** in a powerless `data:`
 chamber: it lists remembered answers with their trove links and a Rung-1 click remembers a new one.
 
-So `anecdote.poll/v1` is now **complete**: **author** (`authorPoll`), **project** (`mintQR`), **answer**
-(`poll-answer`), **host** (`pollView`), and **remember** (`rememberAnswer`) are all built. The only deferred
-piece is the optional QR provenance **signature** (SSHSIG/Ed25519), per `qr-provenance.md`.
+**Built (QR provenance signing — the last deferred piece):** [`composer/qr-sign.mjs`](../composer/qr-sign.mjs)
+signs the canonical preimage with anecdote's **own device Ed25519 key** (`composer/sign.mjs`) and emits a
+byte-compatible OpenSSH **SSHSIG** (`sig`) + its fingerprint (`kid`), so the Tell's existing `bin/authz`
+(`ssh-keygen -Y verify`, namespace `tell-poll`) accepts it **unchanged** — the engine stays untouched.
+`mintQR({ sign: { identity } })` appends `sig`/`kid` after the preimage exactly as `bin/qr` does.
+**Cross-checked against the real `ssh-keygen`**: a signature (from Node *and* from Chromium's WebCrypto in a
+secure context) is accepted by `ssh-keygen -Y verify`, the `kid` matches `ssh-keygen -lf`, and a minted
+signed QR verifies via authz's own recompute path. Operator tool: [`composer/qr-mint-demo.html`](../composer/qr-mint-demo.html).
+
+**Where the keys live** (the `qr-provenance.md` "local friend list" model — a verified signer *triggers*, it
+does not transfer authority):
+
+- **anecdote's private key** — a non-extractable `CryptoKey` in domain-scoped IndexedDB (never serialized;
+  `sign.mjs`). Its public half is `identity.raw`; its SSH fingerprint is the QR's `kid`.
+- **the Tell's accepted signers** — `keys/tell.signers` (OpenSSH allowed_signers), principal `tell`,
+  namespace `tell-poll`. You enroll anecdote by appending the one line `allowedSignersLine()` emits (the
+  operator tool prints it). That single line is the whole cross-repo trust step.
+
+So `anecdote.poll/v1` is **complete end-to-end**: **author** (`authorPoll`) · **project** (`mintQR`, now
+optionally **signed**) · **answer** (`poll-answer`) · **host** (`pollView`) · **remember** (`rememberAnswer`).
+The offline origin runs the entire poll lifecycle — authoring, minting an authorized *and* provenance-signed
+QR, answering, hosting deliveries, and remembering what you answered — with the Tell engine untouched.
 
 ## Why this is the right "thrust"
 

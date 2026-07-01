@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mint a signed poll QR — operator tool</title>
+<style>
+  body { font: 15px/1.6 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; } .lede { color: #555; }
+  .card { border: 1px solid #ddd; border-radius: .6rem; padding: .8rem 1rem; margin-top: 1rem; }
+  .k { font-size: .75rem; color: #777; text-transform: uppercase; letter-spacing: .04em; }
+  code, pre { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; word-break: break-all; white-space: pre-wrap; }
+  pre { background: #f4f4f4; padding: .6rem; border-radius: .4rem; }
+  .note { color: #777; font-size: .85rem; }
+</style>
+<body>
+<h1>Mint a signed poll QR</h1>
+<p class="lede">An <strong>Elevated operator tool</strong> (it holds the pile secret + your device key — this
+is not a powerless chamber). It mints a QR whose <em>token</em> authorizes replies to your Tell and whose
+<em>signature</em> proves the poll came from you. Signing uses your device's Ed25519 key via WebCrypto.</p>
+
+<div class="card">
+  <div class="k">Enroll this signer — append to your Tell's <code>keys/tell.signers</code></div>
+  <pre id="enroll">…</pre>
+  <div class="note">This one line is where your key "lives" on the Tell side. Its fingerprint (<code id="kid">…</code>)
+  is the <code>kid</code> that rides in every QR you sign, so the Tell knows which accepted signer to check.</div>
+</div>
+
+<div class="card">
+  <div class="k">Minted signed QR</div>
+  <pre id="url">…</pre>
+</div>
+
+<script type="module">
+import { generateIdentity } from "./sign.mjs";
+import { mintQR } from "./qr-mint.mjs";
+import { signCanon, allowedSignersLine } from "./qr-sign.mjs";
+import { buildPoll } from "../viewer/poll.mjs";
+
+// In production the device key is a non-extractable CryptoKey in domain-scoped IndexedDB; here we generate
+// a fresh one for the demo. The pile QR secret would come from your Tell bootstrap.
+const identity = await generateIdentity();
+const SECRET = "demo-pile-secret";
+const poll = buildPoll({ pile: "cd04-q1", poll: "park-budget", type: "multichoice",
+  text: "Fund the neighborhood park this year?", options: ["Fund it", "Hold off"],
+  guidance: "Pick one, or say it your own way." });
+
+const minted = await mintQR(poll, { secret: SECRET, sign: { identity } });
+const enrollLine = allowedSignersLine(identity);
+
+document.getElementById("enroll").textContent = enrollLine;
+document.getElementById("kid").textContent = minted.kid;
+document.getElementById("url").textContent = minted.url;
+
+// Expose what a verifier needs so the headless check can confirm ssh-keygen -Y verify accepts this
+// browser-produced signature (canon + newline is the signed message; armored is the SSHSIG PEM).
+const armored = (await signCanon(minted.canon, identity)).armored;
+window.__mint = { url: minted.url, kid: minted.kid, canon: minted.canon, enrollLine, armored,
+                  env: { subtle: typeof (self.crypto && self.crypto.subtle), secure: isSecureContext } };
+</script>
