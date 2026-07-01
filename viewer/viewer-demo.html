@@ -27,13 +27,27 @@ import { spawnChamber, serveProbeLine } from "../composer/probe-line.mjs";
 import { viewerOps } from "./probe-ops.mjs";
 import { repoRegistry } from "./repos.mjs";
 import { repo } from "../git-enough/repo.mjs";
+import { authorPoll, recordDelivery } from "./poll.mjs";
 
 const author = { name: "you", email: "you@origin", epoch: Math.floor(Date.now() / 1000), tz: "+0000" };
 const session = repo();
 await session.commitFiles([{ path: "index.html", content: "<h1>example.com — on ice</h1>\n" }], { author, message: "browse: example.com" });
 await session.commitFiles([{ path: "index.html", content: "<h1>example.com — on ice</h1>\n" }, { path: "notes/thoughts.txt", content: "a private note about this page\n" }], { author, message: "browse: example.com (annotated)" });
+// A poll pile: authored offline as the anecdote.poll/v1 data object, with a few deliveries fetched back
+// from the Tell so the widget has live results to tally.
 const poll = repo();
-await poll.commitFiles([{ path: "question.json", content: '{"q":"Fund the park?","a":["yes","no"]}\n' }], { author, message: "poll: park budget" });
+await authorPoll(poll, { pile: "cd04-q1", poll: "park-budget", type: "multichoice",
+  text: "Fund the neighborhood park this year?", options: ["Fund it", "Hold off"],
+  guidance: "Pick one of the listed options.",
+  lifecycle: { round: 1, opens_at: "2026-01-01T00:00:00Z", closes_at: "2026-12-31T00:00:00Z", one_per: "respondent" },
+  tell: "https://tell.anecdote.channel" }, { author });
+await recordDelivery(poll, "000000", [
+  { poll: "park-budget", answer: "Fund it", governed: "accept" },
+  { poll: "park-budget", answer: "Fund it", governed: "accept" },
+  { poll: "park-budget", answer: "Hold off", governed: "accept" },
+  { poll: "park-budget", answer: "Fund it", governed: "accept" },
+  { poll: "park-budget", answer: "build a skate ramp instead", governed: "needs-judgment" },
+], { author });
 
 const registry = repoRegistry();
 registry.register({ label: "browse-example", kind: "pile.session", repo: session });
@@ -50,7 +64,13 @@ li:hover{background:#f6f6f6}.kind{font-size:.72rem;color:#666}.id{font-size:.72r
 .down{font-size:.72rem;color:#1967d2}.back{cursor:pointer;color:#1967d2;font-size:.8rem}
 .commit{font-size:.82rem;margin:.15rem 0}.file{font-size:.82rem;color:#333;cursor:pointer}
 .file:hover{text-decoration:underline}pre{background:#f4f4f4;padding:.5rem;border-radius:.4rem;white-space:pre-wrap;font-size:.8rem}
-.env{margin-top:.6rem;font-size:.7rem;color:#999}</style>
+.env{margin-top:.6rem;font-size:.7rem;color:#999}
+.q{font-size:1.05rem;font-weight:600;margin:.3rem 0}.const{background:#f8f9fa;border-radius:.4rem;padding:.4rem .6rem;font-size:.78rem;color:#444;margin:.3rem 0}
+.state{font-size:.7rem;padding:.05rem .4rem;border-radius:1rem;background:#e6f4ea;color:#137333}.state.closed{background:#fce8e6;color:#a50e0e}.state.scheduled,.state.unknown{background:#f1f3f4;color:#5f6368}
+.opt{margin:.35rem 0}.optlbl{font-size:.82rem;display:flex;justify-content:space-between}.writein{color:#a06000}
+.bar{background:#eef1f5;border-radius:.3rem;height:.65rem;overflow:hidden;margin-top:.15rem}.bar>span{display:block;background:#1967d2;height:100%}
+.tally{font-size:.72rem;color:#666;margin:.3rem 0}.proof{font-size:.7rem;color:#999;margin-top:.5rem}
+.open-tree{cursor:pointer;color:#1967d2;font-size:.78rem}</style>
 <body><div id=view>loading…</div><div class=env id=env></div>
 <scr`+`ipt>
 (function(){
@@ -79,12 +99,35 @@ li:hover{background:#f6f6f6}.kind{font-size:.72rem;color:#666}.id{font-size:.72r
   async function showList(){
     var v=(await invoke("viewer.repos"))[0].view;
     var reposHtml="<h3>Your repositories ("+v.total+")</h3>"+(v.total?("<ul>"+v.rows.map(function(r){
-      return "<li data-id='"+r.id+"'><span class='meter "+r.trust.grade+"'>"+r.trust.grade+"</span>"+
+      return "<li data-id='"+r.id+"' data-kind='"+r.kind+"'><span class='meter "+r.trust.grade+"'>"+r.trust.grade+"</span>"+
         "<b>"+esc(r.label)+"</b> <span class=kind>"+r.kind+"</span><br><span class=id>"+r.id+"</span>"+
         (r.downstreams.length?"<br><span class=down>⇈ "+esc(r.downstreams[0])+"</span>":"")+"</li>";}).join("")+"</ul>"):"<p><i>(registry empty — but you can still see what's on the device below)</i></p>");
     var st=(await invoke("viewer.storage"))[0].storage;
     $("view").innerHTML=reposHtml+renderStorage(st);
-    [].forEach.call(document.querySelectorAll("li[data-id]"),function(li){li.onclick=function(){showRepo(li.getAttribute("data-id"));};});
+    [].forEach.call(document.querySelectorAll("li[data-id]"),function(li){li.onclick=function(){
+      // A poll pile gets its own widget; everything else opens on ice as a repo.
+      if(li.getAttribute("data-kind")==="pile.poll") showPoll(li.getAttribute("data-id"));
+      else showRepo(li.getAttribute("data-id"));};});
+  }
+  async function showPoll(id){
+    curId=id; var f=(await invoke("viewer.poll",{id:id,now:Date.now()}))[0]||{error:"no frames"};
+    if(f.error){$("view").innerHTML="<p class=back id=back>← back</p><p>"+esc(f.error)+"</p>";$("back").onclick=showList;return;}
+    var v=f.view, r=v.results, ls=v.lifecycleState, max=Math.max(1,r.total);
+    var bars=r.tally.map(function(o){var pct=Math.round(100*o.count/max);
+      return "<div class=opt><div class=optlbl><span"+(o.listed?"":" class=writein")+">"+esc(o.answer)+(o.listed?"":" (write-in)")+"</span><span>"+o.count+"</span></div>"+
+        "<div class=bar><span style='width:"+pct+"%'></span></div></div>";}).join("");
+    $("view").innerHTML="<p class=back id=back>← back</p>"+
+      "<div class=q>"+esc(v.text)+"</div>"+
+      "<div><span class=kind>"+esc(v.type)+"</span> · <span class='state "+ls.state+"'>"+ls.state+"</span>"+(ls.round?" · round "+ls.round:"")+"</div>"+
+      "<div class=const>"+(v.guidance?esc(v.guidance)+"<br>":"")+
+        "write-ins "+(v.accept_writein?"accepted":"off")+
+        (ls.opens_at?" · opens "+esc(ls.opens_at):"")+(ls.closes_at?" · closes "+esc(ls.closes_at):"")+"</div>"+
+      bars+
+      "<div class=tally>"+r.total+" counted"+(r.pending?" · "+r.pending+" pending judgment":"")+(r.rejected?" · "+r.rejected+" rejected":"")+"</div>"+
+      (v.tell?"<div class=down>⇈ answers through "+esc(v.tell)+"</div>":"")+
+      "<div class=proof>Proven by commit "+esc((v.provenBy||"").slice(0,8))+" · <span class=open-tree id=tree>open pile on ice →</span></div>";
+    $("back").onclick=showList;
+    $("tree").onclick=function(){showRepo(id);};
   }
   async function showRepo(id){
     curId=id; var f=(await invoke("viewer.repo",{id:id}))[0]||{error:"no frames"};

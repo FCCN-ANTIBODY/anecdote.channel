@@ -30,6 +30,7 @@ export const OP_CATALOG = {
   "git.clone":               { rung: 1, persists: true  },  // the Castle: imports history
   "viewer.repos":            { rung: 0, persists: false },  // the system viewer — enumerate + read only
   "viewer.repo":             { rung: 0, persists: false },
+  "viewer.poll":             { rung: 0, persists: false },  // a poll pile as its data object + live tally
   "viewer.file":             { rung: 0, persists: false },
   "viewer.storage":          { rung: 0, persists: false },  // raw device storage surfaces
 };

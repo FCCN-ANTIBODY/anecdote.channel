@@ -120,6 +120,24 @@ an **addressable Tell twin + an ingress filter** (its "question"), while a sessi
 becoming** — the poll-authoring app in the constellation. Making a poll is a create-a-data-object act; the
 Tell is the addressable face it publishes to.
 
+**Built (the `pile.poll` type):** [`viewer/poll.mjs`](../viewer/poll.mjs) declares the poll-as-data-object
+and renders it. The on-disk object is **`anecdote.poll/v1`** — the Tell's per-poll *constitution* verbatim
+(`type` / `text` / `options` / `accept_writein` / `guidance` / `lifecycle`, matching
+`tell.anecdote.channel`'s `_data/constitutions/<pile>/<poll>.json`) plus one field, `tell`, naming the
+addressable face it answers through. It's committed as `poll.json` in a git-enough `repo()`, so it's a real
+pile you can push downstream. `authorPoll()` is the create-a-data-object act; `recordDelivery()` writes a
+fetched-back Tell delivery under `deliveries/` (carrying the tree forward, since git-enough's `commitFiles`
+stages only what it's given); `pollView()` folds the object + a **live tally** of accepted deliveries
+(pending / rejected counted separately, listed options seeded at 0, write-ins flagged) + the Tell twin + a
+lifecycle `open`/`closed`/`scheduled` state + the tip commit as the **"Proven by"** artifact. Vended Rung-0
+as [`viewer.poll`](../viewer/probe-ops.mjs) (the view nested under `view` so its `type` field can't clobber
+the frame envelope's own `type`). Worked demo in [`viewer/viewer-demo.html`](../viewer/viewer-demo.html),
+**Chromium-verified**: a powerless `data:` chamber clicks a poll pile and renders the question, the
+mini-constitution, per-option tally bars, "N counted · M pending judgment", the Tell it answers through,
+and an "open pile on ice" hatch to the raw `poll.json` + `deliveries/`. The Tell-side ingress
+(`open-poll` / `qr` / `collect-submissions` / `govern` / `deliver`) is unchanged — this is purely the
+offline origin's authoring + hosting + viewing side of the same object.
+
 ## Why this is the right "thrust"
 
 It converts "how do I even see my stuff?" into a single, extensible surface: **a declared registry the
@@ -135,7 +153,9 @@ thin, Rung-0 enumerator; the intelligence lives in the per-type widgets, exactly
   keychain / git-enough repos) that lists a branch. What's the minimal common shape?
 - **Widget trust + rendering.** Exactly how a widget mounts in a chamber, what it's handed (read-only item
   data over the probe line), and the Edge-4 install/pinning flow.
-- **The poll-as-data-object schema** and how `tell.anecdote.channel` authors it + publishes to a Tell while
-  the offline origin keeps the hosting copy and fetches back.
+- **The publish + fetch-back wiring.** The `anecdote.poll/v1` schema is now declared and viewable offline
+  (above); what remains is the *round trip* — `tell.anecdote.channel` authoring UI that writes the
+  constitution + mints the QR (`bin/qr`), and the offline origin's fetch-back that decrypts a
+  `tell.digest/v1` manifest into the `deliveries/` the widget already tallies.
 - **Cross-type connections.** The note's "connectable → inspectable → filterable": what edges join a poll
   to a session (labels? time? the same identity/nonce?), and does filtering live in the index widget.
