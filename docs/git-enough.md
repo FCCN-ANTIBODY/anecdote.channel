@@ -33,6 +33,44 @@ This does **not** contradict Origin's "no self-roll without consent" / "no upstr
 Push is about *below* us. The direction of trust and the direction of bytes both point **outward, from the
 origin to its clients** — which is exactly what "being the origin" means.
 
+## Two repo-init entry points, and the swap (The Castle · The King's Leap)
+
+A repo becomes *ours* two ways, and they need holding in mind together:
+
+**1. Greenfield — we init.** The privileged installable ops ship a **scaffold factory** that `init`s what
+the origin needs into your workspace, and then commits begin. They come from several hands, all legitimate:
+the **system / scaffold** (structural commits), **you** (deliberate saves), and **side-effects** (a
+browser op leaving cache files as you work). Phase 1 takes author/committer as *parameters*, so "who
+committed" is just a different ident on the same beat — no separate machinery to tell the hands apart.
+
+**2. Import — we adopt an existing GitHub origin.** *"Take this github origin to my offline, reconfigure it
+to listen to me now."* The **swap**: a repo that was an upstream stops being one and becomes a **downstream
+client** of your new offline origin (which then publishes to it — see the section above). By default we
+offer the swap as a choice of two configurations:
+
+- **The Castle** — *bring the whole castle.* Load the remote's objects into ours with **pure git
+  mechanics**, preserving **full history and lineage**. This is a **one-time bootstrap fetch**, not a
+  standing upstream — after the swap the relationship inverts and we push to it. Cost: it needs pack
+  **reading** (the inverse of phase 2) plus the fetch side of smart-HTTP, and it carries the old repo's
+  **foreign authorship** across.
+- **The King's Leap** — *the king leaves the castle and leaps to new ground.* **Photocopy the current
+  tree** (GitHub's tarball/contents API — plain files, no git protocol) and **stage it ourselves as a fresh
+  root commit** under **your** identity. A deliberate **hard break in ownership history** — and that's a
+  feature, not a wound: (a) the old repo's fate is **negligible to us** (they may well delete it), (b) all
+  we actually need is to **land in data-pile / data:chamber territory** with the content in hand, and (c)
+  the break *is* the sovereignty statement — *"this is mine now, since T0,"* exactly where the seal-enough
+  **`held-since`** attestation belongs. Cost: **phase 1 alone** (download → stage → root-commit).
+
+*(Considered and set aside: **wholesale-regenerate** their history — rewrite the commits ourselves. It is
+the worst of both — the cost of preserving lineage with none of its authenticity. The Castle preserves
+honestly; the King's Leap breaks honestly; regeneration only launders.)*
+
+**Default: the King's Leap.** It stands on phase 1 with no fetch machinery, and its clean break is the
+ownership thesis made literal (you become the origin, dated). The Castle is the opt-in for anyone who wants
+the full lineage carried across. Both entry points stand on the **same floor** — *stage a tree, commit onto
+a ref* — which is exactly what phase 1 is: greenfield is that on repeat (the beat), the King's Leap is that
+once with `parents: []` and your ident, the Castle adds an object-import step before the beat resumes.
+
 ## The beat: stage, commit — or no-op (incognito)
 
 The default rhythm: the cache's **ephemeral blob shelf** (the v0 `medium.js` IndexedDB store) **tees to
@@ -67,9 +105,13 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   `git 2.43` by [`git-enough/objects.test.mjs`](../git-enough/objects.test.mjs): our blob/tree/commit ids
   equal `git hash-object`, git `cat-file`-reads our zlib loose objects, the empty blob is git's canonical
   id. *This is the "compatible underneath" foundation — a real git already reads what we write.*
-- **Phase 1 — refs + index + a working commit.** `update-ref`/`read-ref`, stage a set of files into a
-  tree, `commit-tree` onto a parent, advance a branch. Now the origin builds **real local history**
-  (the steady beat). Verify: `git log`/`git fsck` on the objects we wrote.
+- **Phase 1 — refs + index + a working commit (✅ built).** `update-ref`/`read-ref`, stage a set of files
+  into a (nested) tree, `commit-tree` onto a parent, advance a branch — [`git-enough/repo.mjs`](../git-enough/repo.mjs).
+  `commitFiles(files, {author, root?})` is the one call behind both entry points: the greenfield **beat**
+  (repeat, multi-author) and the **King's Leap** import (once, `root: true`, your ident). Verified by
+  [`git-enough/repo.test.mjs`](../git-enough/repo.test.mjs): our history materializes into a real repo and
+  `git fsck --strict`/`git log`/`git cat-file` read it back — a two-commit multi-author beat with a nested
+  dir, and a King's-Leap **root** commit (no parent, authored by you) that git confirms.
 - **Phase 2 — packfiles.** Serialize a set of objects into a v2 **packfile** (+ index) — needed both for
   compact storage and, critically, for push. Verify: `git index-pack` / `git verify-pack` accept ours.
 - **Phase 3 — send-pack to a downstream (the headline).** The git **smart-HTTP** `git-receive-pack`
