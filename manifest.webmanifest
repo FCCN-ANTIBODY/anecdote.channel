@@ -1,0 +1,13 @@
+{
+  "name": "anecdote.channel",
+  "short_name": "anecdote",
+  "description": "Say something. Offline-first: once held, it boots with no connection and the origin unreachable.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#293033",
+  "theme_color": "#990049",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -33,6 +33,22 @@ consented on it already has it seeded, forevermore.** No app store: if DNS *and*
 Cloudflare *and* all of it broke, it must still work for someone who already holds it. The app store is a
 single point of permission we refuse.
 
+**Built (the offline app shell).** [`sw.js`](../sw.js) + [`manifest.webmanifest`](../manifest.webmanifest)
+make the served origin *held*: on first visit the service worker precaches the minimal shell (the
+answer-a-poll runtime `poll.html` + its probe-line/consent/sign module graph, and the mint+sign operator
+tool `qr-mint-demo.html`), then serves **cache-first**, so anecdote boots with the origin unreachable. The
+heavy ~48 MB on-device model is *not* precached — it's cached on-demand on first use — so install stays
+fast while the core flows (answer, mint, sign, publish) hold offline. **This resolves the open "name the two
+load paths" delta:** the *shell* uses a SW (`sw.js`); the powerless **data:chamber never is/uses one** (it
+stays a puppeted `data:` tab over the probe line) and **git-enough stays a normal module, never the worker** —
+the "not a service worker" invariant is chamber-scoped, and honored. The Cache-API shell (code) is a
+distinct layer from the IndexedDB trove/blob store (your data); the SW never touches your data.
+**Chromium-verified offline:** with the browser offline and *zero* origin hits, `poll.html` boots and
+composes a reply, and the operator tool mints a QR whose signature real `ssh-keygen -Y verify` accepts — so
+answering and Tell-minting both work with no connection. Still ahead (the deliberate second pass): the
+**trust-on-first-contact firmware pin** (record the day-one signer; accept only same-key signed
+roll-forwards) layered onto this shell.
+
 ## Home base: the trove is Origin
 
 The **trove of nonces** `anecdote.channel` keeps of your submitted data is **home base — where Your Shit
