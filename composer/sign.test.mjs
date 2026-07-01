@@ -7,7 +7,7 @@ import { generateIdentity, fingerprint, sign, verifySignature, canonicalize, exp
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
 
-const cache = { atlases: [{ id: "foco", kind: "atlas", url: "https://foco.example", excludes: ["sex"] }] };
+const cache = { atlases: [{ id: "foco", kind: "atlas", url: "https://foco.example", excludes: ["sale"] }] };
 const agent = { instrument: "minilm:sha256:deadbeef", constitution: "anecdote:sha256:cafe" };
 
 async function freshSigned(opts = {}) {

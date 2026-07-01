@@ -13,9 +13,9 @@ const cache = {
     { id: "mutualaid", name: "Mutual-Aid Tell", kind: "tell", url: "https://aid.example", excludes: [] },
   ],
   atlases: [
-    { id: "foco", name: "Fort Collins Civic Atlas", kind: "atlas", scope: "fort-collins", excludes: ["sex", "sale", "spam"] },
-    { id: "colorado", name: "Colorado State Atlas", kind: "atlas", scope: "colorado", excludes: ["sex", "harassment"] },
-    { id: "larimer", name: "Larimer County Atlas", kind: "atlas", scope: "larimer", neighbor: true, excludes: ["sex"] },
+    { id: "foco", name: "Fort Collins Civic Atlas", kind: "atlas", scope: "fort-collins", excludes: ["sale", "spam"] },
+    { id: "colorado", name: "Colorado State Atlas", kind: "atlas", scope: "colorado", excludes: ["sale", "harassment"] },
+    { id: "larimer", name: "Larimer County Atlas", kind: "atlas", scope: "larimer", neighbor: true, excludes: ["sale"] },
   ],
   muted: { foco: ["politics"] },   // the user themselves muted "politics" on the Fort Collins Atlas
 };
@@ -35,16 +35,16 @@ const cache = {
     "Tells you address are grouped before public Atlases");
 }
 
-// 3. "Looking for sex" — never blocked, but not OFFERED into public Atlases that exclude it;
-//    still routes to the open Tell. This is the whole pitch in one case.
+// 3. An everyday statement a public Atlas doesn't take — never blocked, but not OFFERED into the
+//    Atlases whose constitutions exclude it; still routes to the open Tells. The general case.
 {
-  const p = plan("Looking for sex", cache);
+  const p = plan("Bikes for sale", cache);
   const byId = Object.fromEntries(p.groups.flatMap((g) => g.dests).map((d) => [d.id, d]));
   ok(byId.foco.verdict.eligible === false && /excludes/.test(byId.foco.verdict.reason),
     "a public Atlas dims it with a constitution reason, naming the topic");
   ok(byId.foco.verdict.by === "constitution", "the block is attributed to the destination's constitution");
   ok(byId.colorado.verdict.eligible === false && byId.larimer.verdict.eligible === false,
-    "every Atlas excluding 'sex' dims it");
+    "every Atlas excluding 'sale' dims it");
   ok(byId.mutualaid.verdict.eligible === true && byId.neighbors.verdict.eligible === true,
     "both direct-address Tells still accept it — the private side stays open");
   ok(p.routableCount === 2, "only the two Tells remain routable; every public Atlas has dimmed");
@@ -64,7 +64,7 @@ const cache = {
 
 // 5. Eligible destinations sort first within each group (open doors lead).
 {
-  const p = plan("Looking for sex", cache);
+  const p = plan("Bikes for sale", cache);
   const atlasElig = p.groups[1].dests.map((d) => d.verdict.eligible);
   ok(JSON.stringify(atlasElig) === JSON.stringify([...atlasElig].sort((a, b) => (a === b ? 0 : a ? -1 : 1))),
     "within a group, routable destinations are listed before dimmed ones");
@@ -74,11 +74,11 @@ const cache = {
 //    transmits — it just assembles {to, label, text}, the reduced label riding along as subject.
 {
   const openTell = cache.tells.find((d) => d.id === "mutualaid");
-  const a = prepare("Looking for sex", openTell, cache);
-  ok(a.to.id === "mutualaid" && a.label === "looking sex" && a.text === "Looking for sex",
+  const a = prepare("Bikes for sale", openTell, cache);
+  ok(a.to.id === "mutualaid" && a.label === "bikes sale" && a.text === "Bikes for sale",
     "prepare() assembles {to, label, text} for a routable destination");
   let threw = false;
-  try { prepare("Looking for sex", cache.atlases[0], cache); } catch { threw = true; }
+  try { prepare("Bikes for sale", cache.atlases[0], cache); } catch { threw = true; }
   ok(threw, "prepare() refuses a destination this statement isn't offered into");
 }
 

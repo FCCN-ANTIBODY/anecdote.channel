@@ -8,7 +8,7 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else co
 
 const cache = {
   tells: [{ id: "neighbors", kind: "tell", url: "https://nbhd.example", excludes: ["harassment"] }],
-  atlases: [{ id: "foco", kind: "atlas", scope: "fort-collins", excludes: ["sex"] }],
+  atlases: [{ id: "foco", kind: "atlas", scope: "fort-collins", excludes: ["sale"] }],
 };
 
 // 1. A plain text statement: route.prepare → anecdote.build. body[0] is the verbatim statement,

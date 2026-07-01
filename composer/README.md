@@ -37,19 +37,22 @@ filtering as you type, so the only destinations that lead are the ones this anec
 ## How a statement flows
 
 1. **You type.** Nothing leaves the device. The only loop is your keystrokes.
-2. **It reduces** to its fewest-verbs intent (`Looking for sex` → `looking sex`).
+2. **It reduces** to its fewest-verbs intent (`Bikes for sale` → `bikes sale`).
 3. **The picker routes it.** Each destination gets a verdict against the intent's tokens:
    - **offered** → selectable ("✓ you address this" / "✓ public · routable").
    - **not offered** → shown **dimmed, with the reason**, naming the topic
-     ("— this Atlas's constitution excludes "sex"", "— you muted "politics" here").
+     ("— this Atlas's constitution excludes "sale"", "— you muted "politics" here").
      The door is visible and so is why it's shut — transparent, never shaming.
 4. **You confirm.** "Prepare to send" assembles the hand-off `{ to, label, text }` — the reduced
    label riding along as the subject — and shows it. It **does not transmit**. Per the
    [CONSTITUTION](../CONSTITUTION.md) § Mobile LLM, nothing uses an event loop for anything but a
    user-confirmed action, and confirmation is never mandatory.
 
-`"Looking for sex"` is the worked example: not a stupid statement, just not *offered* into the
-public Atlases that exclude it — while the Tells you address directly stay open.
+This is the general case, not a special one. An ordinary statement — say `Bikes for sale` — is simply
+not *offered* into the public Atlases whose constitutions exclude solicitation, while the Tells you
+address directly stay open. The instrument routes; it never rules on whether a statement was worth
+making. Any statement resolves the same way, which is the point: the door that is shut is always
+visible, and always says why.
 
 ## Run it
 

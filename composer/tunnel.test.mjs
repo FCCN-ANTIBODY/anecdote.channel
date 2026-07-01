@@ -11,7 +11,7 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else co
 
 const agent = { instrument: "minilm:sha256:deadbeef", constitution: "anecdote:sha256:cafe" };
 const tell = { kind: "tell", id: "neighbors", url: "https://nbhd.example", excludes: ["harassment"] };
-const atlas = { kind: "atlas", id: "foco", url: "https://foco.example", excludes: ["sex"] };
+const atlas = { kind: "atlas", id: "foco", url: "https://foco.example", excludes: ["sale"] };
 
 async function guest(extra = {}) {
   return guestSession({ identity: await generateIdentity(), store: memoryStore(), agent, ...extra });
@@ -65,8 +65,8 @@ async function guest(extra = {}) {
   const store = memoryStore();
   const g = guestSession({ identity: await generateIdentity(), store, agent });
   await g.handle(hello({ destination: atlas }), { origin: "https://foco.example" });
-  const out = await g.handle(intake({ text: "Looking for sex" }), { origin: "https://foco.example" });
-  ok(out.type === DECLINED && /sex/.test(out.reason), "a not-offered statement is declined with the reason, not blocked");
+  const out = await g.handle(intake({ text: "Bikes for sale" }), { origin: "https://foco.example" });
+  ok(out.type === DECLINED && /sale/.test(out.reason), "a not-offered statement is declined with the reason, not blocked");
   ok((await troveGet(store, "anything")) === null, "nothing was recorded for a declined intake");
 }
 
