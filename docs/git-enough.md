@@ -158,7 +158,9 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   same gate + standing grants + grants panel that govern the composer now govern the origin's git. Worked
   demo — [`git-enough/git-chamber-demo.html`](../git-enough/git-chamber-demo.html): a powerless `data:`
   chamber stages a working tree and commits it over the probe line (Chromium-verified — the gate refuses an
-  unconfirmed commit; a confirmed one lands; history + tree read back over Rung 0). Byte-accurate
+  unconfirmed commit; a confirmed one lands; history + tree read back over Rung 0). **The use case that
+  gives the beat its meaning** — what goes on the stage, and how a session is kept/viewed/discarded — is
+  shaped in [`docs/archive-browser.md`](archive-browser.md) (the data-pile archive browser). Byte-accurate
   inflate is now browser-native ([`git-enough/inflate.mjs`](../git-enough/inflate.mjs)), so the whole
   read-side runs in the Elevated app, not just Node. Later degrees: incremental fetch with `have`s (only
   what we lack); shallow clone; a faster inflate if pack sizes demand it.

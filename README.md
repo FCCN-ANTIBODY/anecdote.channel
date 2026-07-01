@@ -88,6 +88,12 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   (reducer `label`, `anecdote/v1` build + on-device sign, the trove) as probe-line ops, and
   [`composer/composer-chamber-demo.html`](composer/composer-chamber-demo.html) runs the compose UI inside a
   powerless `data:` chamber that summons them over the port (Chromium-verified).
+- [`docs/archive-browser.md`](docs/archive-browser.md) — shaping the **data-pile archive browser** (the
+  use case that gives the staging beat its meaning): a session's activity is a data-pile; a **launchpad**
+  (your piles on a tape-line) + an **on-ice viewer** (a sensory-deprivation `data:` chamber puppeted over
+  the probe line, rendering a page from cached blobs, never live). Sorts three data classes onto/off the
+  git stage — ignorable churn, the documents (auto/tempo commit), and Literally-Private secrets — and lays
+  out **deletion in stages** (culminating in key-shred, which pre-satisfies every revocation at once).
 - [`docs/probe-line-v1.md`](docs/probe-line-v1.md) — the **`probe-line/v1` protocol specification**: the
   normative reference (roles, capability-by-port trust + mutual auth, the handshake, the frame grammar,
   the two revocations, the consent ladder, conformance) that `composer/probe-line.mjs` implements — with a
