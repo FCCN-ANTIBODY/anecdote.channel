@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>poll answer — anecdote shaped by a Tell QR</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; } .lede { color: #555; }
+  .stage { border: 1px solid #ddd; border-radius: .6rem; padding: .5rem; margin-top: 1rem; }
+  .stage > figcaption { font-size: .8rem; color: #777; padding: .2rem .4rem; }
+  iframe { width: 100%; height: 30rem; border: 0; border-radius: .4rem; background: #fff; }
+</style>
+<body>
+<h1>The poll-answer view — anecdote shaped by a Tell QR</h1>
+<p class="lede">The panel runs in a <strong>powerless <code>data:</code> chamber</strong>. The Elevated app reads
+the poll's QR (which was addressed to a Tell from the start) and hands the chamber the answer view over the
+probe line. The chamber shows the question and any <em>suggested</em> options — but the answer is
+<strong>always custom</strong>. Choosing or typing builds a pre-filled GitHub issue link; nothing phones
+home. All ops are Rung&nbsp;0.</p>
+
+<figure class="stage">
+  <figcaption>▼ powerless data: chamber — the poll-answer view, driven over a transferred MessagePort</figcaption>
+  <div id="mount"></div>
+</figure>
+
+<script type="module">
+import { spawnChamber, serveProbeLine } from "./probe-line.mjs";
+import { pollAnswerOps } from "./poll-answer.mjs";
+
+// The scanned QR. In the field this is location.search after a scan of the poll's QR code; the demo falls
+// back to a sample multichoice poll so the page stands alone.
+const qr = (location.search || "").replace(/^\?/, "") ||
+  "pile=cd04-q1&poll=park-budget&round=1&tok=abc123def456&type=multichoice&opts=Fund+it,Hold+off&guidance=Pick+one%2C+or+say+it+your+own+way.&asker=council@example.com";
+
+const CHAMBER = `<!doctype html><meta charset=utf-8><title>poll</title>
+<style>body{font:14px/1.45 system-ui,sans-serif;margin:.6rem;color:#1a1a1a}
+h3{margin:.4rem 0;font-size:1.05rem}.guide{color:#555;font-size:.85rem;margin:.2rem 0 .6rem}
+.opt{display:block;border:1px solid #d7e0f0;background:#f3f7ff;border-radius:.4rem;padding:.45rem .6rem;margin:.3rem 0;color:#1967d2;text-decoration:none;cursor:pointer}
+.opt:hover{background:#e8f0fe}.custom{margin-top:.7rem}.custom label{font-size:.82rem;color:#333}
+textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4rem;padding:.4rem;font:inherit;margin-top:.2rem}
+.go{display:inline-block;margin-top:.4rem;border:0;background:#1967d2;color:#fff;border-radius:.4rem;padding:.4rem .8rem;cursor:pointer;font:inherit}
+.go[disabled]{background:#b7c4d8;cursor:default}.promise{font-size:.72rem;color:#137333;margin-top:.3rem}
+.link{font-size:.72rem;color:#555;word-break:break-all;margin-top:.5rem}.fine{font-size:.72rem;color:#888;margin-top:.5rem}
+.env{margin-top:.6rem;font-size:.7rem;color:#999}</style>
+<body><div id=view>loading…</div><div class=env id=env></div>
+<scr`+`ipt>
+(function(){
+  var port=null, seq=0, pending={}, cfgLoaded=false;
+  function invoke(op,input){return new Promise(function(res){var id="r"+(++seq);pending[id]={res:res,frames:[]};
+    port.postMessage({type:"probe.line.request/v1",id:id,op:op,input:input||{}});});}
+  function onPort(ev){var d=ev.data;if(!d||!d.id)return;var p=pending[d.id];if(!p)return;
+    if(d.type==="probe.line.frame/v1"&&d.final){delete pending[d.id];p.res(p.frames);}
+    else if(d.type==="probe.line.frame/v1"){p.frames.push(d);}
+    else if(d.type==="probe.line.error/v1"){delete pending[d.id];p.res([{error:d.reason}]);}}
+  var $=function(id){return document.getElementById(id);};
+  var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c];});};
+  function showComposed(url){$("link").innerHTML=url?("↪ reply link: <a href='"+esc(url)+"' target=_blank rel='nofollow noopener'>"+esc(url.slice(0,64))+"…</a>"):"";}
+  async function render(){
+    var v=(await invoke("poll.view"))[0].view;
+    if(!v||!v.loaded){$("view").innerHTML="<p>No poll loaded — open from a poll's QR code.</p>";return;}
+    cfgLoaded=true;
+    var opts=v.options.map(function(o,i){return "<a class=opt data-i='"+i+"' href='"+esc(o.issueUrl)+"' target=_blank rel='nofollow noopener'>"+esc(o.answer)+"</a>";}).join("");
+    $("view").innerHTML="<h3>"+esc(v.question)+"</h3>"+
+      (v.guidance?"<div class=guide>"+esc(v.guidance)+"</div>":"")+
+      opts+
+      "<div class=custom><label for=ans>"+(v.options.length?"Or answer in your own words:":"Your answer:")+"</label>"+
+      "<textarea id=ans rows=3 placeholder='Type your reply…'></textarea>"+
+      "<button class=go id=go disabled>Compose reply</button>"+
+      "<div class=promise>✓ your answer is always custom — the options are only suggestions</div></div>"+
+      "<div class=link id=link></div>"+
+      "<div class=fine>Choosing or typing builds a pre-filled GitHub issue. Review it, then submit to reply. Nothing here phones home.</div>";
+    var ta=$("ans"), go=$("go");
+    ta.addEventListener("input",function(){go.disabled=!ta.value.trim();showComposed("");});
+    go.addEventListener("click",async function(){
+      var c=(await invoke("poll.compose",{answer:ta.value}))[0];
+      if(c&&c.issueUrl) showComposed(c.issueUrl);
+    });
+  }
+  addEventListener("message",function(e){
+    if(e.data&&e.data.type==="probe.line.init/v1"&&e.ports&&e.ports[0]){
+      port=e.ports[0];port.onmessage=onPort;port.start&&port.start();
+      $("env").textContent="chamber — subtle:"+(typeof (self.crypto&&self.crypto.subtle))+" · secure:"+isSecureContext+" · origin:"+location.origin;
+      render();
+    }
+  });
+  if(window.parent!==window) window.parent.postMessage({type:"probe.line.ready/v1"},"*");
+})();
+</scr`+`ipt>`;
+
+const { port } = await spawnChamber(CHAMBER, { document, targetWindow: window, mount: document.getElementById("mount") });
+serveProbeLine(port, { ops: pollAnswerOps({ qr }), context: () => ({ recordingOn: true, grants: [] }) });
+</script>

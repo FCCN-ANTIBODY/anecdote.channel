@@ -30,8 +30,11 @@ export const OP_CATALOG = {
   "git.clone":               { rung: 1, persists: true  },  // the Castle: imports history
   "viewer.repos":            { rung: 0, persists: false },  // the system viewer — enumerate + read only
   "viewer.repo":             { rung: 0, persists: false },
+  "viewer.poll":             { rung: 0, persists: false },  // a poll pile as its data object + live tally
   "viewer.file":             { rung: 0, persists: false },
   "viewer.storage":          { rung: 0, persists: false },  // raw device storage surfaces
+  "poll.view":               { rung: 0, persists: false },  // the poll-answer view (anecdote shaped by a QR)
+  "poll.compose":            { rung: 0, persists: false },  // build the reply link — the submit is the user's click
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.

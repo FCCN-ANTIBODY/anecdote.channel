@@ -4,6 +4,7 @@ import { elevatedSession, request, FRAME } from "../composer/probe-line.mjs";
 import { repo } from "../git-enough/repo.mjs";
 import { repoRegistry } from "./repos.mjs";
 import { viewerOps } from "./probe-ops.mjs";
+import { authorPoll, recordDelivery } from "./poll.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -13,7 +14,8 @@ const author = { name: "You", email: "you@origin", epoch: 1700000000, tz: "+0000
 const session = repo();
 await session.commitFiles([{ path: "index.html", content: "<h1>hi</h1>\n" }, { path: "a/note.txt", content: "note\n" }], { author, message: "browse\n" });
 const poll = repo();
-await poll.commitFiles([{ path: "question.json", content: "{}\n" }], { author, message: "poll: budget\n" });
+await authorPoll(poll, { pile: "cd04-q1", poll: "budget", type: "multichoice", text: "Cut or keep the library budget?", options: ["Cut", "Keep"], guidance: "One of the listed options.", tell: "https://tell.anecdote.channel" }, { author });
+await recordDelivery(poll, "000000", [{ poll: "budget", answer: "Keep", governed: "accept" }, { poll: "budget", answer: "Cut", governed: "accept" }, { poll: "budget", answer: "Keep", governed: "accept" }], { author });
 const registry = repoRegistry();
 registry.register({ label: "browse-2026", kind: "pile.session", repo: session });
 registry.register({ label: "budget", kind: "pile.poll", repo: poll, downstreams: ["https://github.com/tiliv/tell-budget"] });
@@ -70,6 +72,23 @@ function session_() {
   await s.handle(request({ id: "S", op: "viewer.storage", input: {} }));
   const st = frames.find((f) => f.type === FRAME && f.storage)?.storage;
   ok(st && st.surfaces.find((x) => x.surface === "localStorage").count === 1, "viewer.storage lists raw surfaces even with an empty repo registry");
+}
+
+// 6. viewer.poll — a poll pile as its data object + live tally (Rung 0, no prompt).
+{
+  const { s, frames } = session_();
+  await s.handle(request({ id: "P", op: "viewer.poll", input: { id: "anecdote://repo/budget", now: Date.parse("2026-06-01T00:00:00Z") } }));
+  const v = frames.find((x) => x.type === FRAME && x.view)?.view;
+  ok(v && v.text === "Cut or keep the library budget?" && v.type === "multichoice", "viewer.poll returns the question + type with no prompt");
+  ok(v.results.total === 3 && v.results.tally.find((x) => x.answer === "Keep").count === 2, "viewer.poll folds fetched-back deliveries into a live tally");
+  ok(v.tell === "https://tell.anecdote.channel", "viewer.poll carries the addressable Tell twin");
+}
+
+// 7. viewer.poll on a session pile → error frame, not a crash.
+{
+  const { s, frames } = session_();
+  await s.handle(request({ id: "PN", op: "viewer.poll", input: { id: "browse-2026" } }));
+  ok(frames.find((x) => x.type === FRAME && x.error === "not a poll pile"), "viewer.poll on a non-poll pile → error field");
 }
 
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }

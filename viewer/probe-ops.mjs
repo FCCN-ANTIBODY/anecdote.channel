@@ -9,6 +9,7 @@ import { repoListView } from "./repos.mjs";
 import { repoDetail, readFile } from "./repo-detail.mjs";
 import { parseAnecdoteUrl } from "./anecdote-url.mjs";
 import { enumerateAll } from "./enumerators.mjs";
+import { pollView } from "./poll.mjs";
 
 export function viewerOps({ registry, storage } = {}) {
   if (!registry) throw new Error("viewer ops: need a repoRegistry");
@@ -32,6 +33,18 @@ export function viewerOps({ registry, storage } = {}) {
       if (!entry) return api.emit({ error: "no such repo", repo: input.id });
       api.emit({ repo: input.id, label: entry.label, kind: entry.kind, downstreams: entry.downstreams,
                  detail: repoDetail(entry.repo, { ref: input.ref, limit: input.limit }) });
+    },
+
+    // Rung 0 — open a poll pile as its data object: question + mini-constitution + options with a live
+    // tally (from fetched-back deliveries) + the addressable Tell twin. The view is nested under `view` so
+    // its `type` (multichoice/open) can't clobber the frame envelope's own `type`. (`repo` is the
+    // anecdote:// id; input.now — epoch ms from the chamber — enables open/closed lifecycle state.)
+    "viewer.poll": async (input, api) => {
+      const entry = resolve(input.id);
+      if (!entry) return api.emit({ error: "no such repo", repo: input.id });
+      const view = pollView(entry, { ref: input.ref, now: input.now });
+      if (view.error) return api.emit({ error: view.error, repo: input.id });
+      api.emit({ repo: input.id, view });
     },
 
     // Rung 0 — a single file's contents at a ref (the on-ice document view; text-decoded).
