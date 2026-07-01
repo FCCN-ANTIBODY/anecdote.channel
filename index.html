@@ -17,7 +17,7 @@
 <meta name="theme-color" content="#990049">
 <link rel="icon" href="/icon.svg">
 <!-- Hold the app shell so anecdote boots with no connection / origin unreachable (sw.js, docs/origin.md). -->
-<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){});});</script>
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{type:"module"}).then(function(){return navigator.serviceWorker.ready;}).then(function(){if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:"firmware-check"});}).catch(function(){});});</script>
 <style>
   :root {
     --io: #ccad31;

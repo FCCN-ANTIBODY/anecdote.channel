@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#990049">
 <link rel="icon" href="/icon.svg">
 <!-- Hold the shell so minting a signed QR works offline (sw.js). -->
-<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){});});</script>
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{type:"module"}).then(function(){return navigator.serviceWorker.ready;}).then(function(){if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:"firmware-check"});}).catch(function(){});});</script>
 <style>
   body { font: 15px/1.6 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
   h1 { font-size: 1.3rem; } .lede { color: #555; }

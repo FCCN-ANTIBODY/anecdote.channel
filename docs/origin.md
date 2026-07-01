@@ -61,10 +61,21 @@ dormant and the shell falls back to its static precache, so this is opt-in. This
 payload-and-decide-locally machinery is what **offline data transfer** ("gravel") reuses to accept data from
 any carrier (QR, peer, mesh) — DELIVERY.md's "verify the bytes, accept them from anyone."
 
-**Still ahead (slice 1b).** Wire the service worker to *enforce* the pin: fetch `firmware.json`, `pinDecision`
-against the fingerprint stored in IndexedDB, precache from the manifest (hash-checked), refuse a foreign or
-downgraded update while keeping the held shell — with the holder's "accept the roll-forward" consent lever
-(dev: auto-accept same-key). Then the possession guarantee is live end-to-end.
+**Built (the SW enforces the pin, slice 1b — the guarantee is live).** [`sw.js`](../sw.js) is now a module
+service worker that enforces the pin. On install it holds the fallback shell, then `checkFirmware()` fetches
+`/firmware.json`, runs `pinDecision` against the fingerprint kept in IndexedDB, and — only if accepted —
+re-fetches the manifest's files, `verifyFiles` (hash-checks the bytes), and commits them to the shell cache.
+A **foreign-signed** or **downgraded** manifest is refused and the held shell is kept untouched; a page
+re-checks on load (best-effort — it fails gracefully offline without blocking boot) so a **same-key
+roll-forward** is adopted on a later visit. (The holder's explicit "accept the roll-forward" consent lever is
+the remaining refinement; dev auto-accepts same-key, per the roll-forward-consent stand-in above.)
+**Chromium-verified end-to-end:** first contact pins signer A; a **possessed origin serving a B-signed
+manifest is REFUSED** ("signer ≠ pinned day-one key") and the pinned shell survives; a genuine same-key,
+higher-version manifest **is adopted** — and offline boot still holds (poll.html boots, a QR mints and
+verifies with real `ssh-keygen`) with the origin dead. The residual, by design: the SW *script itself* is
+fetched from the origin on update, so pinning the SW code from a possessed origin is the **optical/QR
+firmware**'s job (the recursive-favicon fingerprint / code-QRs), anchored on this same trust root — which is
+also the on-ramp to **offline data transfer** (verify a signed payload from any carrier, decide trust locally).
 
 ## Home base: the trove is Origin
 
