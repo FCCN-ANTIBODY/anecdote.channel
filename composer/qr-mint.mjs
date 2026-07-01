@@ -48,11 +48,13 @@ export function qrCanon(pairs) {
   return pairs.filter((p) => !/^(sig|kid|post)=/.test(p)).slice().sort().join("\n");
 }
 
-// Assemble the QR URL from an anecdote.poll/v1 object, byte-compatible with bin/qr (unsigned). Param order
-// matches bin/qr exactly: pile, poll, round, tok, type, mode, run, then canonical?, asker?, q?, opts?,
-// guidance?, repo?. Returns { url, tok, round, run, canon, pairs } — canon is ready for a later signature.
+// Assemble the QR URL from an anecdote.poll/v1 object, byte-compatible with bin/qr. Param order matches
+// bin/qr exactly: pile, poll, round, tok, type, mode, run, then canonical?, asker?, q?, opts?, guidance?,
+// repo?, then sig?, kid? (appended after the signed preimage, exactly as bin/qr does). Pass `sign` =
+// { identity, namespace? } (the device identity from sign.mjs) to add a provenance signature over the
+// canonical preimage. Returns { url, tok, round, run, canon, pairs, sig?, kid? }.
 export async function mintQR(poll, { secret, domain = "https://tell.anecdote.channel", repo, asker = "",
-                                     mode = "issue", canonical = "", run } = {}) {
+                                     mode = "issue", canonical = "", run, sign } = {}) {
   if (!secret) throw new Error("qr-mint: minting needs the pile's TELL_QR_SECRET (you run the Tell)");
   if (!poll || !poll.pile || !poll.poll) throw new Error("qr-mint: need a poll object with pile + poll");
   const round = String((poll.lifecycle && poll.lifecycle.round) ?? 1);
@@ -68,19 +70,30 @@ export async function mintQR(poll, { secret, domain = "https://tell.anecdote.cha
   if (poll.options && poll.options.length) pairs.push(`opts=${enc(poll.options.join(","))}`);
   if (poll.guidance) pairs.push(`guidance=${enc(poll.guidance)}`);
   if (repo) pairs.push(`repo=${enc(repo)}`);
-  return { url: `${domain}/?${pairs.join("&")}`, tok, round, run: runId, canon: qrCanon(pairs), pairs };
+  const canon = qrCanon(pairs);                // the preimage — over the base pairs, before sig/kid
+  const out = { tok, round, run: runId, canon };
+  if (sign && sign.identity) {
+    const { signCanon } = await import("./qr-sign.mjs");
+    const s = await signCanon(canon, sign.identity, { namespace: sign.namespace });
+    pairs.push(`sig=${enc(s.sig)}`, `kid=${enc(s.kid)}`);   // appended after the preimage, like bin/qr
+    out.sig = s.sig; out.kid = s.kid;
+  }
+  out.pairs = pairs;
+  out.url = `${domain}/?${pairs.join("&")}`;
+  return out;
 }
 
 // Mint as a probe-line capability. Rung 1 (one confirm per mint — a QR is a shareable authorization). The
 // SECRET is held here, Elevated; the chamber hands only the poll object + routing and gets back the URL, so
 // the secret never crosses the probe line into the powerless chamber.
-export function qrMintOps({ secret, domain, repo } = {}) {
+export function qrMintOps({ secret, domain, repo, identity, namespace } = {}) {
   if (!secret) throw new Error("qr-mint ops: need the pile's QR secret (Elevated-held)");
+  const sign = identity ? { identity, namespace } : undefined;   // sign QRs with the device key if given
   return {
     "poll.mint": async (input, api) => {
-      const r = await mintQR((input && input.poll) || {}, { secret, domain, repo,
+      const r = await mintQR((input && input.poll) || {}, { secret, domain, repo, sign,
         asker: input && input.asker, mode: input && input.mode, canonical: input && input.canonical, run: input && input.run });
-      api.emit({ url: r.url, tok: r.tok, round: r.round, run: r.run });
+      api.emit({ url: r.url, tok: r.tok, round: r.round, run: r.run, kid: r.kid || null });
     },
   };
 }
