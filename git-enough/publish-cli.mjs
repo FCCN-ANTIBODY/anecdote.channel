@@ -69,7 +69,10 @@ async function main() {
   if (upToDate) { console.log("up to date — nothing to push."); return; }
   console.log("report:", JSON.stringify(report));
   if (!report.ok) { console.error("PUSH REJECTED"); process.exit(1); }
-  console.log(`✓ pushed — ${o.url} ${o.ref} now at ${tip}`);
+  const web = o.url.replace(/\/$/, "").replace(/\.git$/, "");
+  console.log(`✓ pushed — ${o.ref} now at ${tip}`);
+  console.log(`  view:   ${web}/commit/${tip}`);
+  console.log(`  verify: OFFLINE_ORIGIN_PAT=… node git-enough/verify-cli.mjs ${o.url}`);
 }
 
 // Run only as a script (not when imported by a test).
