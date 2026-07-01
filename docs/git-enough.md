@@ -155,7 +155,10 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   `git.commit`/`git.push`/`git.clone` (Rung 1, each `yield→check-cancel` before it persists). The **staging
   beat** is the Rung-2 standing behavior — a grant over `git.commit` the scheduler runs on your behalf
   (its cadence is Origin's open "privileged budget"). This is where git-enough joins the constellation: the
-  same gate + standing grants + grants panel that govern the composer now govern the origin's git. Byte-accurate
+  same gate + standing grants + grants panel that govern the composer now govern the origin's git. Worked
+  demo — [`git-enough/git-chamber-demo.html`](../git-enough/git-chamber-demo.html): a powerless `data:`
+  chamber stages a working tree and commits it over the probe line (Chromium-verified — the gate refuses an
+  unconfirmed commit; a confirmed one lands; history + tree read back over Rung 0). Byte-accurate
   inflate is now browser-native ([`git-enough/inflate.mjs`](../git-enough/inflate.mjs)), so the whole
   read-side runs in the Elevated app, not just Node. Later degrees: incremental fetch with `have`s (only
   what we lack); shallow clone; a faster inflate if pack sizes demand it.

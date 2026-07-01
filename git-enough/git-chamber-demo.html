@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git-enough from a chamber — probe line</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; } .lede { color: #555; }
+  .stage { border: 1px solid #ddd; border-radius: .6rem; padding: .5rem; margin-top: 1rem; }
+  .stage > figcaption { font-size: .8rem; color: #777; padding: .2rem .4rem; }
+  iframe { width: 100%; height: 30rem; border: 0; border-radius: .4rem; background: #fff; }
+</style>
+<body>
+<h1>The offline origin's git, driven from a chamber</h1>
+<p class="lede">The UI below lives in a <strong>powerless <code>data:</code> chamber</strong> (no keys, no
+storage, null origin). It stages files locally, then summons the origin's git over the probe line:
+<code>git.commit</code> (Rung 1 — one confirm) and <code>git.log</code>/<code>git.files</code> (Rung 0 —
+read, no prompt). The repo lives in this Elevated page; the chamber only names what it wants, and the
+consent gate decides. A live demo of <code>git-enough/probe-ops.mjs</code>.</p>
+
+<figure class="stage">
+  <figcaption>▼ powerless data: chamber (sandboxed) — every git op crosses a transferred MessagePort</figcaption>
+  <div id="mount"></div>
+</figure>
+
+<script type="module">
+import { spawnChamber, serveProbeLine } from "../composer/probe-line.mjs";
+import { gitOps } from "./probe-ops.mjs";
+import { repo } from "./repo.mjs";
+
+const origin = repo();   // the offline origin's repo — lives Elevated
+const author = { name: "offline-origin", email: "origin@local", epoch: Math.floor(Date.now() / 1000), tz: "+0000" };
+const ops = gitOps({ repo: origin, author });
+const context = () => ({ recordingOn: true, grants: [] });
+
+const CHAMBER = `<!doctype html><meta charset=utf-8><title>git</title>
+<style>body{font:14px/1.45 system-ui,sans-serif;margin:.6rem;color:#1a1a1a}
+input,textarea{font:inherit;box-sizing:border-box;width:100%;padding:.35rem;margin:.15rem 0}
+textarea{height:4rem}button{font:inherit;padding:.35rem .8rem;border:1px solid #bbb;border-radius:.4rem;background:#fafafa;cursor:pointer;margin:.2rem .3rem .2rem 0}
+.row{display:flex;gap:.5rem}.row>*{flex:1}.staged,.log,.files{margin:.4rem 0;font-size:.85rem}
+h4{margin:.6rem 0 .2rem}code{background:#f4f4f4;padding:0 .2rem;border-radius:.2rem}
+.msg{color:#137333;min-height:1.2em}.err{color:#a50e0e}.env{margin-top:.5rem;font-size:.72rem;color:#999}
+li{margin:.1rem 0}</style>
+<body>
+<div class=row><input id=path placeholder="path (e.g. src/app.js)" value="README.md"><input id=msg placeholder="commit message" value="update"></div>
+<textarea id=content placeholder="file content">the state's page is the real-time democracy
+</textarea>
+<button id=stage>Add / update file</button>
+<label><input type=checkbox id=confirm checked> confirm</label>
+<button id=commit>Commit working tree</button>
+<div class=msg id=out></div>
+<h4>Working tree (persists across commits, like git)</h4><ul class=staged id=staged></ul>
+<h4>History (git.log · Rung 0)</h4><ul class=log id=log></ul>
+<h4>Tree (git.files · Rung 0)</h4><ul class=files id=files></ul>
+<div class=env id=env></div>
+<scr`+`ipt>
+(function(){
+  var port=null, seq=0, pending={}, staged={};
+  function invoke(op,input,opts){opts=opts||{};return new Promise(function(res,rej){
+    var id="r"+(++seq); pending[id]={res:res,rej:rej,frames:[]};
+    port.postMessage({type:"probe.line.request/v1",id:id,op:op,input:input,confirmed:!!opts.confirmed});});}
+  function onPort(ev){var d=ev.data;if(!d||!d.id)return;var p=pending[d.id];if(!p)return;
+    if(d.type==="probe.line.frame/v1"&&d.final){delete pending[d.id];p.res({frames:p.frames});}
+    else if(d.type==="probe.line.frame/v1"){p.frames.push(d);}
+    else if(d.type==="probe.line.error/v1"){delete pending[d.id];p.rej(d);}
+    else if(d.type==="probe.line.cancelled/v1"){delete pending[d.id];p.res({cancelled:true});}}
+  var $=function(id){return document.getElementById(id);};
+  function renderStaged(){ $("staged").innerHTML=Object.keys(staged).map(function(k){return "<li><code>"+k+"</code> ("+staged[k].length+" B)</li>";}).join("")||"<li>(none)</li>"; }
+  async function refresh(){
+    try{ var l=await invoke("git.log",{}); var log=(l.frames[0]&&l.frames[0].log)||[];
+      $("log").innerHTML=log.map(function(c){return "<li><code>"+c.oid.slice(0,7)+"</code> "+c.message+"</li>";}).join("")||"<li>(no commits yet)</li>";
+    }catch(e){ $("log").innerHTML="<li class=err>"+(e.reason||"error")+"</li>"; }
+    try{ var f=await invoke("git.files",{}); var files=(f.frames[0]&&f.frames[0].files)||[];
+      $("files").innerHTML=files.map(function(x){return "<li><code>"+x.path+"</code> "+x.size+" B</li>";}).join("")||"<li>(empty)</li>";
+    }catch(e){ $("files").innerHTML="<li class=err>"+(e.reason||"error")+"</li>"; }
+  }
+  $("stage").addEventListener("click",function(){ staged[$("path").value]=$("content").value; renderStaged(); $("out").textContent="staged "+$("path").value; });
+  $("commit").addEventListener("click",async function(){
+    var files=Object.keys(staged).map(function(k){return {path:k,content:staged[k]};});
+    if(!files.length){ $("out").textContent="nothing staged"; return; }
+    try{
+      var r=await invoke("git.commit",{files:files,message:$("msg").value},{confirmed:$("confirm").checked});
+      $("out").className="msg"; $("out").textContent="✓ committed "+r.frames[0].commit.slice(0,7); refresh();
+    }catch(e){ $("out").className="err"; $("out").textContent="refused: "+(e.reason||"error")+(e.needsConfirm?" (tick confirm)":""); }
+  });
+  addEventListener("message",function(e){
+    if(e.data&&e.data.type==="probe.line.init/v1"&&e.ports&&e.ports[0]){
+      port=e.ports[0]; port.onmessage=onPort; port.start&&port.start();
+      $("env").textContent="chamber — subtle:"+(typeof (self.crypto&&self.crypto.subtle))+" · secure:"+isSecureContext+" · origin:"+location.origin;
+      renderStaged(); refresh();
+    }
+  });
+  if(window.parent!==window) window.parent.postMessage({type:"probe.line.ready/v1"},"*");
+})();
+</scr`+`ipt>`;
+
+const { port } = await spawnChamber(CHAMBER, { document, targetWindow: window, mount: document.getElementById("mount") });
+serveProbeLine(port, { ops, context });
+</script>
