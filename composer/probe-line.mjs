@@ -127,11 +127,12 @@ export function elevatedSession(deps = {}) {
 // port. `expectOrigin` (the Elevated origin) lets the chamber authorize us back (Edge 1 bonus: mutual
 // auth). Teardown closes the port (revokes every capability at once — Edge 6) and removes the iframe.
 export function spawnChamber(chamberHtml, { sandbox = "allow-scripts", document: doc = globalThis.document,
-                                            targetWindow = globalThis } = {}) {
+                                            targetWindow = globalThis, mount = null } = {}) {
   const iframe = doc.createElement("iframe");
   if (sandbox) iframe.setAttribute("sandbox", sandbox);
   iframe.src = "data:text/html," + encodeURIComponent(chamberHtml);
-  doc.body.appendChild(iframe);
+  (mount || doc.body).appendChild(iframe);   // append into the final parent up front — moving it later
+                                             // would reload the chamber and orphan its port
   const channel = new MessageChannel();
   return new Promise((resolve) => {
     const onReady = (event) => {

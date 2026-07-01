@@ -16,6 +16,7 @@ export const OP_CATALOG = {
   "trove.read":              { rung: 0, persists: false },
   "digest":                  { rung: 0, persists: false },
   "sign":                    { rung: 1, persists: false },  // makes an artifact but the RECORD is the persist
+  "sign-anecdote":           { rung: 1, persists: true  },  // build + sign + record a receipt in the trove
   "seal":                    { rung: 1, persists: true  },
   "export":                  { rung: 1, persists: true  },
   "commit":                  { rung: 1, persists: true  },

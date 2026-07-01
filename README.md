@@ -67,6 +67,10 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   end-to-end in Chromium), and [`composer/grants-panel.mjs`](composer/grants-panel.mjs) (the glanceable
   "running on my behalf" panel — every row shows its state and the artifact that proves it; live demo in
   [`composer/grants-panel-demo.html`](composer/grants-panel-demo.html)).
+  The frame is realized: [`composer/probe-ops.mjs`](composer/probe-ops.mjs) vends the **real** composer
+  (reducer `label`, `anecdote/v1` build + on-device sign, the trove) as probe-line ops, and
+  [`composer/composer-chamber-demo.html`](composer/composer-chamber-demo.html) runs the compose UI inside a
+  powerless `data:` chamber that summons them over the port (Chromium-verified).
 - [`docs/probe-line-v1.md`](docs/probe-line-v1.md) — the **`probe-line/v1` protocol specification**: the
   normative reference (roles, capability-by-port trust + mutual auth, the handshake, the frame grammar,
   the two revocations, the consent ladder, conformance) that `composer/probe-line.mjs` implements — with a
