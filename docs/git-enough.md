@@ -263,8 +263,13 @@ how long you held the plaintext). Properties, kept honest:
   (above). Open sub-thread: the exact basis set that makes "held-since T0" credible enough to act on.
 - **B) Two factories, kept in lockstep.** If the seal exists both in CI (Tell submodule) and in the
   browser, they must stay **byte-compatible** — the same drift-guard discipline as `bin/check-pile-lib`.
-- **C) The staging beat.** What schedules the commit cron (a worker? the privileged-budget question from
-  Origin), and the exact incognito no-op semantics.
+- **C) The staging beat — ✅ built ([`git-enough/staging-beat.mjs`](../git-enough/staging-beat.mjs)).**
+  The shelf → git stage policy: a `.gitignore` subset drops the churn (class 1), `instant`/`tempo`/`manual`
+  modes + `teardownFlush()` cover the session preference, zero-diff revisits no-op, the working tree
+  accumulates, and a `mayRun()` gate (grant-live && recording-on) makes incognito/revoked a clean no-op —
+  driving `repo.commitFiles` (the Rung-1 `git.commit` capability) as a Rung-2 behavior. What remains open:
+  the **scheduler** that calls `tick()` on a cadence — a worker vs. idle time, i.e. Origin's
+  "privileged budget" — is injected, not owned.
 - **D) LM history-indexing cadence.** Slow background labeling is a worker-like privileged behavior — ties
   to Origin's open "privileged budget."
 - **E) git-enough op list.** Confirm via the subsystem-surface study before building (object store + refs +
