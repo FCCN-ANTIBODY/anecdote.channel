@@ -130,7 +130,9 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   `git receive-pack --stateless-rpc`** (the exact program GitHub's backend runs): **create** an empty repo's
   ref, **fast-forward** it, and the **King's Leap** non-fast-forward **replace** — the downstream ends
   carrying the single fresh root, the old lineage gone. Only the literal network socket to github.com is
-  left for a live push (a `publish(repo, {url, credential})` call the operator triggers). Later degrees:
+  left for a live push. The operator fires it with [`git-enough/publish-cli.mjs`](../git-enough/publish-cli.mjs)
+  — `OFFLINE_ORIGIN_PAT=… node git-enough/publish-cli.mjs <repo-url> [--root] [--file p=c] [--dry-run]`
+  (token from the environment, never a flag; `--root` = the King's Leap replace). Later degrees:
   force-with-lease, thin/negotiated packs (only send what the downstream lacks), multi-downstream fan-out.
 
 Each phase is a probe-line **capability** (Rung 1 `commit`/`stage`, Rung 2 the staging beat, and push as a
