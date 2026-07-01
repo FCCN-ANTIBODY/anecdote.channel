@@ -120,12 +120,20 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   its reported pack sha **equals our trailer checksum**; `git verify-pack` lists our oids; `git
   unpack-objects` + `cat-file` restore the content. *(Later degrees: OFS/REF delta compression, thin
   packs.)*
-- **Phase 3 — send-pack to a downstream (the headline).** The git **smart-HTTP** `git-receive-pack`
-  flow against a GitHub repo: `GET …/info/refs?service=git-receive-pack`, then `POST …/git-receive-pack`
-  with the ref-update command(s) + the phase-2 packfile, authenticated by the **homebrew fine-grained PAT**
-  (the egress credential we already chose). The downstream **fast-forwards to what the origin published** —
-  the inversion realized, no PRs. Later degrees: force-with-lease semantics, thin packs, multi-downstream
-  fan-out.
+- **Phase 3 — send-pack to a downstream (the headline; ✅ protocol built + offline-verified).** The git
+  **smart-HTTP** `git-receive-pack` flow — [`git-enough/send-pack.mjs`](../git-enough/send-pack.mjs):
+  `discover` (GET `…/info/refs?service=git-receive-pack`), `sendPack`/`publish` (POST `…/git-receive-pack`
+  with pkt-line ref-update commands + the phase-2 packfile), and report-status parsing, authenticated by
+  the **homebrew fine-grained PAT** as HTTP Basic (Contents R/W; + Workflows R/W only if the pack touches
+  `.github/workflows/**`). The transport `fetch` is injectable, so
+  [`git-enough/send-pack.test.mjs`](../git-enough/send-pack.test.mjs) runs the **whole path against a real
+  `git receive-pack --stateless-rpc`** (the exact program GitHub's backend runs): **create** an empty repo's
+  ref, **fast-forward** it, and the **King's Leap** non-fast-forward **replace** — the downstream ends
+  carrying the single fresh root, the old lineage gone. Only the literal network socket to github.com is
+  left for a live push. The operator fires it with [`git-enough/publish-cli.mjs`](../git-enough/publish-cli.mjs)
+  — `OFFLINE_ORIGIN_PAT=… node git-enough/publish-cli.mjs <repo-url> [--root] [--file p=c] [--dry-run]`
+  (token from the environment, never a flag; `--root` = the King's Leap replace). Later degrees:
+  force-with-lease, thin/negotiated packs (only send what the downstream lacks), multi-downstream fan-out.
 
 Each phase is a probe-line **capability** (Rung 1 `commit`/`stage`, Rung 2 the staging beat, and push as a
 consequential Rung-1 op gated like any egress). *(Run the subsystem-surface study to confirm each phase's
