@@ -150,7 +150,14 @@ Pure, dependency-free, testable in the house style — the same shape as `compos
    Covered by [`composer/grants.test.mjs`](../composer/grants.test.mjs) (27 assertions, pure &
    deterministic via an injected clock): signing, tamper/key-swap detection, expiry, only-granter-revoke,
    forged-revocation detection, and grant/nonce store separation.
-2. **`authorize()` gate** — the pure function above + exhaustive rung/toggle/expiry tests.
+2. **`authorize()` gate — ✅ DONE.** The pure function above, in
+   [`composer/authorize.mjs`](../composer/authorize.mjs): a rung/toggle/grant decision returning
+   `{allow, rung, needsConfirm, grantId?, reason?}`, plus `describeOp` (over an `OP_CATALOG` that fails
+   safe — unknown ops are consequential+persisting), `scopeCovers` (least-authority, explicit `*`), and
+   `grantCovers`. Key behaviors: incognito refuses *persisting* ops at any rung while read-only sails
+   through; a live in-scope grant covers **Rung 1 ops too** (so a granted behavior's internal commits
+   don't each prompt); Rung 2 needs a grant, not a one-off confirm. Covered by
+   [`composer/authorize.test.mjs`](../composer/authorize.test.mjs) (23 assertions, all passing).
 3. **Probe-line module skeleton** — the inverse of `tunnel.mjs`; its op dispatcher calls `authorize()`
    before handing an op to an admin tool, and enforces **yield → check-cancel → commit** around Rung-1
    commits.
