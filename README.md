@@ -64,7 +64,9 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   Implemented across [`composer/consent.mjs`](composer/consent.mjs) (the grants API),
   [`composer/authorize.mjs`](composer/authorize.mjs) (the gate), and
   [`composer/probe-line.mjs`](composer/probe-line.mjs) (the Elevated session + transport — verified
-  end-to-end in Chromium).
+  end-to-end in Chromium), and [`composer/grants-panel.mjs`](composer/grants-panel.mjs) (the glanceable
+  "running on my behalf" panel — every row shows its state and the artifact that proves it; live demo in
+  [`composer/grants-panel-demo.html`](composer/grants-panel-demo.html)).
 - [`docs/probe-line-v1.md`](docs/probe-line-v1.md) — the **`probe-line/v1` protocol specification**: the
   normative reference (roles, capability-by-port trust + mutual auth, the handshake, the frame grammar,
   the two revocations, the consent ladder, conformance) that `composer/probe-line.mjs` implements — with a
