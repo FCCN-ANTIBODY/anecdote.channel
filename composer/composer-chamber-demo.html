@@ -53,7 +53,7 @@ button{font:inherit;padding:.35rem .8rem;border:1px solid #bbb;border-radius:.4r
 <scr`+`ipt>
 (function(){
   var port=null, seq=0, pending={};
-  var DEST={id:"foco",kind:"atlas",url:"https://foco.example",excludes:["sex"]};
+  var DEST={id:"foco",kind:"atlas",url:"https://foco.example",excludes:["sale"]};
   function invoke(op,input,opts){opts=opts||{};return new Promise(function(res,rej){
     var id="r"+(++seq); pending[id]={res:res,rej:rej,frames:[]};
     port.postMessage({type:"probe.line.request/v1",id:id,op:op,input:input,confirmed:!!opts.confirmed});});}

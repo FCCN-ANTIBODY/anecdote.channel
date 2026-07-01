@@ -11,7 +11,7 @@ let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
 
 const agent = { instrument: "minilm:sha256:deadbeef", constitution: "anecdote:sha256:cafe" };
-const dest = { id: "foco", kind: "atlas", url: "https://foco.example", excludes: ["sex"] };
+const dest = { id: "foco", kind: "atlas", url: "https://foco.example", excludes: ["sale"] };
 
 async function session(store, id, ctx = { recordingOn: true, grants: [] }, yield_) {
   const frames = [];

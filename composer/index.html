@@ -70,7 +70,7 @@
 
   <div class="card">
     <label class="fld" for="say">Your anecdote</label>
-    <textarea id="say" placeholder="e.g. Is there shade at this park? · The library needs longer hours · Looking for sex" autofocus></textarea>
+    <textarea id="say" placeholder="e.g. Is there shade at this park? · The library needs longer hours · Bikes for sale" autofocus></textarea>
     <div class="intent" id="intent"></div>
   </div>
 
@@ -104,9 +104,9 @@
       { id: "mutualaid", name: "Mutual-Aid Tell", kind: "tell", url: "https://aid.example", excludes: [] },
     ],
     atlases: [
-      { id: "foco", name: "Fort Collins Civic Atlas", kind: "atlas", scope: "fort-collins", excludes: ["sex", "sale", "spam"] },
-      { id: "colorado", name: "Colorado State Atlas", kind: "atlas", scope: "colorado", excludes: ["sex", "harassment"] },
-      { id: "larimer", name: "Larimer County Atlas", kind: "atlas", scope: "larimer", neighbor: true, excludes: ["sex"] },
+      { id: "foco", name: "Fort Collins Civic Atlas", kind: "atlas", scope: "fort-collins", excludes: ["sale", "spam"] },
+      { id: "colorado", name: "Colorado State Atlas", kind: "atlas", scope: "colorado", excludes: ["sale", "harassment"] },
+      { id: "larimer", name: "Larimer County Atlas", kind: "atlas", scope: "larimer", neighbor: true, excludes: ["sale"] },
     ],
     muted: loadMutes(),
   };
