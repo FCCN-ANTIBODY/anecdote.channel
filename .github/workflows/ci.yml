@@ -1,0 +1,27 @@
+# CI · run every *.test.mjs suite. The repo is dependency-free (pure Node ESM), and the git-enough suites
+# cross-check against a real `git`, so all CI needs is Node + git — both on the runner. The reducer's
+# MiniLM suites skip cleanly when the optional transformers dep isn't installed, keeping CI light.
+name: "CI · tests"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22       # DecompressionStream / CompressionStream (git-enough) need a modern Node
+      - name: git identity (git-enough suites shell to a real git)
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@local
+      - name: Run all suites
+        run: node scripts/test.mjs

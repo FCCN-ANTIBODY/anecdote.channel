@@ -23,6 +23,11 @@ export const OP_CATALOG = {
   "pile.fabricate":          { rung: 1, persists: true  },
   "git-enough:staging-beat": { rung: 2, persists: true  },  // standing behaviors
   "lm:index-history":        { rung: 2, persists: true  },
+  "git.log":                 { rung: 0, persists: false },  // git-enough vended over the probe line
+  "git.files":               { rung: 0, persists: false },
+  "git.commit":              { rung: 1, persists: true  },
+  "git.push":                { rung: 1, persists: true  },  // network egress — consequential
+  "git.clone":               { rung: 1, persists: true  },  // the Castle: imports history
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.
