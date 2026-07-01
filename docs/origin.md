@@ -45,9 +45,26 @@ the "not a service worker" invariant is chamber-scoped, and honored. The Cache-A
 distinct layer from the IndexedDB trove/blob store (your data); the SW never touches your data.
 **Chromium-verified offline:** with the browser offline and *zero* origin hits, `poll.html` boots and
 composes a reply, and the operator tool mints a QR whose signature real `ssh-keygen -Y verify` accepts — so
-answering and Tell-minting both work with no connection. Still ahead (the deliberate second pass): the
-**trust-on-first-contact firmware pin** (record the day-one signer; accept only same-key signed
-roll-forwards) layered onto this shell.
+answering and Tell-minting both work with no connection.
+
+**Built (the firmware-pin machinery — the possession guarantee, slice 1a).** [`composer/firmware.mjs`](../composer/firmware.mjs)
+is the trust root that "locks the hatch": a signed **`anecdote.firmware/v1`** manifest names the shell's
+files by content hash + a monotonic version, signed with a firmware Ed25519 key (`sign.mjs`'s `attest` —
+canonical-JSON, so it verifies with WebCrypto inside a SW). `pinDecision` is the **trust-on-first-contact**
+rule: pin the signer at first contact; thereafter **accept only same-key, forward-moving** manifests —
+a different signer is refused *even at a higher version* (a possessed origin can't swap what you hold), and
+a validly-signed older version is refused too (no downgrade/replay). `verifyFiles` confirms the served bytes
+match the manifest hashes (a carrier can't swap bytes under a valid signature). The operator arms it with
+their own key via [`composer/firmware-cli.mjs`](../composer/firmware-cli.mjs) (the ceremony: hash the shell,
+sign `firmware.json`, **hold the key — never commit it**); with no `firmware.json` deployed, pinning is
+dormant and the shell falls back to its static precache, so this is opt-in. This same verify-a-signed-
+payload-and-decide-locally machinery is what **offline data transfer** ("gravel") reuses to accept data from
+any carrier (QR, peer, mesh) — DELIVERY.md's "verify the bytes, accept them from anyone."
+
+**Still ahead (slice 1b).** Wire the service worker to *enforce* the pin: fetch `firmware.json`, `pinDecision`
+against the fingerprint stored in IndexedDB, precache from the manifest (hash-checked), refuse a foreign or
+downgraded update while keeping the held shell — with the holder's "accept the roll-forward" consent lever
+(dev: auto-accept same-key). Then the possession guarantee is live end-to-end.
 
 ## Home base: the trove is Origin
 
