@@ -145,7 +145,10 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   force-with-lease, thin/negotiated packs (only send what the downstream lacks), multi-downstream fan-out.
 - **Read-side — the Castle (✅ built, complements the push track).** `git-upload-pack` fetch + pack
   reading with delta resolution + `clone` into a fresh origin — see **The Castle** above. This is the
-  inbound "kidnap full history" path; the King's Leap remains the content-only default. Byte-accurate
+  inbound "kidnap full history" path; the King's Leap remains the content-only default. Inspection:
+  [`git-enough/read.mjs`](../git-enough/read.mjs) parses commits/trees and walks history, and
+  [`git-enough/verify-cli.mjs`](../git-enough/verify-cli.mjs) clones a downstream back and prints its
+  ref/commit/file-tree — an eyes-on verification that also exercises the Castle against real GitHub. Byte-accurate
   inflate is now browser-native ([`git-enough/inflate.mjs`](../git-enough/inflate.mjs)), so the whole
   read-side runs in the Elevated app, not just Node. Later degrees: incremental fetch with `have`s (only
   what we lack); shallow clone; a faster inflate if pack sizes demand it.
