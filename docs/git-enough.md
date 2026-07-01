@@ -112,8 +112,14 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   [`git-enough/repo.test.mjs`](../git-enough/repo.test.mjs): our history materializes into a real repo and
   `git fsck --strict`/`git log`/`git cat-file` read it back — a two-commit multi-author beat with a nested
   dir, and a King's-Leap **root** commit (no parent, authored by you) that git confirms.
-- **Phase 2 — packfiles.** Serialize a set of objects into a v2 **packfile** (+ index) — needed both for
-  compact storage and, critically, for push. Verify: `git index-pack` / `git verify-pack` accept ours.
+- **Phase 2 — packfiles (✅ built).** Serialize a set of objects into a v2 **packfile** — the format git
+  transfers over the wire, needed for push (and compact storage). [`git-enough/pack.mjs`](../git-enough/pack.mjs)
+  emits base objects (no delta yet — a valid, if larger, pack; deltas are a later size optimization). All
+  native: object bodies zlib via `CompressionStream`, the trailer SHA-1 via `subtle`. Verified by
+  [`git-enough/pack.test.mjs`](../git-enough/pack.test.mjs): `git index-pack --stdin` accepts our pack and
+  its reported pack sha **equals our trailer checksum**; `git verify-pack` lists our oids; `git
+  unpack-objects` + `cat-file` restore the content. *(Later degrees: OFS/REF delta compression, thin
+  packs.)*
 - **Phase 3 — send-pack to a downstream (the headline).** The git **smart-HTTP** `git-receive-pack`
   flow against a GitHub repo: `GET …/info/refs?service=git-receive-pack`, then `POST …/git-receive-pack`
   with the ref-update command(s) + the phase-2 packfile, authenticated by the **homebrew fine-grained PAT**
