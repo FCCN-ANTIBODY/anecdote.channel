@@ -51,7 +51,11 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
 - [`docs/git-enough.md`](docs/git-enough.md) — shaping the offline origin's **steady beat** (stage/commit,
   or no-op for incognito), git-as-capability-shorthand, the **LM-as-historian** indexing, the **history
   pile** (the pile's "question" as an ingress filter), and the **`seal-enough`** factory — almost all
-  WebCrypto, with `age` spoken only at the Tell-interop boundary.
+  WebCrypto, with `age` spoken only at the Tell-interop boundary. The **offline origin publishes** (pushes
+  downstream, never pulls upstream — GitHub repos become its clients); the **phased plan** builds toward a
+  send-pack push. **Phase 0** (the git object layer) is built in
+  [`git-enough/objects.mjs`](git-enough/objects.mjs) — vendorless, browser-native blob/tree/commit with
+  **byte-identical git object ids**, cross-verified against a real `git`.
 - [`docs/probe-line.md`](docs/probe-line.md) — shaping (edges first) the **probe line** between a powerless
   `data:` chamber and the **Elevated anecdote app**: the ingress tunnel **inverted** (capability = a
   transferred `MessagePort`, since a `data:` origin is null), the enough-clients vended as ops, the consent
