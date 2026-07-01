@@ -9,6 +9,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>anecdote — answer a poll</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<!-- Hold the shell so answering a poll works even when anecdote.channel is unreachable (sw.js). -->
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){});});</script>
 <style>
   :root { --bg:#293033; --panel:#1f2528; --fg:#dfdfdf; --muted:#9aa4a6; --accent:#990049; --line:#3a4145; }
   * { box-sizing: border-box; }

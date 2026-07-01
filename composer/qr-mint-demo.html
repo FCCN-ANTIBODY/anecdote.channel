@@ -3,6 +3,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>mint a signed poll QR — operator tool</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<!-- Hold the shell so minting a signed QR works offline (sw.js). -->
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){});});</script>
 <style>
   body { font: 15px/1.6 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
   h1 { font-size: 1.3rem; } .lede { color: #555; }

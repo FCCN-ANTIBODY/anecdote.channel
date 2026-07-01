@@ -13,6 +13,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>anecdote.channel</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<!-- Hold the app shell so anecdote boots with no connection / origin unreachable (sw.js, docs/origin.md). -->
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){});});</script>
 <style>
   :root {
     --io: #ccad31;
