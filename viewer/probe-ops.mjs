@@ -8,8 +8,9 @@
 import { repoListView } from "./repos.mjs";
 import { repoDetail, readFile } from "./repo-detail.mjs";
 import { parseAnecdoteUrl } from "./anecdote-url.mjs";
+import { enumerateAll } from "./enumerators.mjs";
 
-export function viewerOps({ registry } = {}) {
+export function viewerOps({ registry, storage } = {}) {
   if (!registry) throw new Error("viewer ops: need a repoRegistry");
   const resolve = (idOrLabel) => {
     const p = parseAnecdoteUrl(idOrLabel);
@@ -18,6 +19,11 @@ export function viewerOps({ registry } = {}) {
   return {
     // Rung 0 — the account-page index of everything you host locally.
     "viewer.repos": async (_input, api) => { api.emit({ view: repoListView(registry) }); },
+
+    // Rung 0 — what's ACTUALLY on the device: raw storage surfaces (localStorage / IndexedDB / caches /
+    // OPFS) + the usage estimate. Shows existence even when the repo registry is empty. Runs Elevated
+    // (the chamber's null origin has no storage); the listing is handed down.
+    "viewer.storage": async (_input, api) => { api.emit({ storage: await enumerateAll(storage || {}) }); },
 
     // Rung 0 — open a repo on ice: its commit timeline + tree at a ref. (`repo` is the anecdote:// id;
     // never call a payload field `id` — that's the frame's correlation id.)

@@ -63,12 +63,27 @@ li:hover{background:#f6f6f6}.kind{font-size:.72rem;color:#666}.id{font-size:.72r
     else if(d.type==="probe.line.error/v1"){delete pending[d.id];p.res([{error:d.reason}]);}}
   var $=function(id){return document.getElementById(id);};
   var esc=function(s){return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});};
+  function renderStorage(st){
+    var out="<h3>Device storage (what's actually here)</h3><ul id=storage>";
+    (st.surfaces||[]).forEach(function(s){
+      var detail="";
+      if(s.surface==="localStorage") detail=s.entries.map(function(e){return e.key;}).join(", ");
+      else if(s.surface==="indexedDB") detail=s.entries.map(function(e){return e.key+" ["+e.stores.join(",")+"]";}).join("; ");
+      else if(s.surface==="caches") detail=s.entries.map(function(e){return e.key+" ("+e.count+")";}).join("; ");
+      else if(s.surface==="opfs") detail=s.entries.map(function(e){return e.key;}).join(", ");
+      out+="<li class=surf data-surface='"+s.surface+"'><b>"+s.surface+"</b> <span class=kind>"+s.count+"</span><br><span class=id>"+esc(detail)+"</span></li>";
+    });
+    if(st.estimate) out+="<li class=surf><b>estimate</b> <span class=kind>"+st.estimate.usage+" / "+st.estimate.quota+"</span></li>";
+    return out+"</ul>";
+  }
   async function showList(){
     var v=(await invoke("viewer.repos"))[0].view;
-    $("view").innerHTML="<h3>Your repositories ("+v.total+")</h3><ul>"+v.rows.map(function(r){
+    var reposHtml="<h3>Your repositories ("+v.total+")</h3>"+(v.total?("<ul>"+v.rows.map(function(r){
       return "<li data-id='"+r.id+"'><span class='meter "+r.trust.grade+"'>"+r.trust.grade+"</span>"+
         "<b>"+esc(r.label)+"</b> <span class=kind>"+r.kind+"</span><br><span class=id>"+r.id+"</span>"+
-        (r.downstreams.length?"<br><span class=down>⇈ "+esc(r.downstreams[0])+"</span>":"")+"</li>";}).join("")+"</ul>";
+        (r.downstreams.length?"<br><span class=down>⇈ "+esc(r.downstreams[0])+"</span>":"")+"</li>";}).join("")+"</ul>"):"<p><i>(registry empty — but you can still see what's on the device below)</i></p>");
+    var st=(await invoke("viewer.storage"))[0].storage;
+    $("view").innerHTML=reposHtml+renderStorage(st);
     [].forEach.call(document.querySelectorAll("li[data-id]"),function(li){li.onclick=function(){showRepo(li.getAttribute("data-id"));};});
   }
   async function showRepo(id){
@@ -97,6 +112,15 @@ li:hover{background:#f6f6f6}.kind{font-size:.72rem;color:#666}.id{font-size:.72r
   if(window.parent!==window) window.parent.postMessage({type:"probe.line.ready/v1"},"*");
 })();
 </scr`+`ipt>`;
+
+// Seed some REAL device storage on this Elevated origin, so viewer.storage has something to reveal.
+try {
+  localStorage.setItem("anecdote:demo", "hello world");
+  await new Promise((res) => { const r = indexedDB.open("anecdote-demo", 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore("kv"); r.result.createObjectStore("grants"); };
+    r.onsuccess = () => { r.result.close(); res(); }; r.onerror = () => res(); });
+  const c = await caches.open("anecdote-demo-cache"); await c.put("https://example.com/demo.txt", new Response("hi"));
+} catch (e) { console.warn("seed storage failed", e); }
 
 const { port } = await spawnChamber(CHAMBER, { document, targetWindow: window, mount: document.getElementById("mount") });
 serveProbeLine(port, { ops: viewerOps({ registry }), context: () => ({ recordingOn: true, grants: [] }) });
