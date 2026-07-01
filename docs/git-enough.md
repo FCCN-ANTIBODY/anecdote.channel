@@ -148,7 +148,14 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   inbound "kidnap full history" path; the King's Leap remains the content-only default. Inspection:
   [`git-enough/read.mjs`](../git-enough/read.mjs) parses commits/trees and walks history, and
   [`git-enough/verify-cli.mjs`](../git-enough/verify-cli.mjs) clones a downstream back and prints its
-  ref/commit/file-tree — an eyes-on verification that also exercises the Castle against real GitHub. Byte-accurate
+  ref/commit/file-tree — an eyes-on verification that also exercises the Castle against real GitHub.
+- **On the probe line — git as governed capabilities (✅ built).**
+  [`git-enough/probe-ops.mjs`](../git-enough/probe-ops.mjs) vends git-enough as probe-line ops so a chamber
+  can drive the origin under the consent ladder: `git.log`/`git.files` (Rung 0, read-only),
+  `git.commit`/`git.push`/`git.clone` (Rung 1, each `yield→check-cancel` before it persists). The **staging
+  beat** is the Rung-2 standing behavior — a grant over `git.commit` the scheduler runs on your behalf
+  (its cadence is Origin's open "privileged budget"). This is where git-enough joins the constellation: the
+  same gate + standing grants + grants panel that govern the composer now govern the origin's git. Byte-accurate
   inflate is now browser-native ([`git-enough/inflate.mjs`](../git-enough/inflate.mjs)), so the whole
   read-side runs in the Elevated app, not just Node. Later degrees: incremental fetch with `have`s (only
   what we lack); shallow clone; a faster inflate if pack sizes demand it.

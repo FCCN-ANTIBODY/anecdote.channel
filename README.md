@@ -122,6 +122,18 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   source-agnostic — DNS/edge now, optical QR fountain offline, mesh later — all verified against
   one hash-pinned lock (answering civic-node `OPEN-QUESTIONS.md` §O).
 
+## Tests
+
+Every suite is a standalone, dependency-free Node script; run them all with one command (also what CI
+runs on every push and PR — [`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+
+```sh
+node scripts/test.mjs
+```
+
+The `git-enough/*` suites cross-check against a real `git`; the reducer's MiniLM suites skip cleanly when
+the optional model dep isn't installed.
+
 ## Other contents
 
 - [`widget/`](widget/) — the baked, dormant (no event loop, no live fetch) public widget a
