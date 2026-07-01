@@ -70,8 +70,17 @@ Each is a git-enough `repo()` addressed by an id.
 its metadata; `repoListView()` is the account-page index. Each row carries the **local `anecdote://repo/…`
 id** (the scheme asserts locality — vs. the resolvable-web **downstreams** it mirrors to), its `kind`, git
 facts (head/tip/last message/objects), and a **trust grade** for the meter (`private` keyring / `native`
-session / `mirrored` poll / `local`). This is the account-page metaphor made concrete; the on-ice `pile.*`
-widgets plug in next.
+session / `mirrored` poll / `local`). This is the account-page metaphor made concrete.
+
+**Clickable on ice:** [`viewer/repo-detail.mjs`](../viewer/repo-detail.mjs) opens a repo — commit timeline
++ tree at a ref + a file's bytes — and [`viewer/probe-ops.mjs`](../viewer/probe-ops.mjs) vends the viewer
+as **Rung-0** ops (`viewer.repos` / `viewer.repo` / `viewer.file`). Worked demo
+[`viewer/viewer-demo.html`](../viewer/viewer-demo.html), **Chromium-verified**: a powerless `data:` chamber
+renders the account list (trust meters + downstreams), opens any repo on ice (history + tree), and views a
+file — all over the probe line. *(Fixed a real probe-line bug in passing: the frame envelope
+`{type,id,seq,final}` is now authoritative, so a payload field named `id` can't clobber the correlation
+id.)* The pile-type-specific widgets (a poll's live results; a session page rendered from cached blobs)
+build on this.
 
 ## Poll-piles, reconciled offline (Tell is addressable, not the pile)
 

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>system viewer — your repositories</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; } .lede { color: #555; }
+  .stage { border: 1px solid #ddd; border-radius: .6rem; padding: .5rem; margin-top: 1rem; }
+  .stage > figcaption { font-size: .8rem; color: #777; padding: .2rem .4rem; }
+  iframe { width: 100%; height: 32rem; border: 0; border-radius: .4rem; background: #fff; }
+</style>
+<body>
+<h1>The system viewer — your repositories</h1>
+<p class="lede">The panel below runs in a <strong>powerless <code>data:</code> chamber</strong>. It asks the
+Elevated app (over the probe line) for the account-page index of every repo you host locally, then opens
+any of them <em>on ice</em>. Each row shows its local <code>anecdote://</code> id, the web
+<strong>downstreams</strong> it mirrors to, and a <strong>trust grade</strong>. All reads are Rung&nbsp;0.</p>
+
+<figure class="stage">
+  <figcaption>▼ powerless data: chamber — the viewer, driven entirely over a transferred MessagePort</figcaption>
+  <div id="mount"></div>
+</figure>
+
+<script type="module">
+import { spawnChamber, serveProbeLine } from "../composer/probe-line.mjs";
+import { viewerOps } from "./probe-ops.mjs";
+import { repoRegistry } from "./repos.mjs";
+import { repo } from "../git-enough/repo.mjs";
+
+const author = { name: "you", email: "you@origin", epoch: Math.floor(Date.now() / 1000), tz: "+0000" };
+const session = repo();
+await session.commitFiles([{ path: "index.html", content: "<h1>example.com — on ice</h1>\n" }], { author, message: "browse: example.com" });
+await session.commitFiles([{ path: "index.html", content: "<h1>example.com — on ice</h1>\n" }, { path: "notes/thoughts.txt", content: "a private note about this page\n" }], { author, message: "browse: example.com (annotated)" });
+const poll = repo();
+await poll.commitFiles([{ path: "question.json", content: '{"q":"Fund the park?","a":["yes","no"]}\n' }], { author, message: "poll: park budget" });
+
+const registry = repoRegistry();
+registry.register({ label: "browse-example", kind: "pile.session", repo: session });
+registry.register({ label: "park-budget", kind: "pile.poll", repo: poll, downstreams: ["https://github.com/tiliv/tell-park-budget"] });
+
+const CHAMBER = `<!doctype html><meta charset=utf-8><title>viewer</title>
+<style>body{font:14px/1.45 system-ui,sans-serif;margin:.6rem;color:#1a1a1a}
+h3{margin:.6rem 0 .3rem;font-size:1rem}ul{list-style:none;padding:0;margin:0}
+li{border:1px solid #e3e3e3;border-radius:.4rem;padding:.4rem .6rem;margin:.3rem 0;cursor:pointer}
+li:hover{background:#f6f6f6}.kind{font-size:.72rem;color:#666}.id{font-size:.72rem;color:#999}
+.meter{font-size:.7rem;padding:.05rem .4rem;border-radius:1rem;float:right}
+.meter.native{background:#e6f4ea;color:#137333}.meter.mirrored{background:#e8f0fe;color:#1967d2}
+.meter.private{background:#fce8e6;color:#a50e0e}.meter.local{background:#f1f3f4;color:#5f6368}
+.down{font-size:.72rem;color:#1967d2}.back{cursor:pointer;color:#1967d2;font-size:.8rem}
+.commit{font-size:.82rem;margin:.15rem 0}.file{font-size:.82rem;color:#333;cursor:pointer}
+.file:hover{text-decoration:underline}pre{background:#f4f4f4;padding:.5rem;border-radius:.4rem;white-space:pre-wrap;font-size:.8rem}
+.env{margin-top:.6rem;font-size:.7rem;color:#999}</style>
+<body><div id=view>loading…</div><div class=env id=env></div>
+<scr`+`ipt>
+(function(){
+  var port=null, seq=0, pending={}, curId=null;
+  function invoke(op,input){return new Promise(function(res){var id="r"+(++seq);pending[id]={res:res,frames:[]};
+    port.postMessage({type:"probe.line.request/v1",id:id,op:op,input:input||{}});});}
+  function onPort(ev){var d=ev.data;if(!d||!d.id)return;var p=pending[d.id];if(!p)return;
+    if(d.type==="probe.line.frame/v1"&&d.final){delete pending[d.id];p.res(p.frames);}
+    else if(d.type==="probe.line.frame/v1"){p.frames.push(d);}
+    else if(d.type==="probe.line.error/v1"){delete pending[d.id];p.res([{error:d.reason}]);}}
+  var $=function(id){return document.getElementById(id);};
+  var esc=function(s){return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});};
+  async function showList(){
+    var v=(await invoke("viewer.repos"))[0].view;
+    $("view").innerHTML="<h3>Your repositories ("+v.total+")</h3><ul>"+v.rows.map(function(r){
+      return "<li data-id='"+r.id+"'><span class='meter "+r.trust.grade+"'>"+r.trust.grade+"</span>"+
+        "<b>"+esc(r.label)+"</b> <span class=kind>"+r.kind+"</span><br><span class=id>"+r.id+"</span>"+
+        (r.downstreams.length?"<br><span class=down>⇈ "+esc(r.downstreams[0])+"</span>":"")+"</li>";}).join("")+"</ul>";
+    [].forEach.call(document.querySelectorAll("li[data-id]"),function(li){li.onclick=function(){showRepo(li.getAttribute("data-id"));};});
+  }
+  async function showRepo(id){
+    curId=id; var f=(await invoke("viewer.repo",{id:id}))[0]||{error:"no frames"};
+    if(f.error){$("view").innerHTML="<p class=back id=back>← back</p><p>"+f.error+"</p>";}
+    else{var d=f.detail;
+      $("view").innerHTML="<p class=back id=back>← back</p><h3>"+esc(f.label)+" <span class=kind>"+f.kind+"</span></h3>"+
+        "<b>History</b>"+d.commits.map(function(c){return "<div class=commit>• "+esc(c.message)+"</div>";}).join("")+
+        "<b>Tree (on ice)</b><ul>"+d.files.map(function(x){return "<li class=file data-path='"+esc(x.path)+"'>"+esc(x.path)+" <span class=kind>"+x.size+" B</span></li>";}).join("")+"</ul>";
+      [].forEach.call(document.querySelectorAll(".file[data-path]"),function(li){li.onclick=function(){showFile(li.getAttribute("data-path"));};});
+    }
+    $("back").onclick=showList;
+  }
+  async function showFile(path){
+    var f=(await invoke("viewer.file",{id:curId,path:path}))[0];
+    $("view").innerHTML="<p class=back id=back>← back to repo</p><h3>"+esc(path)+"</h3><pre>"+esc(f.content||f.error)+"</pre>";
+    $("back").onclick=function(){showRepo(curId);};
+  }
+  addEventListener("message",function(e){
+    if(e.data&&e.data.type==="probe.line.init/v1"&&e.ports&&e.ports[0]){
+      port=e.ports[0];port.onmessage=onPort;port.start&&port.start();
+      $("env").textContent="chamber — subtle:"+(typeof (self.crypto&&self.crypto.subtle))+" · secure:"+isSecureContext+" · origin:"+location.origin;
+      showList();
+    }
+  });
+  if(window.parent!==window) window.parent.postMessage({type:"probe.line.ready/v1"},"*");
+})();
+</scr`+`ipt>`;
+
+const { port } = await spawnChamber(CHAMBER, { document, targetWindow: window, mount: document.getElementById("mount") });
+serveProbeLine(port, { ops: viewerOps({ registry }), context: () => ({ recordingOn: true, grants: [] }) });
+</script>
