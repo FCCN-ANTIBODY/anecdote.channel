@@ -142,9 +142,14 @@ Pure, dependency-free, testable in the house style — the same shape as `compos
 
 ## Implementation roadmap
 
-1. **Grants in `consent.mjs`** — `GRANT` schema + a `grants` section in the trove; `mintGrant`,
-   `listGrants`, `revokeGrant`, `verifyGrant` mirroring the nonce API; `.test.mjs` (pure). *Smallest,
-   highest-leverage — it's mostly a re-shape of code that already exists.*
+1. **Grants in `consent.mjs` — ✅ DONE.** `GRANT` / `GRANT_RECORD` / `GRANT_REVOCATION` schemas + a
+   separate `grants` section in the store; `mintGrant` / `listGrants` / `getGrant` / `liveGrants` /
+   `touchGrant` / `revokeGrant` / `verifyGrant` / `verifyGrantRevocation` / `forgetGrant`, mirroring the
+   nonce API and reusing `attest` / `verifyAttestation`. The signed grant is nested (re-verifiable) with
+   mutable bookkeeping (`status`, `revocation`, `last_activity`) outside it — same pattern as the receipt.
+   Covered by [`composer/grants.test.mjs`](../composer/grants.test.mjs) (27 assertions, pure &
+   deterministic via an injected clock): signing, tamper/key-swap detection, expiry, only-granter-revoke,
+   forged-revocation detection, and grant/nonce store separation.
 2. **`authorize()` gate** — the pure function above + exhaustive rung/toggle/expiry tests.
 3. **Probe-line module skeleton** — the inverse of `tunnel.mjs`; its op dispatcher calls `authorize()`
    before handing an op to an admin tool, and enforces **yield → check-cancel → commit** around Rung-1
