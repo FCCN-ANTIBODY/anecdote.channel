@@ -65,6 +65,14 @@ The load-bearing realization from the note: **the offline app hosts any number o
 
 Each is a git-enough `repo()` addressed by an id.
 
+**Built (first slice):** the **repositories** type — [`viewer/repos.mjs`](../viewer/repos.mjs) +
+[`viewer/anecdote-url.mjs`](../viewer/anecdote-url.mjs). A `repoRegistry()` tracks every hosted repo with
+its metadata; `repoListView()` is the account-page index. Each row carries the **local `anecdote://repo/…`
+id** (the scheme asserts locality — vs. the resolvable-web **downstreams** it mirrors to), its `kind`, git
+facts (head/tip/last message/objects), and a **trust grade** for the meter (`private` keyring / `native`
+session / `mirrored` poll / `local`). This is the account-page metaphor made concrete; the on-ice `pile.*`
+widgets plug in next.
+
 ## Poll-piles, reconciled offline (Tell is addressable, not the pile)
 
 The clarification the note reached:
