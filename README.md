@@ -65,6 +65,10 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   [`composer/authorize.mjs`](composer/authorize.mjs) (the gate), and
   [`composer/probe-line.mjs`](composer/probe-line.mjs) (the Elevated session + transport — verified
   end-to-end in Chromium).
+- [`docs/probe-line-v1.md`](docs/probe-line-v1.md) — the **`probe-line/v1` protocol specification**: the
+  normative reference (roles, capability-by-port trust + mutual auth, the handshake, the frame grammar,
+  the two revocations, the consent ladder, conformance) that `composer/probe-line.mjs` implements — with a
+  provenance table tying every rule back to a Chromium-verified edge or a test.
 - [`docs/anecdote-schema.md`](docs/anecdote-schema.md) — what a confirmed send **carries**:
   `anecdote/v1`, the payload `route.prepare` grows into. Text rides inline; an image, a GeoJSON
   shape, or a citation rides as a **receipt** (hash + provenance) whose bytes live in your own
