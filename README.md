@@ -59,7 +59,10 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   working commits, [`git-enough/repo.mjs`](git-enough/repo.mjs)), and **phase 2** (v2 packfiles,
   [`git-enough/pack.mjs`](git-enough/pack.mjs)) are built — vendorless and browser-native, cross-verified
   against a real `git` (`git fsck`/`log`/`cat-file` read our history; `git index-pack`/`verify-pack` accept
-  our packs and the pack sha matches our trailer). Next: **phase 3** — smart-HTTP `send-pack` push.
+  our packs and the pack sha matches our trailer). **Phase 3** — smart-HTTP `send-pack` push
+  ([`git-enough/send-pack.mjs`](git-enough/send-pack.mjs)) — is built and **offline-verified against a real
+  `git receive-pack`** (create / fast-forward / King's-Leap replace); only a live push to github.com
+  (Contents-R/W PAT) is left for the operator to trigger.
 - [`docs/probe-line.md`](docs/probe-line.md) — shaping (edges first) the **probe line** between a powerless
   `data:` chamber and the **Elevated anecdote app**: the ingress tunnel **inverted** (capability = a
   transferred `MessagePort`, since a `data:` origin is null), the enough-clients vended as ops, the consent
