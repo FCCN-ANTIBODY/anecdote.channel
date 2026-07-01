@@ -35,6 +35,7 @@ export const OP_CATALOG = {
   "viewer.storage":          { rung: 0, persists: false },  // raw device storage surfaces
   "poll.view":               { rung: 0, persists: false },  // the poll-answer view (anecdote shaped by a QR)
   "poll.compose":            { rung: 0, persists: false },  // build the reply link — the submit is the user's click
+  "poll.mint":               { rung: 1, persists: false },  // mint a poll's QR — a shareable authorization (secret stays Elevated)
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.

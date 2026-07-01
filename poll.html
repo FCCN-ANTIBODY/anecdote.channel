@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<!-- anecdote.channel/poll.html — the poll-answer RUNTIME. A poll's QR opens here (directly, when anecdote
+     minted it; or via tell.anecdote.channel forwarding an older QR): this page reads the poll config from
+     the URL and hands it to a powerless data: chamber over the probe line, which renders the question and
+     — always offering a CUSTOM answer, options only as suggestions — builds a pre-filled GitHub issue
+     addressed to the Tell whose Issues are the poll's mailbox. Nothing phones home: this only builds a
+     link; the click that opens the issue is the visitor's. The Tell website is anecdote shaped by a QR. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — answer a poll</title>
+<style>
+  :root { --bg:#293033; --panel:#1f2528; --fg:#dfdfdf; --muted:#9aa4a6; --accent:#990049; --line:#3a4145; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+  header a { color: var(--fg); text-decoration: none; font-weight: 700; }
+  header .tag { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-left: .6rem; }
+  main { max-width: 40rem; margin: 1.5rem auto; padding: 0 1.25rem; }
+  .lede { color: var(--muted); font-size: .95rem; }
+  .stage { border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); padding: .5rem; margin-top: 1rem; }
+  iframe { width: 100%; height: 26rem; border: 0; border-radius: .4rem; background: #fff; }
+  noscript { color: var(--muted); }
+</style>
+<body>
+<header><a href="/">anecdote.channel</a><span class="tag">answer a poll</span></header>
+<main>
+  <p class="lede">You scanned a poll's QR. It was addressed to a Tell from the start; answering it composes a
+  reply to that Tell's mailbox. <strong>Your answer is always yours to write</strong> — any options are only
+  suggestions. Nothing is sent until you review and submit the pre-filled issue.</p>
+  <figure class="stage">
+    <div id="mount"></div>
+    <noscript>This poll needs JavaScript to compose your reply. The reply is a GitHub issue you submit yourself.</noscript>
+  </figure>
+</main>
+
+<script type="module">
+import { spawnChamber, serveProbeLine } from "./composer/probe-line.mjs";
+import { pollAnswerOps } from "./composer/poll-answer.mjs";
+
+// The scanned QR: params after "?" (bin/qr / anecdote mintQR put them there), hash as the fallback.
+const qr = (location.search || "").replace(/^\?/, "") || (location.hash || "").replace(/^#/, "");
+
+const CHAMBER = `<!doctype html><meta charset=utf-8><title>poll</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;margin:.7rem;color:#1a1a1a}
+h3{margin:.4rem 0;font-size:1.1rem}.guide{color:#555;font-size:.88rem;margin:.2rem 0 .7rem}
+.opt{display:block;border:1px solid #d7e0f0;background:#f3f7ff;border-radius:.4rem;padding:.5rem .7rem;margin:.3rem 0;color:#1967d2;text-decoration:none;cursor:pointer}
+.opt:hover{background:#e8f0fe}.custom{margin-top:.8rem}.custom label{font-size:.85rem;color:#333}
+textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4rem;padding:.5rem;font:inherit;margin-top:.25rem}
+.go{display:inline-block;margin-top:.5rem;border:0;background:#1967d2;color:#fff;border-radius:.4rem;padding:.5rem .9rem;cursor:pointer;font:inherit}
+.go[disabled]{background:#b7c4d8;cursor:default}.promise{font-size:.74rem;color:#137333;margin-top:.35rem}
+.reply{display:inline-block;margin-top:.6rem;border:0;background:#137333;color:#fff;border-radius:.4rem;padding:.5rem .9rem;text-decoration:none;font-weight:600}
+.empty{color:#777}.fine{font-size:.74rem;color:#888;margin-top:.6rem}.env{margin-top:.7rem;font-size:.7rem;color:#bbb}</style>
+<body><div id=view>loading…</div><div class=env id=env></div>
+<scr`+`ipt>
+(function(){
+  var port=null, seq=0, pending={};
+  function invoke(op,input){return new Promise(function(res){var id="r"+(++seq);pending[id]={res:res,frames:[]};
+    port.postMessage({type:"probe.line.request/v1",id:id,op:op,input:input||{}});});}
+  function onPort(ev){var d=ev.data;if(!d||!d.id)return;var p=pending[d.id];if(!p)return;
+    if(d.type==="probe.line.frame/v1"&&d.final){delete pending[d.id];p.res(p.frames);}
+    else if(d.type==="probe.line.frame/v1"){p.frames.push(d);}
+    else if(d.type==="probe.line.error/v1"){delete pending[d.id];p.res([{error:d.reason}]);}}
+  var $=function(id){return document.getElementById(id);};
+  var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c];});};
+  async function render(){
+    var v=(await invoke("poll.view"))[0].view;
+    if(!v||!v.loaded){$("view").innerHTML="<p class=empty>No poll loaded — open this page from a poll's QR code.</p>";return;}
+    var opts=v.options.map(function(o){return "<a class=opt href='"+esc(o.issueUrl)+"' target=_blank rel='nofollow noopener'>"+esc(o.answer)+"</a>";}).join("");
+    $("view").innerHTML="<h3>"+esc(v.question)+"</h3>"+
+      (v.guidance?"<div class=guide>"+esc(v.guidance)+"</div>":"")+opts+
+      "<div class=custom><label for=ans>"+(v.options.length?"Or answer in your own words:":"Your answer:")+"</label>"+
+      "<textarea id=ans rows=3 placeholder='Type your reply…'></textarea><br>"+
+      "<button class=go id=go disabled>Compose reply</button>"+
+      "<div class=promise>✓ your answer is always custom — the options are only suggestions</div></div>"+
+      "<div id=out></div>"+
+      "<div class=fine>Choosing or typing builds a pre-filled GitHub issue. Review it, then submit to reply. Nothing here phones home.</div>";
+    var ta=$("ans"), go=$("go");
+    ta.addEventListener("input",function(){go.disabled=!ta.value.trim();$("out").innerHTML="";});
+    go.addEventListener("click",async function(){
+      var c=(await invoke("poll.compose",{answer:ta.value}))[0];
+      $("out").innerHTML=c&&c.issueUrl?("<a class=reply href='"+esc(c.issueUrl)+"' target=_blank rel='nofollow noopener'>Review &amp; submit your reply →</a>"):"";
+    });
+  }
+  addEventListener("message",function(e){
+    if(e.data&&e.data.type==="probe.line.init/v1"&&e.ports&&e.ports[0]){
+      port=e.ports[0];port.onmessage=onPort;port.start&&port.start();
+      $("env").textContent="chamber — subtle:"+(typeof (self.crypto&&self.crypto.subtle))+" · secure:"+isSecureContext+" · origin:"+location.origin;
+      render();
+    }
+  });
+  if(window.parent!==window) window.parent.postMessage({type:"probe.line.ready/v1"},"*");
+})();
+</scr`+`ipt>`;
+
+const { port } = await spawnChamber(CHAMBER, { document, targetWindow: window, mount: document.getElementById("mount") });
+serveProbeLine(port, { ops: pollAnswerOps({ qr }), context: () => ({ recordingOn: true, grants: [] }) });
+</script>
