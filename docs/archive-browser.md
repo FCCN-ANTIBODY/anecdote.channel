@@ -4,6 +4,10 @@
 > prepare" before the **staging beat** ([git-enough.md](git-enough.md) Rung-2 behavior): it decides *what
 > goes on the git stage* by following one use case — starting a browsing session inside anecdote and
 > keeping it as a data-pile you can later open, inspect, and discard.
+>
+> **Expanded by [`system-viewer.md`](system-viewer.md):** the "launchpad" here generalizes into a viewer
+> for *everything* you have offline (a typed registry + per-type widgets); the tape-line of piles becomes
+> one view inside it, and the on-ice viewer becomes the `pile.session` widget.
 
 ## The use case
 

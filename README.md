@@ -88,6 +88,13 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   (reducer `label`, `anecdote/v1` build + on-device sign, the trove) as probe-line ops, and
   [`composer/composer-chamber-demo.html`](composer/composer-chamber-demo.html) runs the compose UI inside a
   powerless `data:` chamber that summons them over the port (Chromium-verified).
+- [`docs/system-viewer.md`](docs/system-viewer.md) — shaping the **offline self-inspector**: a viewer for
+  *everything* anecdote.channel has stashed on your device (IndexedDB / Cache / OPFS / keychain / the many
+  git-enough repos). Since there's no "list all my storage" API, it reads a **declared registry of
+  surfaces**, and each **type** brings its own **widget** (an HTML fragment rendered in a chamber; installing
+  one is a signer-pinned firmware-trust act). Reconciles the offline **repo plurality** (native session
+  piles, Tell-twinned poll piles, the private keyring) and **poll-as-data-object** (the Tell is addressable,
+  not the pile — steering `tell.anecdote.channel` toward the poll-authoring app).
 - [`docs/archive-browser.md`](docs/archive-browser.md) — shaping the **data-pile archive browser** (the
   use case that gives the staging beat its meaning): a session's activity is a data-pile; a **launchpad**
   (your piles on a tape-line) + an **on-ice viewer** (a sensory-deprivation `data:` chamber puppeted over
