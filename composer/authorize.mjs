@@ -31,6 +31,7 @@ export const OP_CATALOG = {
   "viewer.repos":            { rung: 0, persists: false },  // the system viewer — enumerate + read only
   "viewer.repo":             { rung: 0, persists: false },
   "viewer.file":             { rung: 0, persists: false },
+  "viewer.storage":          { rung: 0, persists: false },  // raw device storage surfaces
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.

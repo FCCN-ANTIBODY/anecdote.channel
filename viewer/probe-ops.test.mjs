@@ -59,5 +59,18 @@ function session_() {
   ok(frames.find((x) => x.type === FRAME && x.error === "no such repo"), "unknown repo → error field");
 }
 
+// 5. viewer.storage — raw device surfaces (Rung 0), shown even when the repo registry is empty.
+{
+  const fakeLS = (() => { const o = { "anecdote:trove": "xx" }; const k = Object.keys(o); return { get length() { return k.length; }, key: (i) => k[i], getItem: (x) => o[x] }; })();
+  const storage = { localStorage: fakeLS };
+  const empty = repoRegistry();   // NB: empty registry
+  const frames = [];
+  const s = elevatedSession({ ops: viewerOps({ registry: empty, storage }), emit: (f) => frames.push(f),
+                              context: () => ({ recordingOn: true, grants: [] }) });
+  await s.handle(request({ id: "S", op: "viewer.storage", input: {} }));
+  const st = frames.find((f) => f.type === FRAME && f.storage)?.storage;
+  ok(st && st.surfaces.find((x) => x.surface === "localStorage").count === 1, "viewer.storage lists raw surfaces even with an empty repo registry");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall viewer probe-ops tests passed");

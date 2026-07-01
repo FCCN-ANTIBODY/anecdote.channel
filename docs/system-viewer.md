@@ -16,17 +16,28 @@ data-pile tape-line becomes just *one view* inside it.
 It is a **free-form viewer** — think a Files app — but **not dumb**: each kind of thing gets a view that
 *knows* that kind. It is **one of the main ops**, and it's foundational: it inspects its own place, for you.
 
-## The constraint that decides the whole design: there is no "list all my storage" API
+## Two layers: raw enumeration (existence) and the registry (meaning)
 
-You **cannot** generically walk every IndexedDB database, Cache, or OPFS tree — you have to already know the
-names. `StorageManager.estimate()` gives *usage*, not *contents*. So the viewer **cannot be a magic
-disk-walker.** It reads a **registry of surfaces the app declares.**
+An earlier draft said "there is no list-all-my-storage API." That was too pessimistic — modern browsers
+**do** offer per-API discovery, and it's exactly what lets the viewer show what's on the device even when
+the registry is empty:
 
-This is the good news, not a limitation:
+- `localStorage` — enumerable (`length` + `key(i)`).
+- IndexedDB — **`indexedDB.databases()`** lists the DBs; opening each reveals its object stores.
+- Cache API — **`caches.keys()`** lists caches; each cache's `keys()` lists the cached request URLs.
+- OPFS — walk the directory tree (`getDirectory()` → async `entries()`).
+- `StorageManager.estimate()` — the usage/quota summary.
 
-- The viewer only ever shows **your** stuff — what anecdote.channel deliberately put there.
-- The **registry is the single source of truth** for *what exists* and *how to show it*.
-- Nothing hidden leaks in; nothing you own is invisible. The map *is* the territory.
+So there are **two layers**:
+
+- **Raw enumeration = existence.** [`viewer/enumerators.mjs`](../viewer/enumerators.mjs) surfaces whatever
+  is physically there (built — see below). This is honest even with an empty registry.
+- **The registry = meaning.** It's still needed to *type* a raw blob (this IndexedDB record is a
+  `pile.session`; that key is the trove) and to pick the **widget** that renders it. The registry doesn't
+  gate visibility; it adds interpretation on top of what enumeration already reveals.
+
+Nothing hidden leaks in (these APIs are all origin-scoped to anecdote.channel's own storage); nothing you
+own is invisible.
 
 ## The shape: a type registry + widgets
 
@@ -81,6 +92,13 @@ file — all over the probe line. *(Fixed a real probe-line bug in passing: the 
 `{type,id,seq,final}` is now authoritative, so a payload field named `id` can't clobber the correlation
 id.)* The pile-type-specific widgets (a poll's live results; a session page rendered from cached blobs)
 build on this.
+
+**Raw device storage (existence, even with an empty registry):**
+[`viewer/enumerators.mjs`](../viewer/enumerators.mjs) + the Rung-0 `viewer.storage` op list the actual
+surfaces on the device — `localStorage`, IndexedDB (DBs + object stores), the Cache API (caches + URLs),
+OPFS, and the usage estimate. **Chromium-verified**: a powerless chamber shows the real Elevated-origin
+storage over the probe line even when zero repos are registered. Enumeration runs Elevated (the chamber's
+null origin has none of its own); the listing is handed down.
 
 ## Poll-piles, reconciled offline (Tell is addressable, not the pile)
 
