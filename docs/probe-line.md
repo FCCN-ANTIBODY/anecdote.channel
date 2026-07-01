@@ -103,15 +103,24 @@ frames over the one transferred port** — de-risked, ready to harden into `prob
 
 ## Edge 3 — the consent ladder for probe ops (the async question)
 
-The tunnel rule was "nothing signs or records except on a user-confirmed intake." The probe line must
-**grade ops**:
+> **Planned in detail → [`probe-line-consent.md`](probe-line-consent.md)** (implementation plan). This is
+> the design-led edge — the transport is verified (Edges 1/2/6); this is the *policy* on top.
 
-- **cheap / auto:** `label`, `trove.read` (read-only, no new artifact).
-- **consequential / confirmed:** `sign`, `seal`, `export`, a `commit` that persists.
-- **Edge — standing consent for behaviors over time:** the **staging beat** and **slow LM indexing** act
-  *on your behalf while you're away*. What standing consent covers them, how it's **shown**, and how it's
-  **revoked mid-stream**, is the open async-consent edge the operator flagged. (Recording-on/off — Origin's
-  guarantee #1 — is the coarse lever; this is the fine one.)
+The tunnel rule was "nothing signs or records except on a user-confirmed intake." The probe line must
+**grade ops** into three rungs:
+
+- **Rung 0 — ambient / auto:** `label`, `trove.read` (read-only, no new artifact) — no prompt, works even
+  in incognito (perception, not persistence).
+- **Rung 1 — confirmed:** `sign`, `seal`, `export`, a `commit` that persists — one op, one confirm (the
+  probe-line analogue of the tunnel's `intake`).
+- **Rung 2 — standing:** the **staging beat** and **slow LM indexing** act *on your behalf while you're
+  away*. The plan resolves the open async-consent edge with a **standing grant** — the behavior-shaped
+  cousin of the revocable **nonce** (same `attest` signing, same trove home, same "only you can revoke"),
+  made legible in a "**what's running on my behalf**" panel and revoked **mid-stream** via the two verified
+  mechanisms: `cancel` (cooperative, in-band) + `port.close()` (unilateral, silent). The load-bearing rule:
+  **the commit is the atomic unit — `cancel` lands between commits, never inside one**, so Edge 2's
+  yield-per-frame point doubles as the only safe revocation boundary. (Recording-on/off — Origin's
+  guarantee #1 — is the coarse master switch; the grants panel is the per-behavior breaker.)
 
 ## Edge 4 — adding capabilities (the "submodules of behavior" recursion)
 
@@ -186,7 +195,8 @@ iframe" was never a real fork for chambers: choose a tab and you've chosen a *di
 Whether a toy labeler ever runs in-chamber; the exact field names and types of the op schema (the *shape*
 is now de-risked — see Edge 2 — but `probe-line/v1` still has to pin it down). We're mapping **edges**;
 the protocol spec follows once we've walked them. The first three (capability primitive, op direction,
-consent ladder) are the load-bearing ones — **the first two are now verified.**
+consent ladder) are the load-bearing ones — **the first two are verified; the third is now planned in
+detail** in [`probe-line-consent.md`](probe-line-consent.md).
 
 **Settled by the Edge 1 test:** **port-transfer is the default, not a co-equal path** — it's verified to
 cross into a (sandboxed) `data:` chamber, it needs no guessable secret, and closing it revokes cleanly.
@@ -198,6 +208,12 @@ inherit the opener's origin and powers, so they aren't chambers at all. The cham
 stop; tabs are reserved for spawning another *powered* surface. **Revocation-by-close is real but
 silent** — `port.close()` on the privileged end cuts the chamber off unilaterally with no error, so every
 chamber-side call needs its own timeout to notice.
+
+**Planned by the Edge 3 note ([`probe-line-consent.md`](probe-line-consent.md)):** ops grade into three
+rungs (ambient / confirmed / standing); a **standing grant** is the behavior-shaped cousin of the
+revocable nonce (same signing, same trove, same only-you-can-revoke); it is made legible in a
+"running-on-my-behalf" panel and revoked mid-stream by `cancel` + `port.close()`; and **the commit is the
+atomic revocation unit** — Edge 2's yield-per-frame point *is* the safe cancel boundary.
 
 **Settled by the Edge 2 test:** the **multiplexed streaming op surface** holds — one port carries many
 concurrent ops disambiguated by **correlation id**, each request fans out to seq-ordered frames with a
