@@ -124,7 +124,10 @@ consent-withdrawal there is.")*
 
 ## How this sets up the staging beat (the next build)
 
-With the above settled, the beat is well-defined:
+**Built:** [`git-enough/staging-beat.mjs`](../git-enough/staging-beat.mjs) implements exactly this — the
+`.gitignore`-filtered shelf, `instant`/`tempo`/`manual` + `teardownFlush()`, zero-diff no-op, and the
+`mayRun()` authority gate (grant + recording). Only the cadence scheduler is left (the "privileged
+budget"). With the above settled, the beat is well-defined:
 - **What it stages:** the `.gitignore`-filtered "documents" class (2) — never the churn (1), never the
   secrets (3).
 - **When it commits:** a **session preference** — instant-commit, commit-on-tempo, or only a
