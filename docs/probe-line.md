@@ -17,6 +17,14 @@ commit needs **git-enough**. All of those live in **admin-space (the Elevated ap
 the bus by which a client (a composer, a widget, a data:chamber tool) **summons** the Elevated app's
 capabilities. Spec it from the app outward, not the demo inward.
 
+> **Realized (Chromium-verified).** The composer now actually runs this way:
+> [`composer/composer-chamber-demo.html`](../composer/composer-chamber-demo.html) hosts the compose UI in a
+> powerless `data:` chamber (`subtle: undefined`, not secure, `origin: null`) that summons `label`
+> (Rung 0, live as you type) and `sign-anecdote` (Rung 1, on the confirmed Send) from the Elevated page
+> over a transferred port. The capabilities are the **real** modules, vended by
+> [`composer/probe-ops.mjs`](../composer/probe-ops.mjs) (the reducer, `anecdote/v1` build, on-device
+> Ed25519 signing, the trove) — the chamber holds only the screen. The frame is no longer aspirational.
+
 ## It is the ingress tunnel, inverted
 
 We already built one postMessage bus: `composer/tunnel.mjs` (`hello → ack → intake → built/status`,

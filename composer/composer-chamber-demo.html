@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Composer as a chamber client — probe line</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; } .lede { color: #555; }
+  .stage { border: 1px solid #ddd; border-radius: .6rem; padding: .5rem; margin-top: 1rem; }
+  .stage > figcaption { font-size: .8rem; color: #777; padding: .2rem .4rem; }
+  iframe { width: 100%; height: 20rem; border: 0; border-radius: .4rem; background: #fff; }
+  code { background: #f4f4f4; padding: 0 .2rem; border-radius: .2rem; }
+</style>
+<body>
+<h1>The composer, running inside a chamber</h1>
+<p class="lede">The compose UI below lives in a <strong>powerless <code>data:</code> chamber</strong> (no
+<code>crypto.subtle</code>, no signing key, no trove, null origin). It can't reduce or sign anything itself —
+it <em>summons</em> those capabilities from this Elevated page over the probe line: <code>label</code>
+(Rung 0, live as you type) and <code>sign-anecdote</code> (Rung 1, on the confirmed Send). This page holds
+the reducer, the device key, and the trove; the chamber holds only the screen.</p>
+
+<figure class="stage">
+  <figcaption>▼ powerless data: chamber (sandboxed) — driven entirely over a transferred MessagePort</figcaption>
+  <div id="mount"></div>
+</figure>
+
+<script type="module">
+import { spawnChamber, serveProbeLine } from "./probe-line.mjs";
+import { composerOps } from "./probe-ops.mjs";
+import { idbStore } from "../reducer/store.mjs";
+import { generateIdentity } from "./sign.mjs";
+
+const store = idbStore();
+const identity = await generateIdentity();
+const agent = { instrument: "minilm:sha256:deadbeef", constitution: "anecdote:sha256:cafe" };
+const ops = composerOps({ identity, store, agent });
+const context = () => ({ recordingOn: true, grants: [] });
+
+// The chamber: a compose UI with no powers of its own. It labels as you type (Rung 0) and signs on Send
+// (Rung 1, confirmed), each a probe-line request over the port; it never touches subtle/keys/storage.
+const CHAMBER = `<!doctype html><meta charset=utf-8><title>compose</title>
+<style>body{font:14px/1.4 system-ui,sans-serif;margin:.6rem;color:#1a1a1a}
+textarea{width:100%;box-sizing:border-box;height:5rem;font:inherit;padding:.4rem}
+.label{margin:.4rem 0;color:#137333;min-height:1.2em}.label b{color:#555;font-weight:600}
+button{font:inherit;padding:.35rem .8rem;border:1px solid #bbb;border-radius:.4rem;background:#fafafa;cursor:pointer}
+.receipt{margin-top:.5rem;font-size:.85rem;color:#0b6}.env{margin-top:.6rem;font-size:.72rem;color:#999}</style>
+<body>
+<textarea id=t placeholder="Say something for your city…">The park needs more shade</textarea>
+<div class=label id=lab><b>label:</b> <span id=labv>—</span></div>
+<button id=send>Sign &amp; keep receipt (confirm)</button>
+<div class=receipt id=rc></div>
+<div class=env id=env></div>
+<scr`+`ipt>
+(function(){
+  var port=null, seq=0, pending={};
+  var DEST={id:"foco",kind:"atlas",url:"https://foco.example",excludes:["sex"]};
+  function invoke(op,input,opts){opts=opts||{};return new Promise(function(res,rej){
+    var id="r"+(++seq); pending[id]={res:res,rej:rej,frames:[]};
+    port.postMessage({type:"probe.line.request/v1",id:id,op:op,input:input,confirmed:!!opts.confirmed});});}
+  function onPort(ev){var d=ev.data; if(!d||!d.id) return; var p=pending[d.id]; if(!p) return;
+    if(d.type==="probe.line.frame/v1"&&d.final){delete pending[d.id]; p.res({frames:p.frames});}
+    else if(d.type==="probe.line.frame/v1"){p.frames.push(d);}
+    else if(d.type==="probe.line.error/v1"){delete pending[d.id]; p.rej(d);}
+    else if(d.type==="probe.line.cancelled/v1"){delete pending[d.id]; p.res({cancelled:true,frames:p.frames});}}
+  var t=document.getElementById("t"), labv=document.getElementById("labv"),
+      rc=document.getElementById("rc"), env=document.getElementById("env");
+  async function relabel(){ try{ var r=await invoke("label",{text:t.value});
+    labv.textContent=(r.frames[0]&&r.frames[0].label)||"—"; }catch(e){ labv.textContent="(refused)"; } }
+  t.addEventListener("input", relabel);
+  document.getElementById("send").addEventListener("click", async function(){
+    rc.textContent="signing…";
+    try{ var r=await invoke("sign-anecdote",{text:t.value,destination:DEST},{confirmed:true});
+      var rec=r.frames[0].receipt; rc.textContent="✓ signed — "+rec.nonce+" ("+rec.status+")"; }
+    catch(e){ rc.textContent="refused: "+(e.reason||"error")+(e.needsConfirm?" (needs confirm)":""); }
+  });
+  addEventListener("message", function(e){
+    if(e.data&&e.data.type==="probe.line.init/v1"&&e.ports&&e.ports[0]){
+      port=e.ports[0]; port.onmessage=onPort; port.start&&port.start();
+      env.textContent="chamber env — subtle:"+(typeof (self.crypto&&self.crypto.subtle))+
+        " · secureContext:"+isSecureContext+" · origin:"+location.origin;
+      relabel();
+    }
+  });
+  if(window.parent!==window) window.parent.postMessage({type:"probe.line.ready/v1"},"*");
+})();
+</scr`+`ipt>`;
+
+const { port } = await spawnChamber(CHAMBER, { document, targetWindow: window, mount: document.getElementById("mount") });
+serveProbeLine(port, { ops, context });
+</script>
