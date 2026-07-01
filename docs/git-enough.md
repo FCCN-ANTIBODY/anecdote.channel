@@ -267,9 +267,12 @@ how long you held the plaintext). Properties, kept honest:
   The shelf → git stage policy: a `.gitignore` subset drops the churn (class 1), `instant`/`tempo`/`manual`
   modes + `teardownFlush()` cover the session preference, zero-diff revisits no-op, the working tree
   accumulates, and a `mayRun()` gate (grant-live && recording-on) makes incognito/revoked a clean no-op —
-  driving `repo.commitFiles` (the Rung-1 `git.commit` capability) as a Rung-2 behavior. What remains open:
-  the **scheduler** that calls `tick()` on a cadence — a worker vs. idle time, i.e. Origin's
-  "privileged budget" — is injected, not owned.
+  driving `repo.commitFiles` (the Rung-1 `git.commit` capability) as a Rung-2 behavior. The **scheduler** is
+  built too — [`git-enough/scheduler.mjs`](../git-enough/scheduler.mjs): it drives `tick()` on a cadence,
+  flushes on teardown (`browserTeardown` = `pagehide` + `visibilitychange`), and makes the "privileged
+  budget" concrete as tunable **`minGap`** (rate-limit) + **`maxCommits`** (session cap) — only real commits
+  spend budget. What remains open is the budget **policy** (what values, and that they ride in the grant),
+  not the mechanism.
 - **D) LM history-indexing cadence.** Slow background labeling is a worker-like privileged behavior — ties
   to Origin's open "privileged budget."
 - **E) git-enough op list.** Confirm via the subsystem-surface study before building (object store + refs +
