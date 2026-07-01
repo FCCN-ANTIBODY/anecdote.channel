@@ -1,6 +1,8 @@
 # The probe line — shaping (edges first)
 
 > Status: **shaping note** under [Milestone: Origin](origin.md). **Not a spec** — we identify *edges*.
+> The edges are now walked and the protocol is specified in **[`probe-line-v1.md`](probe-line-v1.md)**
+> (implemented in [`composer/probe-line.mjs`](../composer/probe-line.mjs), verified end-to-end in Chromium).
 > The lens: the **anecdote offline app (the Elevated context) is the first-class citizen**, and the demos
 > it has already generated — the composer tunnel (`composer/host-demo.html` + `guest.html` +
 > `tunnel.mjs`) and the v0 resolver/widget patterns (`payload.js`, `integrity.mjs`, `widget.js`,

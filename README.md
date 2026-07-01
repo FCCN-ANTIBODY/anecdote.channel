@@ -61,6 +61,14 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   (implementation plan, Edge 3): three rungs (ambient / confirmed / standing), and the **standing grant**
   as the behavior-shaped cousin of the revocable nonce — signed, legible in a "running-on-my-behalf" panel,
   and revoked mid-stream (`cancel` + `port.close()`) with **the commit as the atomic revocation unit**.
+  Implemented across [`composer/consent.mjs`](composer/consent.mjs) (the grants API),
+  [`composer/authorize.mjs`](composer/authorize.mjs) (the gate), and
+  [`composer/probe-line.mjs`](composer/probe-line.mjs) (the Elevated session + transport — verified
+  end-to-end in Chromium).
+- [`docs/probe-line-v1.md`](docs/probe-line-v1.md) — the **`probe-line/v1` protocol specification**: the
+  normative reference (roles, capability-by-port trust + mutual auth, the handshake, the frame grammar,
+  the two revocations, the consent ladder, conformance) that `composer/probe-line.mjs` implements — with a
+  provenance table tying every rule back to a Chromium-verified edge or a test.
 - [`docs/anecdote-schema.md`](docs/anecdote-schema.md) — what a confirmed send **carries**:
   `anecdote/v1`, the payload `route.prepare` grows into. Text rides inline; an image, a GeoJSON
   shape, or a citation rides as a **receipt** (hash + provenance) whose bytes live in your own
