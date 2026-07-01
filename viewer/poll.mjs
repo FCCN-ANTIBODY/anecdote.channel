@@ -108,7 +108,7 @@ export function pollView(entry, { ref, now } = {}) {
   const tip = repo.readRef(ref || repo.head());
   return {
     schema: poll.schema, pile: poll.pile, poll: poll.poll, type: poll.type,
-    text: poll.text, options: poll.options || [], accept_writein: !!poll.accept_writein,
+    text: poll.text, options: poll.options || [],   // options are suggested; the reply is always custom
     guidance: poll.guidance || "", lifecycle: poll.lifecycle || {},
     tell: poll.tell || (entry.downstreams || [])[0] || null,   // the addressable face
     results,
@@ -119,8 +119,11 @@ export function pollView(entry, { ref, now } = {}) {
 
 // ---- authoring (the create-a-data-object act) ----------------------------------------------------------
 
-// Normalize + validate a spec into a well-formed anecdote.poll/v1 object. Defaults mirror the Tell: `type`
-// defaults to "open", write-ins default on for open polls / off for multichoice, lifecycle carries round 1.
+// Normalize + validate a spec into a well-formed anecdote.poll/v1 object. `type` defaults to "open" and
+// `lifecycle` carries round 1. There is NO write-in gate: anecdote's invariant is that the answer is always
+// custom, so `options` are merely SUGGESTED answers (there is no `accept_writein` — a poll can't refuse a
+// custom reply at the input). `type` is retained only for Tell parity/governance (the mechanical
+// auto-accept of a listed option), not to gate input.
 export function buildPoll(spec = {}) {
   if (!spec.poll) throw new Error("authorPoll: a poll needs a `poll` slug");
   if (!spec.text) throw new Error("authorPoll: a poll needs `text` (the question)");
@@ -134,8 +137,7 @@ export function buildPoll(spec = {}) {
     poll: spec.poll,
     type,
     text: spec.text,
-    options,
-    accept_writein: spec.accept_writein ?? (type !== "multichoice"),
+    options,                                   // suggested answers; the reply is always custom
     guidance: spec.guidance || "",
     lifecycle: { round: 1, ...(spec.lifecycle || {}) },
     ...(spec.tell ? { tell: spec.tell } : {}),

@@ -13,9 +13,9 @@ const author = { name: "You", email: "you@origin", epoch: 1700000000, tz: "+0000
 {
   const p = buildPoll({ pile: "cd04-q1", poll: "budget", type: "multichoice", text: "Cut or keep?", options: ["Cut", "Keep"], tell: "https://tell.anecdote.channel" });
   ok(p.schema === POLL_SCHEMA && isPoll(p), "buildPoll stamps anecdote.poll/v1 and passes isPoll");
-  ok(p.accept_writein === false, "multichoice defaults write-ins OFF");
+  ok(!("accept_writein" in p), "no write-in gate on the object — the reply is always custom");
   ok(p.lifecycle.round === 1, "lifecycle carries round 1 by default");
-  ok(buildPoll({ poll: "q", text: "?" }).type === "open" && buildPoll({ poll: "q", text: "?" }).accept_writein === true, "open poll defaults write-ins ON");
+  ok(buildPoll({ poll: "q", text: "?" }).type === "open", "type defaults to open");
   let threw = false; try { buildPoll({ poll: "x", text: "?", type: "multichoice" }); } catch { threw = true; }
   ok(threw, "multichoice with no options is rejected");
   let threw2 = false; try { buildPoll({ text: "?" }); } catch { threw2 = true; }

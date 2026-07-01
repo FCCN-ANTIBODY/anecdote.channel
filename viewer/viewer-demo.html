@@ -120,7 +120,7 @@ li:hover{background:#f6f6f6}.kind{font-size:.72rem;color:#666}.id{font-size:.72r
       "<div class=q>"+esc(v.text)+"</div>"+
       "<div><span class=kind>"+esc(v.type)+"</span> · <span class='state "+ls.state+"'>"+ls.state+"</span>"+(ls.round?" · round "+ls.round:"")+"</div>"+
       "<div class=const>"+(v.guidance?esc(v.guidance)+"<br>":"")+
-        "write-ins "+(v.accept_writein?"accepted":"off")+
+        "answers may be custom"+
         (ls.opens_at?" · opens "+esc(ls.opens_at):"")+(ls.closes_at?" · closes "+esc(ls.closes_at):"")+"</div>"+
       bars+
       "<div class=tally>"+r.total+" counted"+(r.pending?" · "+r.pending+" pending judgment":"")+(r.rejected?" · "+r.rejected+" rejected":"")+"</div>"+
