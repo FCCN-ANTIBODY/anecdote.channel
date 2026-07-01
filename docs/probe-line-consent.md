@@ -158,9 +158,17 @@ Pure, dependency-free, testable in the house style — the same shape as `compos
    through; a live in-scope grant covers **Rung 1 ops too** (so a granted behavior's internal commits
    don't each prompt); Rung 2 needs a grant, not a one-off confirm. Covered by
    [`composer/authorize.test.mjs`](../composer/authorize.test.mjs) (23 assertions, all passing).
-3. **Probe-line module skeleton** — the inverse of `tunnel.mjs`; its op dispatcher calls `authorize()`
-   before handing an op to an admin tool, and enforces **yield → check-cancel → commit** around Rung-1
-   commits.
+3. **Probe-line module skeleton — ✅ DONE.** [`composer/probe-line.mjs`](../composer/probe-line.mjs) —
+   the inverse of `tunnel.mjs`. A pure `elevatedSession` dispatches each request through `authorize()`
+   before running an op, streams seq-ordered frames correlated by id, and honors `cancel` via an
+   `api.tick()` that **yields → checks cancel → (throws before commit)** — so **the commit is atomic to
+   the cancel**. The thin browser transport (`spawnChamber` = sandboxed `data:` iframe + inverted hello +
+   port transfer; `serveProbeLine`; `connectProbeLine`) sits at the bottom, browser-only, mirroring the
+   tunnel. Covered by [`composer/probe-line.test.mjs`](../composer/probe-line.test.mjs) (18 pure
+   assertions incl. the cancel-atomicity keystone) **and verified end-to-end in Chromium**: a real
+   Elevated page spawned a powerless `data:` chamber (`subtle: undefined`, not secure, `origin: null`)
+   that drove label/commit requests over the transferred port — a Rung-1 op was refused with
+   `needsConfirm`, a confirmed op and a grant-covered op both persisted, and the refused op left no trace.
 4. **Grants panel** — the glanceable "running on my behalf" surface + one-tap revoke (wired to
    `revokeGrant` + `cancel`).
 5. **Capstone demo** — a mock staging-beat behavior: grant it, watch it emit, **revoke mid-stream**, and
