@@ -48,11 +48,19 @@ to listen to me now."* The **swap**: a repo that was an upstream stops being one
 client** of your new offline origin (which then publishes to it — see the section above). By default we
 offer the swap as a choice of two configurations:
 
-- **The Castle** — *bring the whole castle.* Load the remote's objects into ours with **pure git
-  mechanics**, preserving **full history and lineage**. This is a **one-time bootstrap fetch**, not a
-  standing upstream — after the swap the relationship inverts and we push to it. Cost: it needs pack
-  **reading** (the inverse of phase 2) plus the fetch side of smart-HTTP, and it carries the old repo's
-  **foreign authorship** across.
+- **The Castle** — *bring the whole castle* (**✅ built**). Load the remote's objects into ours with
+  **pure git mechanics**, preserving **full history and lineage** — a **one-time bootstrap fetch**, not a
+  standing upstream (after the swap the relationship inverts and we push). Implemented as
+  [`git-enough/unpack.mjs`](../git-enough/unpack.mjs) (read a v2 pack, resolve OFS/REF **deltas**, verify
+  every oid) + [`git-enough/fetch-pack.mjs`](../git-enough/fetch-pack.mjs) (`git-upload-pack` discover →
+  `want`/`done` → strip the NAK → unpack → `clone` into a fresh `repo()`). Verified against a real
+  `git upload-pack`: a deltified pack fetched, deltas resolved, all objects + refs imported, and a real
+  `git` reads the **full lineage** back from our clone. It carries the old repo's **foreign authorship**
+  across (that's the point — full lineage). The one non-native seam is **byte-accurate inflate** (a pack
+  concatenates zlib members with no length; the browser's `DecompressionStream` throws on trailing bytes
+  and never reports consumption) — passed in as an `inflate(bytes, offset)→{content, consumed}`; Node has
+  it, the browser wants a tiny vendored raw-inflate (the same "one vendored primitive" shape as
+  seal-enough's `age` AEAD).
 - **The King's Leap** — *the king leaves the castle and leaps to new ground.* **Photocopy the current
   tree** (GitHub's tarball/contents API — plain files, no git protocol) and **stage it ourselves as a fresh
   root commit** under **your** identity. A deliberate **hard break in ownership history** — and that's a
@@ -134,6 +142,10 @@ verifiable against a real `git`, so future agents can pick up at any boundary:
   — `OFFLINE_ORIGIN_PAT=… node git-enough/publish-cli.mjs <repo-url> [--root] [--file p=c] [--dry-run]`
   (token from the environment, never a flag; `--root` = the King's Leap replace). Later degrees:
   force-with-lease, thin/negotiated packs (only send what the downstream lacks), multi-downstream fan-out.
+- **Read-side — the Castle (✅ built, complements the push track).** `git-upload-pack` fetch + pack
+  reading with delta resolution + `clone` into a fresh origin — see **The Castle** above. This is the
+  inbound "kidnap full history" path; the King's Leap remains the content-only default. Later degrees: a
+  browser byte-accurate inflate; incremental fetch with `have`s (only what we lack); shallow clone.
 
 Each phase is a probe-line **capability** (Rung 1 `commit`/`stage`, Rung 2 the staging beat, and push as a
 consequential Rung-1 op gated like any egress). *(Run the subsystem-surface study to confirm each phase's
