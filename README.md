@@ -62,7 +62,11 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
   our packs and the pack sha matches our trailer). **Phase 3** — smart-HTTP `send-pack` push
   ([`git-enough/send-pack.mjs`](git-enough/send-pack.mjs)) — is built and **offline-verified against a real
   `git receive-pack`** (create / fast-forward / King's-Leap replace); only a live push to github.com
-  (Contents-R/W PAT) is left for the operator to trigger.
+  (Contents-R/W PAT) is left for the operator to trigger. The **Castle read-side** — `git-upload-pack`
+  fetch + delta-resolving pack reader + `clone`
+  ([`git-enough/fetch-pack.mjs`](git-enough/fetch-pack.mjs), [`git-enough/unpack.mjs`](git-enough/unpack.mjs))
+  — is built and **offline-verified against a real `git upload-pack`** (a deltified pack fetched, deltas
+  resolved, the full lineage imported and read back by git).
 - [`docs/probe-line.md`](docs/probe-line.md) — shaping (edges first) the **probe line** between a powerless
   `data:` chamber and the **Elevated anecdote app**: the ingress tunnel **inverted** (capability = a
   transferred `MessagePort`, since a `data:` origin is null), the enough-clients vended as ops, the consent
