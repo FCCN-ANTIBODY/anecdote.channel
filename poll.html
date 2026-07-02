@@ -65,12 +65,23 @@ textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4
   function onPort(ev){var d=ev.data;if(!d||!d.id)return;var p=pending[d.id];if(!p)return;
     if(d.type==="probe.line.frame/v1"&&d.final){delete pending[d.id];p.res(p.frames);}
     else if(d.type==="probe.line.frame/v1"){p.frames.push(d);}
-    else if(d.type==="probe.line.error/v1"){delete pending[d.id];p.res([{error:d.reason}]);}}
+    else if(d.type==="probe.line.error/v1"){delete pending[d.id];p.res([{error:d.reason,rung:d.rung,needsConfirm:d.needsConfirm}]);}}
   var $=function(id){return document.getElementById(id);};
   var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c];});};
   async function render(){
-    var v=(await invoke("poll.view"))[0].view;
-    if(!v||!v.loaded){$("view").innerHTML="<p class=empty>No poll loaded — open this page from a poll's QR code.</p>";return;}
+    // Three failures render THREE WAYS (observability on the probe — a rough day taught us): the line
+    // refusing, the URL carrying nothing, and a query missing required params are different diagnoses.
+    var f=(await invoke("poll.view"))[0]||{};
+    if(f.error){$("view").innerHTML="<p class=empty>The probe line refused this view.</p>"+
+      "<p class=fine>reason: "+esc(f.error)+(f.needsConfirm?" · needs a fresh confirmation":"")+(f.rung!=null?" · rung "+esc(f.rung):"")+"</p>";return;}
+    var v=f.view;
+    if(!v||!v.loaded){
+      var w=(v&&v.why)||{};
+      var detail=!v?"the view came back empty (no frame carried it)":
+        w.rawQueryBytes===0?"the URL carried no query at all — the poll config rides after the ? in a scanned link":
+        "a query arrived ("+w.rawQueryBytes+" B, has: "+((w.params||[]).map(esc).join(", ")||"nothing recognized")+") but is missing: "+((w.missing||[]).map(esc).join(", "));
+      $("view").innerHTML="<p class=empty>No poll loaded — open this page from a poll's QR code.</p>"+
+        "<p class=fine>"+detail+"</p>";return;}
     var opts=v.options.map(function(o){return "<a class=opt href='"+esc(o.issueUrl)+"' target=_blank rel='nofollow noopener'>"+esc(o.answer)+"</a>";}).join("");
     $("view").innerHTML="<h3>"+esc(v.question)+"</h3>"+
       (v.guidance?"<div class=guide>"+esc(v.guidance)+"</div>":"")+opts+
@@ -99,5 +110,7 @@ textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4
 </scr`+`ipt>`;
 
 const { port } = await spawnChamber(CHAMBER, { document, targetWindow: window, mount: document.getElementById("mount") });
-serveProbeLine(port, { ops: pollAnswerOps({ qr }), context: () => ({ recordingOn: true, grants: [] }) });
+serveProbeLine(port, { ops: pollAnswerOps({ qr }), context: () => ({ recordingOn: true, grants: [] }),
+                       // the probe's window: every request/frame/refusal, visible in devtools when attached
+                       trace: (t) => console.debug("probe." + t.dir, t.msg.type, t.msg) });
 </script>

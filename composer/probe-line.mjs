@@ -63,45 +63,51 @@ export const isError = (m) => m && m.type === ERROR;
 //   emit       (frame) => void — the sink every frame goes to (the transport wires it to the port).
 //   yield_     optional (ms) => Promise — the turn primitive tick() awaits (default a real setTimeout);
 //              a test can inject a synchronous-ish yield.
+//   trace      optional ({ dir: "in"|"out", msg }) => void — OBSERVABILITY: sees every inbound port message
+//              and every outbound frame (requests, data frames, terminators, refusals, cancels). Off by
+//              default; a page wires it to console.debug for the dev flow. A trace failure never breaks
+//              the line (it's a window, not a dependency).
 export function elevatedSession(deps = {}) {
   if (!deps.ops) throw new Error("probe-line: Elevated needs an ops map");
   if (typeof deps.emit !== "function") throw new Error("probe-line: Elevated needs an emit sink");
   const context = deps.context || (() => ({ recordingOn: true, grants: [] }));
   const turn = deps.yield_ || ((ms = 0) => new Promise((r) => setTimeout(r, ms)));
+  const tap = (dir, msg) => { if (deps.trace) { try { deps.trace({ dir, msg }); } catch {} } };
+  const send = (frame) => { tap("out", frame); deps.emit(frame); };
   const inflight = new Map(); // id -> { cancelled }
 
   class Cancelled extends Error {}
 
   async function runRequest(msg) {
     const { id } = msg;
-    if (inflight.has(id)) return deps.emit({ type: ERROR, id, reason: "duplicate request id" });
+    if (inflight.has(id)) return send({ type: ERROR, id, reason: "duplicate request id" });
 
     // The gate first — the chamber declares op+behavior+scope; the CATALOG (admin) fixes rung/persist.
     const op = describeOp(msg.op, { behavior: msg.behavior, scope: msg.scope });
     const decision = authorize(op, { ...context(), confirmed: !!msg.confirmed });
     if (!decision.allow) {
-      return deps.emit({ type: ERROR, id, reason: decision.reason, rung: decision.rung,
+      return send({ type: ERROR, id, reason: decision.reason, rung: decision.rung,
                          needsConfirm: !!decision.needsConfirm });
     }
     const handler = deps.ops[msg.op];
-    if (!handler) return deps.emit({ type: ERROR, id, reason: `no such op ${msg.op}` });
+    if (!handler) return send({ type: ERROR, id, reason: `no such op ${msg.op}` });
 
     const s = { cancelled: false };
     inflight.set(id, s);
     let seq = 0;
     const api = {
       // Envelope fields are authoritative — a payload key (e.g. `id`) can never clobber the correlation.
-      emit: (data = {}) => deps.emit({ ...data, type: FRAME, id, seq: seq++, final: false }),
+      emit: (data = {}) => send({ ...data, type: FRAME, id, seq: seq++, final: false }),
       cancelled: () => s.cancelled,
       tick: async (ms = 0) => { await turn(ms); if (s.cancelled) throw new Cancelled(); },
     };
     try {
       await handler(msg.input, api);
-      if (s.cancelled) deps.emit({ type: CANCELLED, id, seq });
-      else deps.emit({ type: FRAME, id, seq, final: true, grantId: decision.grantId });
+      if (s.cancelled) send({ type: CANCELLED, id, seq });
+      else send({ type: FRAME, id, seq, final: true, grantId: decision.grantId });
     } catch (e) {
-      if (e instanceof Cancelled) deps.emit({ type: CANCELLED, id, seq });
-      else deps.emit({ type: ERROR, id, reason: e.message });
+      if (e instanceof Cancelled) send({ type: CANCELLED, id, seq });
+      else send({ type: ERROR, id, reason: e.message });
     } finally {
       inflight.delete(id);
     }
@@ -112,6 +118,7 @@ export function elevatedSession(deps = {}) {
   // undefined otherwise.
   function handle(msg) {
     if (!msg || typeof msg !== "object") return;
+    tap("in", msg);
     if (msg.type === REQUEST) return runRequest(msg);
     if (msg.type === CANCEL) { const s = inflight.get(msg.id); if (s) s.cancelled = true; return; }
     // unknown/foreign messages are ignored (the transport already filters by prefix)

@@ -87,8 +87,21 @@ export function issueUrl(cfg, answer, { ts } = {}) {
 
 // The view-model a chamber renders: the question + guidance + SUGGESTED options (each with its prebuilt
 // issue link) + the always-custom promise. `ts` pins option links' timestamps under test.
+//
+// OBSERVABILITY: when the poll DIDN'T load, the view says WHY — no query at all vs a query missing required
+// params — with param NAMES only, never values (the tok is an authorization). Three different failures used
+// to collapse into one "No poll loaded" (docs/probe-line.md); a chamber can now render the diagnosis.
 export function answerView(cfg, { ts } = {}) {
-  if (!cfg.loaded) return { loaded: false };
+  if (!cfg.loaded) return {
+    loaded: false,
+    why: {
+      rawQueryBytes: (cfg.rawQuery || "").length,
+      // what ACTUALLY arrived, straight from the raw query — unrecognized names included, so a typo'd
+      // param shows itself (normalize's defaults, like repo, must not masquerade as arrived)
+      params: [...new Set([...new URLSearchParams(cfg.rawQuery || "").keys()])],
+      missing: ["pile", "poll", "round", "tok"].filter((k) => !cfg[k]),
+    },
+  };
   return {
     loaded: true,
     pile: cfg.pile, poll: cfg.poll, round: cfg.round, type: cfg.type,
