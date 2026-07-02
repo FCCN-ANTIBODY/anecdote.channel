@@ -26,6 +26,9 @@ const FALLBACK_SHELL = [
   "/composer/probe-line.mjs", "/composer/authorize.mjs", "/composer/consent.mjs",
   "/composer/sign.mjs", "/composer/anecdote.mjs", "/composer/poll-answer.mjs",
   "/composer/qr-mint.mjs", "/composer/qr-sign.mjs", "/composer/qr-mint-demo.html",
+  "/composer/qr-encode.mjs",                                    // the mint demo imports it — must ride along
+  "/composer/transfer.mjs", "/composer/fountain.mjs", "/composer/carrier.mjs",
+  "/composer/carrier-loop-demo.html",                           // the video loop must play in a room with no connection
   "/composer/firmware.mjs", "/viewer/poll.mjs", "/git-enough/read.mjs",
 ];
 
