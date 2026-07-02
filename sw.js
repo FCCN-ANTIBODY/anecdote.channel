@@ -28,7 +28,8 @@ const FALLBACK_SHELL = [
   "/composer/qr-mint.mjs", "/composer/qr-sign.mjs", "/composer/qr-mint-demo.html",
   "/composer/qr-encode.mjs",                                    // the mint demo imports it — must ride along
   "/composer/transfer.mjs", "/composer/fountain.mjs", "/composer/carrier.mjs",
-  "/composer/carrier-loop-demo.html",                           // the video loop must play in a room with no connection
+  "/composer/qr-decode.mjs",                                    // the bigger lens — the catch reads by it
+  "/composer/carrier-loop-demo.html", "/composer/carrier-catch-demo.html",   // both ends of the room, offline
   "/composer/firmware.mjs", "/viewer/poll.mjs", "/git-enough/read.mjs",
 ];
 

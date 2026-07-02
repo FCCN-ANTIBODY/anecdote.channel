@@ -35,6 +35,7 @@
   .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
   canvas { width: 100%; max-width: 22rem; image-rendering: pixelated; background: #fff; border-radius: .4rem; display: block; margin: .6rem auto; }
   .meta, .stat { font: .78rem/1.6 ui-monospace, Menlo, monospace; color: var(--muted); word-break: break-all; }
+  .tune { font: 700 1.35rem/1.4 ui-monospace, Menlo, monospace; letter-spacing: .02em; margin: .3rem 0; }
   .stat b { color: var(--fg); }
   .bar { height: .55rem; background: #171b1d; border-radius: .3rem; overflow: hidden; margin: .4rem 0; }
   .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
@@ -66,7 +67,8 @@
 
   <div class="grid">
     <div class="card">
-      <div class="k">The billboard — what a room sees</div>
+      <div class="k">The billboard — what a room sees · read the big line to the catcher</div>
+      <div class="tune" id="tune">POUR —</div>
       <canvas id="qr" width="10" height="10"></canvas>
       <div class="meta" id="frameMeta">idle — press Start The Loop</div>
     </div>
@@ -124,6 +126,8 @@ async function tick() {
   // the billboard draws EXACTLY what goes out — dents included
   const q = encodeQR(frame, { ecLevel: "M" });
   drawQR($("qr"), q);
+  // the TUNING LINE — brief and readable across a room, in the catcher's vocabulary
+  $("tune").textContent = `POUR ${$("fps").value}/s · v${q.version} · 128B · dent ${$("dentPct").value}%`;
   $("frameMeta").textContent = `seed ${s.seed} · ${frame.length} B · QR v${q.version} ${q.size}×${q.size} · ` +
     (dentThis ? "THIS FRAME IS DENTED" : "clean") + ` · dents so far: ${s.dents}`;
   s.seed++;
