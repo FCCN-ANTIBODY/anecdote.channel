@@ -81,6 +81,25 @@ const TS = "2026-07-01T00:00:00.000Z";
   ok(answerView(parseQR("poll=x"), { ts: TS }).loaded === false, "an unloaded QR → the empty state");
 }
 
+// 5b. OBSERVABILITY of the empty state: the view says WHY it didn't load — no query at all vs a query
+// missing required params — with param NAMES only, never values (three failures used to render as one).
+{
+  const none = answerView(parseQR(""), { ts: TS });
+  ok(none.why && none.why.rawQueryBytes === 0 && none.why.missing.length === 4,
+     "an empty query says so: 0 bytes, all four required params missing");
+  const partial = answerView(parseQR("pile=p&type=multichoice"), { ts: TS });
+  ok(partial.why.rawQueryBytes > 0 && partial.why.missing.join(",") === "poll,round,tok",
+     "a partial query names exactly what's missing (poll, round, tok)");
+  ok(partial.why.params.includes("pile") && partial.why.params.includes("type"),
+     "…and names what arrived (param names, not values)");
+  ok(!partial.why.params.includes("repo"), "normalize's defaults (repo) do NOT masquerade as arrived");
+  ok(JSON.stringify(partial.why).indexOf("multichoice") === -1, "the diagnosis carries NO param values");
+  ok(answerView(parseQR("pil=oops&poll=q"), { ts: TS }).why.params.includes("pil"),
+     "an unrecognized (typo'd) param name shows itself in the diagnosis");
+  const loadedView = answerView(parseQR("pile=p&poll=q&round=1&tok=t"), { ts: TS });
+  ok(!("why" in loadedView), "a loaded view carries no diagnosis (shape unchanged)");
+}
+
 // 6. pollAnswerOps over the probe line — poll.view + poll.compose, both Rung 0 (no prompt).
 {
   const ops = pollAnswerOps({ qr: "pile=cd04-q1&poll=budget&round=1&tok=abc123&type=multichoice&opts=Cut,Keep&guidance=Pick+one.", ts: TS });

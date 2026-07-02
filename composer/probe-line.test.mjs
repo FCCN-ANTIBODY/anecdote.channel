@@ -128,5 +128,27 @@ function pump() {
   ok(un.find((f) => f.type === ERROR && /no such op/.test(f.reason)), "unknown op → error");
 }
 
+// 7. OBSERVABILITY: the trace hook sees every inbound message and outbound frame — including refusals —
+// and a throwing trace never breaks the line (it's a window, not a dependency).
+{
+  const frames = []; const committed = []; const seen = [];
+  const s = elevatedSession({ ops: ops(committed), emit: (f) => frames.push(f), yield_: immediate,
+                              context: () => ({ recordingOn: true, grants: [] }),
+                              trace: (t) => seen.push(t.dir + ":" + t.msg.type + (t.msg.final ? "/final" : "")) });
+  await s.handle(request({ id: "T", op: "label", input: "aa bb" }));
+  ok(seen[0] === "in:" + REQUEST, "trace sees the inbound request first");
+  ok(seen.filter((x) => x === "out:" + FRAME).length === 2, "trace sees each outbound data frame");
+  ok(seen.some((x) => x === "out:" + FRAME + "/final"), "trace sees the final terminator");
+  await s.handle(request({ id: "T2", op: "nope.op", confirmed: true }));
+  ok(seen.some((x) => x === "out:" + ERROR), "trace sees a refusal go out (the invisible failure, made visible)");
+
+  const frames2 = []; const committed2 = [];
+  const s2 = elevatedSession({ ops: ops(committed2), emit: (f) => frames2.push(f), yield_: immediate,
+                               context: () => ({ recordingOn: true, grants: [] }),
+                               trace: () => { throw new Error("bad tap"); } });
+  await s2.handle(request({ id: "T3", op: "label", input: "xx" }));
+  ok(frames2.some((f) => f.type === FRAME && f.final), "a THROWING trace never breaks the line");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall probe-line session tests passed");
