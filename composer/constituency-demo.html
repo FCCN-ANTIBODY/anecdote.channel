@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<!-- composer/constituency-demo.html — THE SELF-CONSTITUENCY ASSERTION, with no watchers at any point
+     (composer/constituency.mjs; docs/presence.md). You hold signed atlas dumps and find YOURSELF inside
+     them, on-device. The whole point this page makes visible: a normal app skims your location by force to
+     use it, and that reading goes straight into metrics that fuel other metrics — the digital DNA you shed
+     without meaning to. Here the geometry runs in your hand; your position never leaves; the only thing that
+     could ever go out is a claim you deliberately make. This page proves it: a live counter shows outbound
+     network calls stay at ZERO while you bisect, even if you hand it your real device location.
+
+     (For a self-contained demo the atlas dumps are minted in-page from throwaway keys; in production they
+     are fetched — or CAUGHT over the gravel — and verified exactly the same way. The crypto here is real:
+     real Ed25519 signatures, real verifyDump/holdDumps/whereAmI.) -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — where am I a constituent?</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<!-- Instrument the network BEFORE anything else loads, so the "outbound calls" counter is truthful from
+     the very first byte. Nothing on this page should ever increment it after boot. -->
+<script>
+  window.__net = { calls: 0, log: [] };
+  (function () {
+    const bump = (what) => { window.__net.calls++; window.__net.log.push(what); const el = document.getElementById && document.getElementById("net"); if (el) el.textContent = String(window.__net.calls); };
+    const of = window.fetch; window.fetch = function (u) { bump("fetch " + u); return of.apply(this, arguments); };
+    const ox = window.XMLHttpRequest && window.XMLHttpRequest.prototype.open;
+    if (ox) window.XMLHttpRequest.prototype.open = function (m, u) { bump("xhr " + u); return ox.apply(this, arguments); };
+    const sb = navigator.sendBeacon && navigator.sendBeacon.bind(navigator);
+    if (sb) navigator.sendBeacon = function (u) { bump("beacon " + u); return sb.apply(this, arguments); };
+  })();
+</script>
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{type:"module"}).then(function(){return navigator.serviceWorker.ready;}).catch(function(){});});</script>
+<style>
+  :root { --bg:#293033; --panel:#1f2528; --fg:#dfdfdf; --muted:#9aa4a6; --accent:#990049; --line:#3a4145; --ok:#7bc98a; --warn:#ffb02e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+  header a { color: var(--fg); text-decoration: none; font-weight: 700; }
+  header .tag { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-left: .6rem; }
+  main { max-width: 44rem; margin: 1.25rem auto; padding: 0 1.25rem; }
+  .lede { color: var(--muted); font-size: .93rem; }
+  .card { border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); padding: .85rem 1rem; margin-top: 1rem; }
+  .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  canvas { width: 100%; max-width: 34rem; aspect-ratio: 7 / 4; background: #171b1d; border-radius: .4rem; display: block; margin: .6rem auto; touch-action: none; cursor: crosshair; }
+  .watch { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .watch .cell { border: 1px solid var(--line); border-radius: .5rem; padding: .6rem .7rem; }
+  .watch .cell .big { font: 700 1.6rem/1.2 ui-monospace, Menlo, monospace; }
+  .watch .them .big { color: var(--warn); } .watch .us .big { color: var(--ok); }
+  .watch .note { color: var(--muted); font-size: .8rem; }
+  button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--fg); border-radius: .5rem; padding: .5rem .9rem; cursor: pointer; margin: .5rem .4rem 0 0; }
+  button.primary { background: var(--accent); font-weight: 700; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+  .placement { border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: .4rem; padding: .5rem .7rem; margin: .4rem 0; }
+  .placement.proposal { border-left-color: var(--warn); }
+  .placement .name { font-weight: 700; } .placement .meta { color: var(--muted); font-size: .78rem; font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+  .contested { color: var(--warn); font-weight: 700; }
+  .stat { font: .8rem/1.6 ui-monospace, Menlo, monospace; color: var(--muted); }
+  .verified { color: var(--ok); }
+  .empty { color: var(--muted); }
+</style>
+<body>
+<header><a href="/">anecdote.channel</a><span class="tag">where am I a constituent?</span></header>
+<main>
+  <p class="lede">Drop yourself on the map. This page holds signed boundary shapes and finds which
+  constituencies contain you — <strong>entirely on this device</strong>. It is the opposite of the usual
+  bargain: an app skims your location by force just to run, and that reading feeds metrics that feed other
+  metrics — the digital DNA you shed without meaning to. Here the geometry happens in your hand. Your
+  position never leaves. The only thing that can ever go out is a claim you <em>choose</em> to make.</p>
+
+  <div class="card">
+    <div class="k">The watcher ledger</div>
+    <div class="watch">
+      <div class="cell them">
+        <div class="k">A normal app, by now</div>
+        <div class="big">1+</div>
+        <div class="note">location read on load, sent to an analytics endpoint, joined to an ad profile —
+        before you did anything.</div>
+      </div>
+      <div class="cell us">
+        <div class="k">This page — outbound network calls since load</div>
+        <div class="big" id="net">0</div>
+        <div class="note">bisecting is pure math on held shapes. This counter is wired to fetch / XHR /
+        sendBeacon; watch it stay 0 while you place yourself — even with real device location.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="k">You are here (tap the map, or hand it your real location)</div>
+    <canvas id="map" width="700" height="400"></canvas>
+    <div class="row">
+      <button id="geo">Use my device location</button>
+      <span class="stat" id="pos">no position yet</span>
+    </div>
+    <div class="stat" id="dumpinfo">holding dumps…</div>
+  </div>
+
+  <div class="card">
+    <div class="k">Your constituencies — everything that contains you, competing included</div>
+    <div id="out"><p class="empty">Place yourself to see which constituencies claim you.</p></div>
+  </div>
+</main>
+
+<script type="module">
+import { generateIdentity } from "./sign.mjs";
+import { buildBoundary, signBoundary } from "./bisect.mjs";
+import { holdDumps, whereAmI, verifyDump, DUMP } from "./constituency.mjs";
+import { attest } from "./sign.mjs";
+import { makeClaim } from "./presence.mjs";
+
+const $ = (id) => document.getElementById(id);
+// Colorado-ish lon/lat window for the map.
+const BOX = { lonMin: -109.2, lonMax: -101.9, latMin: 36.9, latMax: 41.1 };
+
+// ---- mint a self-contained, REALLY-SIGNED demo world (in production these dumps are fetched/caught) ----
+async function demoWorld() {
+  const tellA = await generateIdentity(), tellB = await generateIdentity();
+  const atlasCO = await generateIdentity(), atlasWater = await generateIdentity();
+  const B = (constituency, polygons, extra) => signBoundary(buildBoundary({ constituency, name: constituency, polygons, basis: [{ kind: "asserted" }] }), extra ? tellB : tellA).then((s) => Object.assign(s, {}));
+  // eastern-plains-ish CD4, a mountain municipality, a watershed that spills east, and a rival proposal for CD4.
+  const cd4 = await signBoundary(buildBoundary({ constituency: "colorado-4", name: "CO District 4 (plains)", polygons: [[[[-105.0, 41.0], [-102.05, 41.0], [-102.05, 37.0], [-105.0, 37.0], [-105.0, 39.0], [-104.6, 39.6], [-105.0, 40.2]]]], basis: [{ kind: "derived" }] }), tellA);
+  const city = await signBoundary(buildBoundary({ constituency: "fort-collins", name: "Fort Collins", polygons: [[[[-105.15, 40.65], [-104.95, 40.65], [-104.95, 40.45], [-105.15, 40.45]]]], basis: [{ kind: "official" }] }), tellA);
+  const water = await signBoundary(buildBoundary({ constituency: "poudre-watershed", name: "Cache la Poudre watershed", polygons: [[[[-106.2, 40.9], [-104.2, 40.9], [-104.2, 40.3], [-106.2, 40.3]]]], basis: [{ kind: "asserted" }] }), tellB);
+  const cd4rival = await signBoundary(buildBoundary({ constituency: "colorado-4", name: "CD4 (rival proposal)", polygons: [[[[-104.6, 41.0], [-102.05, 41.0], [-102.05, 37.0], [-104.6, 37.0]]]], basis: [{ kind: "asserted" }] }), tellB);
+  cd4rival.proposes = { for: "colorado-4" };
+  const cd4prop = await attest({ ...cd4rival, sig: undefined }, tellB);
+
+  const mkDump = async (id, name, members, proposals = []) => attest({
+    schema: DUMP, atlas: name, at: new Date(0).toISOString(), windowDays: 90, boundary: null,
+    memberIds: [], members: members.map((a) => ({ tell: "t", id: null, anchored: null, artifact: a })),
+    proposals: proposals.map((a) => ({ tell: "t", id: null, artifact: a })), expired: [], refused: [],
+  }, id);
+  const dCO = await mkDump(atlasCO, "colorado", [cd4, city], [cd4prop]);
+  const dWater = await mkDump(atlasWater, "poudre-atlas", [water]);
+  return { dumps: [dCO, dWater], roots: [atlasCO.fingerprint] };  // we "walked to" the colorado atlas
+}
+
+let held = null, me = null;
+
+// ---- draw ----
+function lonlatToXY(lon, lat, w, h) {
+  return [((lon - BOX.lonMin) / (BOX.lonMax - BOX.lonMin)) * w, h - ((lat - BOX.latMin) / (BOX.latMax - BOX.latMin)) * h];
+}
+function xyToLonLat(x, y, w, h) {
+  return [BOX.lonMin + (x / w) * (BOX.lonMax - BOX.lonMin), BOX.latMin + ((h - y) / h) * (BOX.latMax - BOX.latMin)];
+}
+function draw() {
+  const c = $("map"), ctx = c.getContext("2d"), w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = "#171b1d"; ctx.fillRect(0, 0, w, h);
+  const shapes = [...(held ? held.boundaries.map((b) => ({ b, proposal: false })) : []), ...(held ? held.proposals.map((b) => ({ b, proposal: true })) : [])];
+  const palette = ["#3a6ea5", "#4a9e6d", "#9e6d4a", "#6d4a9e", "#9e4a7d"];
+  shapes.forEach(({ b, proposal }, i) => {
+    for (const poly of b.artifact.polygons) {
+      ctx.beginPath();
+      poly[0].forEach(([lon, lat], j) => { const [x, y] = lonlatToXY(lon, lat, w, h); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.closePath();
+      ctx.fillStyle = (palette[i % palette.length]) + (proposal ? "22" : "44");
+      ctx.fill();
+      ctx.strokeStyle = proposal ? "#ffb02e" : palette[i % palette.length];
+      ctx.setLineDash(proposal ? [6, 4] : []); ctx.lineWidth = proposal ? 1.5 : 2; ctx.stroke(); ctx.setLineDash([]);
+    }
+  });
+  if (me) { const [x, y] = lonlatToXY(me[0], me[1], w, h); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.stroke(); }
+}
+
+function place(lon, lat) {
+  me = [lon, lat];
+  $("pos").textContent = `you: ${lon.toFixed(3)}, ${lat.toFixed(3)}  (never transmitted)`;
+  draw();
+  const r = whereAmI(me, held);   // ← pure, local, synchronous. No await, no network.
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let html = "";
+  if (!r.placements.length && !r.proposalPlacements.length) html = '<p class="empty">You are inside no held shape here. That is a fine answer — most of the map is nobody\'s constituency.</p>';
+  for (const p of r.placements) html +=
+    `<div class="placement"><span class="name">${esc(p.constituency)}</span> — a claim` +
+    `<div class="meta">carried by ${p.atlases.map(esc).join(", ")}${p.trustedCarrier ? " · a root you walked to" : ""} · ${esc(p.boundary.slice(0, 20))}…</div></div>`;
+  for (const p of r.proposalPlacements) html +=
+    `<div class="placement proposal"><span class="name">${esc(p.constituency)}</span> — a proposal you could <em>select</em>` +
+    `<div class="meta">a shape wished for “${esc(p.proposes && p.proposes.for || p.constituency)}” · carried by ${p.atlases.map(esc).join(", ")}</div></div>`;
+  const a = r.ambiguity;
+  html += `<p class="stat">pinpoint: <b>${a.containing}</b> claim(s) contain you` +
+    (a.contested.length ? ` · <span class="contested">contested: ${a.contested.map(esc).join(", ")}</span> — a claim and a rival proposal disagree about containing you (a fact for the judge, computed here, sent nowhere)` : " · no contest here") + `</p>`;
+  if (r.placements.length) html += `<div class="row"><button class="primary" id="claimbtn">Make a presence claim for “${esc(r.placements[0].constituency)}”</button><span class="stat" id="claimout"></span></div>`;
+  $("out").innerHTML = html;
+  if (r.placements.length) $("claimbtn").addEventListener("click", async () => {
+    // The ONE thing that produces something shareable — and even this stays on-device until you present it.
+    const claim = await makeClaim({ ...r.placements[0], at: new Date(0).toISOString() }, me._id || (me._id = await generateIdentity()));
+    $("claimout").innerHTML = `<span class="verified">✓ signed a claim (method: ${claim.bisect.method}) — held in your hand, transmitted to no one. Outbound calls still ${window.__net.calls}.</span>`;
+  });
+}
+
+// ---- boot ----
+(async () => {
+  const world = await demoWorld();
+  held = await holdDumps(world.dumps, { roots: world.roots });
+  $("dumpinfo").textContent = `holding ${held.boundaries.length} boundaries + ${held.proposals.length} proposal(s) from ${held.atlases.length} atlas dump(s), every signature verified locally · outbound calls so far: ${window.__net.calls}`;
+  draw();
+  const c = $("map");
+  const pick = (ev) => { const rect = c.getBoundingClientRect(); const x = (ev.clientX - rect.left) / rect.width * c.width, y = (ev.clientY - rect.top) / rect.height * c.height; const [lon, lat] = xyToLonLat(x, y, c.width, c.height); place(lon, lat); };
+  c.addEventListener("click", pick);
+  $("geo").addEventListener("click", () => {
+    if (!navigator.geolocation) { $("pos").textContent = "no geolocation available — tap the map instead"; return; }
+    $("pos").textContent = "asking the browser for your location (it goes to the bisect, nowhere else)…";
+    navigator.geolocation.getCurrentPosition(
+      (p) => place(p.coords.longitude, p.coords.latitude),
+      () => { $("pos").textContent = "location denied — tap the map instead (which proves the point anyway)"; });
+  });
+  // expose for the headless check
+  window.__demo = { held, place, whereAmI: (pt) => whereAmI(pt, held), net: () => window.__net.calls };
+})();
+</script>
+</body>
+</html>

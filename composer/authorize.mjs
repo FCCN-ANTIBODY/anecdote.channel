@@ -44,6 +44,7 @@ export const OP_CATALOG = {
   "presence.claim":          { rung: 1, persists: false },  // sign "I am here now" — one claim, one confirm
   "presence.witness":        { rung: 1, persists: false },  // countersign a shown claim — witnessing is a knowing act
   "presence.met":            { rung: 1, persists: false },  // bind a scanned Tell token to my placement — the met-record
+  "constituency.where":      { rung: 0, persists: false },  // bisect held atlas dumps locally — the position never leaves
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.
