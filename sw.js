@@ -30,6 +30,7 @@ const FALLBACK_SHELL = [
   "/composer/transfer.mjs", "/composer/fountain.mjs", "/composer/carrier.mjs",
   "/composer/qr-decode.mjs",                                    // the bigger lens — the catch reads by it
   "/composer/module-share.mjs",                                 // the system can export itself from a dead room
+  "/composer/firmware-offer.mjs",                               // …and caught firmware knocks on the pin gate
   "/composer/carrier-loop-demo.html", "/composer/carrier-catch-demo.html",   // both ends of the room, offline
   "/composer/firmware.mjs", "/viewer/poll.mjs", "/git-enough/read.mjs",
 ];
@@ -106,12 +107,40 @@ self.addEventListener("activate", (e) => e.waitUntil((async () => {
   await self.clients.claim();
 })()));
 
-// A page (on load, or on demand) asks the SW to re-check for a signed roll-forward. Replies over the
-// provided MessagePort with the decision so the UI can surface a refused (possessed) update.
+// A caught firmware offer (composer/firmware-offer.mjs — shell code that crossed the gravel) knocks on the
+// SAME pin gate network updates face. The page hands over the AUTHOR-signed manifest + the offered file
+// bytes; the SW RE-DECIDES with its own pin — never trust the page — then verifies every offered byte
+// against the manifest hashes before committing. Same signer, forward version, matching hashes — or a
+// refusal with the reason, replied over the port.
+async function adoptOffer(manifest, offered) {
+  const byPath = new Map((offered || []).map((f) => [f.path, { buf: new Uint8Array(f.buf), type: f.type || null }]));
+  const pinnedBy = await pinGet("by");
+  const held = (await pinGet("version")) || 0;
+  const d = await pinDecision(manifest, pinnedBy, held);
+  if (!d.accept) { await pinSet("rejected", { by: d.by, reason: d.reason, at: Date.now() }); return { mode: "refused", reason: d.reason, by: d.by }; }
+  const vf = await verifyFiles(manifest, async (p) => { const rec = byPath.get(p); return rec ? rec.buf : null; });
+  if (!vf.ok) { await pinSet("rejected", { reason: "offer file integrity: " + JSON.stringify(vf.bad), at: Date.now() }); return { mode: "refused", reason: "file integrity" }; }
+  const cache = await caches.open(VERSION);
+  for (const f of manifest.files) {
+    const rec = byPath.get(f.path);
+    if (rec) await cache.put(f.path, new Response(rec.buf, { headers: { "content-type": rec.type || "application/octet-stream" } }));
+  }
+  if (d.firstContact) await pinSet("by", d.by);
+  await pinSet("version", d.version);
+  await pinSet("rejected", null);
+  return { mode: d.firstContact ? "pinned" : "rolled-forward", by: d.by, version: d.version, source: "offer" };
+}
+
+// A page (on load, or on demand) asks the SW to re-check for a signed roll-forward; or OFFERS caught
+// firmware. Replies over the provided MessagePort with the decision so the UI can surface a refusal.
 self.addEventListener("message", (e) => {
-  if (!e.data || e.data.type !== "firmware-check") return;
+  if (!e.data) return;
   const port = e.ports && e.ports[0];
-  e.waitUntil((async () => { const r = await checkFirmware().catch((err) => ({ mode: "error", reason: String(err) })); if (port) port.postMessage(r); })());
+  if (e.data.type === "firmware-check") {
+    e.waitUntil((async () => { const r = await checkFirmware().catch((err) => ({ mode: "error", reason: String(err) })); if (port) port.postMessage(r); })());
+  } else if (e.data.type === "firmware-offer") {
+    e.waitUntil((async () => { const r = await adoptOffer(e.data.manifest, e.data.files).catch((err) => ({ mode: "error", reason: String(err) })); if (port) port.postMessage(r); })());
+  }
 });
 
 self.addEventListener("fetch", (e) => {
