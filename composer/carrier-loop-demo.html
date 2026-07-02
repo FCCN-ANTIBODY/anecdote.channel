@@ -57,6 +57,16 @@
 
   <div class="card">
     <div class="k">Payload — signed, then poured</div>
+    <label>what pours:
+      <select id="module">
+        <option value="">the text below (a plain signed payload)</option>
+        <option value="composer/fountain.mjs">composer/fountain.mjs — the fountain, carried by itself</option>
+        <option value="composer/carrier.mjs">composer/carrier.mjs — the carrier brain</option>
+        <option value="composer/qr-encode.mjs">composer/qr-encode.mjs — the encoder</option>
+        <option value="composer/qr-decode.mjs">composer/qr-decode.mjs — the bigger lens</option>
+        <option value="composer/module-share.mjs">composer/module-share.mjs — this very machinery</option>
+      </select>
+    </label>
     <textarea id="payload" rows="3">The neighborhood park question, round one: every reply is yours to write. This payload crossed a room as light, healed through its own deliberate damage, and verified at the far end.</textarea>
     <label>frames / second: <b id="fpsV">4</b><input type="range" id="fps" min="1" max="30" value="4"></label>
     <label>dent rate (damage ON the billboard): <b id="dentV">15%</b><input type="range" id="dentPct" min="0" max="30" value="15"></label>
@@ -86,6 +96,7 @@ import { generateIdentity } from "./sign.mjs";
 import { packTransfer } from "./transfer.mjs";
 import { fountainTransfer, carrierSession } from "./carrier.mjs";
 import { encodeQR } from "./qr-encode.mjs";
+import { exportModule } from "./module-share.mjs";
 
 const $ = (id) => document.getElementById(id);
 const td = new TextDecoder();
@@ -111,10 +122,16 @@ let timer = null, state = null;
 
 async function setup() {
   const me = await generateIdentity();
-  const signed = await packTransfer("data-pile", $("payload").value, me);
+  // a MODULE pours as a verified signed copy of its own source (module-share.mjs — the system exporting
+  // itself; fetch() rides the offline shell, so a dead room can still share its pieces); otherwise the
+  // text below pours as a plain signed payload.
+  const modPath = $("module").value;
+  const signed = modPath
+    ? (await exportModule(modPath, me)).signed
+    : await packTransfer("data-pile", $("payload").value, me);
   const ft = await fountainTransfer(signed, { blockSize: 128 });
   const session = carrierSession({ friends: [me.fingerprint] });
-  return { me, signed, ft, session, seed: 0, dents: 0, verified: null };
+  return { me, signed, ft, session, seed: 0, dents: 0, verified: null, pouring: modPath || "text" };
 }
 
 async function tick() {
@@ -127,7 +144,8 @@ async function tick() {
   const q = encodeQR(frame, { ecLevel: "M" });
   drawQR($("qr"), q);
   // the TUNING LINE — brief and readable across a room, in the catcher's vocabulary
-  $("tune").textContent = `POUR ${$("fps").value}/s · v${q.version} · 128B · dent ${$("dentPct").value}%`;
+  $("tune").textContent = `POUR ${$("fps").value}/s · v${q.version} · 128B · dent ${$("dentPct").value}%` +
+    (s.pouring !== "text" ? ` · ${s.pouring.split("/").pop()}` : "");
   $("frameMeta").textContent = `seed ${s.seed} · ${frame.length} B · QR v${q.version} ${q.size}×${q.size} · ` +
     (dentThis ? "THIS FRAME IS DENTED" : "clean") + ` · dents so far: ${s.dents}`;
   s.seed++;
