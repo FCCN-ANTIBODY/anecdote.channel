@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<!-- composer/carrier-loop-demo.html — THE VIDEO LOOP: a payload as a looping QR fountain
+     (docs/offline-transfer.md, docs/anti-signature.md). The left pane is the billboard: an endless,
+     rateless stream of droplet frames (composer/carrier.mjs fountainTransfer), each drawn as a scannable
+     QR (composer/qr-encode.mjs), cycling at a chosen rate. The right pane is a VIRTUAL RECEIVER — a real
+     carrierSession fed the very frames the canvas draws, minus a simulated miss rate — so you can watch
+     the healing happen before we vendor a camera decoder.
+
+     THE DENT DIAL is the point: deliberately damage a fraction of frames ON THE BILLBOARD (the receiver
+     sees exactly what's drawn). Dented frames announce themselves (the droplet checksum), get counted,
+     and the fountain heals around them — damage is survivable and VISIBLE, which is the substrate the
+     anti-signature's crimp rides on. The loop never stops when the receiver fills: a billboard keeps
+     pouring for the next passerby. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — the video loop</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<!-- Hold the shell so the loop can play in a room with no connection (sw.js). -->
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{type:"module"}).then(function(){return navigator.serviceWorker.ready;}).then(function(){if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:"firmware-check"});}).catch(function(){});});</script>
+<style>
+  :root { --bg:#293033; --panel:#1f2528; --fg:#dfdfdf; --muted:#9aa4a6; --accent:#990049; --line:#3a4145; --ok:#7bc98a; --warn:#ffb02e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+  header a { color: var(--fg); text-decoration: none; font-weight: 700; }
+  header .tag { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-left: .6rem; }
+  main { max-width: 58rem; margin: 1.25rem auto; padding: 0 1.25rem; }
+  .lede { color: var(--muted); font-size: .92rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+  @media (max-width: 46rem) { .grid { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); padding: .8rem 1rem; }
+  .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  canvas { width: 100%; max-width: 22rem; image-rendering: pixelated; background: #fff; border-radius: .4rem; display: block; margin: .6rem auto; }
+  .meta, .stat { font: .78rem/1.6 ui-monospace, Menlo, monospace; color: var(--muted); word-break: break-all; }
+  .stat b { color: var(--fg); }
+  .bar { height: .55rem; background: #171b1d; border-radius: .3rem; overflow: hidden; margin: .4rem 0; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  .done .bar i { background: var(--ok); }
+  label { display: block; font-size: .8rem; color: var(--muted); margin-top: .55rem; }
+  input[type=range] { width: 100%; }
+  textarea { width: 100%; background: #171b1d; color: var(--fg); border: 1px solid var(--line); border-radius: .4rem; font: .8rem ui-monospace, Menlo, monospace; padding: .5rem; }
+  button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--fg); border-radius: .5rem; padding: .45rem .9rem; cursor: pointer; margin: .6rem .4rem 0 0; }
+  button.primary { background: var(--accent); font-weight: 700; }
+  .verified { color: var(--ok); font-weight: 700; }
+</style>
+<body>
+<header><a href="/">anecdote.channel</a><span class="tag">the video loop</span></header>
+<main>
+  <p class="lede">A payload becomes an <strong>endless, rateless stream</strong> of droplet QRs — loop it on any
+  screen and a camera that watches long enough catches enough. The <strong>dent dial</strong> deliberately
+  damages frames on the billboard itself; the receiver sees the dents, counts them, and heals around them.
+  The loop never stops for a full receiver — a billboard keeps pouring for the next passerby.</p>
+
+  <div class="card">
+    <div class="k">Payload — signed, then poured</div>
+    <textarea id="payload" rows="3">The neighborhood park question, round one: every reply is yours to write. This payload crossed a room as light, healed through its own deliberate damage, and verified at the far end.</textarea>
+    <label>frames / second: <b id="fpsV">4</b><input type="range" id="fps" min="1" max="30" value="4"></label>
+    <label>dent rate (damage ON the billboard): <b id="dentV">15%</b><input type="range" id="dentPct" min="0" max="30" value="15"></label>
+    <label>receiver miss rate (frames the camera never catches): <b id="lossV">25%</b><input type="range" id="lossPct" min="0" max="50" value="25"></label>
+    <button class="primary" id="start">Start The Loop</button>
+    <button id="reset">Reset</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="k">The billboard — what a room sees</div>
+      <canvas id="qr" width="10" height="10"></canvas>
+      <div class="meta" id="frameMeta">idle — press Start The Loop</div>
+    </div>
+    <div class="card" id="rx">
+      <div class="k">A virtual receiver — a real carrierSession, watching</div>
+      <div class="bar"><i id="prog"></i></div>
+      <div class="stat" id="rxStat">waiting for the loop…</div>
+      <div class="stat" id="rxDone"></div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+import { generateIdentity } from "./sign.mjs";
+import { packTransfer } from "./transfer.mjs";
+import { fountainTransfer, carrierSession } from "./carrier.mjs";
+import { encodeQR } from "./qr-encode.mjs";
+
+const $ = (id) => document.getElementById(id);
+const td = new TextDecoder();
+
+// live labels
+for (const [id, lab, suf] of [["fps", "fpsV", ""], ["dentPct", "dentV", "%"], ["lossPct", "lossV", "%"]])
+  $(id).addEventListener("input", () => { $(lab).textContent = $(id).value + suf; });
+
+// draw a QR matrix: 1 module → scale px, 4-module quiet zone (scanners need it)
+function drawQR(canvas, q, scale = 4) {
+  const quiet = 4, n = q.size, W = (n + 2 * quiet) * scale;
+  canvas.width = W; canvas.height = W;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, W);
+  ctx.fillStyle = "#000";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.modules[r][c]) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+}
+
+// THE DENT: flip one character in the frame's payload tail — the crimp, applied on the way out.
+const dent = (frame) => { const i = frame.length - 3; const c = frame[i] === "A" ? "B" : "A"; return frame.slice(0, i) + c + frame.slice(i + 1); };
+
+let timer = null, state = null;
+
+async function setup() {
+  const me = await generateIdentity();
+  const signed = await packTransfer("data-pile", $("payload").value, me);
+  const ft = await fountainTransfer(signed, { blockSize: 128 });
+  const session = carrierSession({ friends: [me.fingerprint] });
+  return { me, signed, ft, session, seed: 0, dents: 0, verified: null };
+}
+
+async function tick() {
+  const s = state;
+  let frame = s.ft.frame(s.seed);
+  const dentThis = Math.random() * 100 < +$("dentPct").value;
+  if (dentThis) { frame = dent(frame); s.dents++; }
+
+  // the billboard draws EXACTLY what goes out — dents included
+  const q = encodeQR(frame, { ecLevel: "M" });
+  drawQR($("qr"), q);
+  $("frameMeta").textContent = `seed ${s.seed} · ${frame.length} B · QR v${q.version} ${q.size}×${q.size} · ` +
+    (dentThis ? "THIS FRAME IS DENTED" : "clean") + ` · dents so far: ${s.dents}`;
+  s.seed++;
+
+  // the virtual receiver catches what the miss rate allows — of exactly what was drawn
+  if (Math.random() * 100 >= +$("lossPct").value) {
+    const snap = await s.session.feed(frame);
+    const m = snap.present[0];
+    const have = m ? m.have : 0, total = m && m.total ? m.total : s.ft.K;
+    $("prog").style.width = Math.round((100 * have) / total) + "%";
+    $("rxStat").innerHTML = `caught: <b>${have}/${total}</b> blocks · dents seen &amp; healed: <b>${snap.damaged}</b> · mode: ${m ? m.mode : "—"}`;
+    if (snap.complete && !s.verified) {
+      const r = await s.session.result();
+      const v = r.ok && r.transfers[0].verify;
+      const text = v && v.ok ? td.decode(Uint8Array.from(atob(r.transfers[0].signed.bytes), (ch) => ch.charCodeAt(0))) : "";
+      s.verified = { ok: !!(v && v.ok), trusted: !!(v && v.trusted), text };
+      $("rx").classList.add("done");
+      $("rxDone").innerHTML = s.verified.ok
+        ? `<span class="verified">✓ reassembled &amp; signature verified${s.verified.trusted ? " · trusted signer" : ""}</span><br>` +
+          `payload round-trip: “${text.slice(0, 80)}${text.length > 80 ? "…" : ""}”<br>` +
+          `the loop keeps pouring — a later passerby still catches it.`
+        : "reassembled but verification FAILED (this should not happen — the checksums let it through?)";
+    }
+  }
+}
+
+$("start").addEventListener("click", async () => {
+  if (timer) { clearInterval(timer); timer = null; $("start").textContent = "Start The Loop"; return; }
+  if (!state) state = await setup();
+  $("start").textContent = "Pause";
+  const arm = () => { clearInterval(timer); timer = setInterval(tick, Math.max(33, 1000 / +$("fps").value)); };
+  $("fps").addEventListener("input", arm);
+  arm();
+});
+$("reset").addEventListener("click", async () => {
+  if (timer) { clearInterval(timer); timer = null; }
+  state = null; $("start").textContent = "Start The Loop";
+  $("rx").classList.remove("done"); $("prog").style.width = "0";
+  $("rxStat").textContent = "waiting for the loop…"; $("rxDone").textContent = ""; $("frameMeta").textContent = "idle — press Start The Loop";
+});
+
+// expose for the headless check
+window.__loop = { get state() { return state; }, tick };
+</script>
+</body>
+</html>
