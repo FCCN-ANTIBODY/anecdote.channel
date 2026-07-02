@@ -41,6 +41,8 @@ export const OP_CATALOG = {
   "friends.add":             { rung: 1, persists: true  },  // enroll a trusted signer — one friend, one confirm
   "friends.list":            { rung: 0, persists: false },
   "carrier.accept":          { rung: 1, persists: true  },  // keep a caught transfer, with a signed encounter record
+  "presence.claim":          { rung: 1, persists: false },  // sign "I am here now" — one claim, one confirm
+  "presence.witness":        { rung: 1, persists: false },  // countersign a shown claim — witnessing is a knowing act
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.
