@@ -43,6 +43,7 @@ export const OP_CATALOG = {
   "carrier.accept":          { rung: 1, persists: true  },  // keep a caught transfer, with a signed encounter record
   "presence.claim":          { rung: 1, persists: false },  // sign "I am here now" — one claim, one confirm
   "presence.witness":        { rung: 1, persists: false },  // countersign a shown claim — witnessing is a knowing act
+  "presence.met":            { rung: 1, persists: false },  // bind a scanned Tell token to my placement — the met-record
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.
