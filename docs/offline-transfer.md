@@ -79,13 +79,54 @@ commit is a legible, attributed, journaled, revocable act. This is the honest fo
 So the interior is as legible as the door: one door in (attested code/data), one durable surface out (the
 committed repo), and nothing durable in between.
 
+## The carrier — measured capabilities and the camera-fluent brain
+
+Probed in this Chromium (facts, not folklore):
+
+- **`BarcodeDetector` is absent** (Linux headless — and it's also absent on iOS Safari in the field). So we
+  do **not** build on the platform barcode API; we bring a **vendored decoder** (the "enough-client, no
+  vendors-we-depend-on" stance). Bonus: owning decode means we get each code's position and can tile-scan for
+  several codes ourselves.
+- **`requestVideoFrameCallback` is present** — the "watch as fast as it can" hook for a video/animated carrier.
+- **`OffscreenCanvas` + `createImageBitmap` present** — frames can be grabbed/decoded off the main thread.
+- **`getUserMedia`** needs a secure context (https/localhost); headless testing can feed a synthetic QR video
+  via Chromium's `--use-fake-device-for-media-stream` + `--use-file-for-fake-video-capture`.
+
+**Built — the camera-fluent brain ([`composer/carrier.mjs`](../composer/carrier.mjs)).** The
+decoder-agnostic layer between a QR decoder and the transfer innards. It takes DECODED frame strings (no
+pixels, no camera) and: **learns the expected shape from the earliest frame** (the layout tile names its set,
+so the app can put the shape up for judgment *before* the whole thing finishes decoding), **tolerates
+out-of-order / duplicate** frames, **flags a foreign tile** the moment the set's shape is known (the intruder
+QR on the side), and **completes into reassembled, verified transfers**. Frame grammar is magic-prefixed
+(`AC1|…`) so a decode is instantly recognizable as ours. `frameTransfer`/`frameLayout` (render side),
+`parseFrame` + `carrierSession` (scan side). 16 tests: out-of-order completion, shape-from-the-layout-tile-
+alone, interloper flagged, partial never completes, face-copied set verifies-but-untrusted.
+
+### Answers banked (the trivia + the real constraints)
+
+- **Spaced grids (spell "anecdote"):** fine — verification is by the layout's member *hashes*, not geometry.
+  Spread tiles anywhere; the set still validates. The only limit is the camera must *see* them: packed → one
+  frame; spread wide → **pan and accumulate** across frames (the same accumulate-loop as video).
+- **Video QR:** a loop of frames, each a brick; the receiver watches (rVFC) and `reassemble`s. Robustness
+  upgrade = **fountain/rateless** codes (decode from any sufficient subset, not every specific frame) — the
+  fork for the order-of-magnitude case; fixed-index (loop until gaps fill) is what we have.
+- **Visible distinctness / a "quadrant that always looks like something":** the QR standard only fixes the
+  three finder squares; anything else is *our overlay*, and it must live **around** the code (border/margin),
+  never on the modules. A persistent brand region can stay constant while the data region cycles.
+- **Shape before full decode:** yes — every brick carries the set's grouping key and the layout tile carries
+  the member set, so the *first* decode bootstraps "you're receiving N tiles from signer X" for immediate
+  judgment. (Built into `carrierSession`.)
+
 ## Built vs. ahead
 
-- **Built:** `packTransfer`/`verifyTransfer` (envelope), `chunk`/`reassemble` (bricks), `packLayout`/
-  `verifyLayout` (constellation), `transferId`. 18 tests; carrier-agnostic.
-- **Ahead:** the **carriers** (QR/Aztec encode+decode of blocks and the layout tile; file pick; Web Share),
-  the **accept flow** (friend-add + gesture + journal on the receiving side), and the **friend list** itself
-  (how fingerprints are added out of band). None of that changes the innards above.
+- **Built:** the innards (`transfer.mjs`, 18 tests) and the camera-fluent brain (`carrier.mjs`, 16 tests) —
+  all carrier-agnostic, no pixels.
+- **Ahead — the pixel/device layer (needs a real device + a vendored codec):** a **QR encoder** (render tiles
+  / the video) and a **decoder** — the fork: **(1) zxing-wasm** (robust to skew/low-light; a hash-pinnable
+  WASM blob) vs **(2) pure-JS** (smaller, weaker on skew); on Android Chrome `BarcodeDetector` can also feed
+  the brain directly. Then the **camera loop** (getUserMedia → rVFC → decode → `carrierSession.feed`) and the
+  **torch/zoom/focus** drive levers. Then the **accept flow** (friend-add + gesture + journal → **commit**,
+  per the hardline) and **friend-list bootstrap**. None of this changes the innards or the brain above.
 
 ## Open questions
 
