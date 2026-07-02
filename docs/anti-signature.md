@@ -79,6 +79,33 @@ A ladder, from the vivid picture (intermediate names still open):
 The through-line: **what we make is clear to us; what we're handed is legible by how it arrived** — signature
 for the authored, anti-signature (the dent) for the relayed.
 
+## Ending a pile: dent the key, don't throw it away
+
+The anti-signature's clearest home so far: **how a data pile's collection physically ends.** The naive
+ending — throw away the key — is a mere *absence*, and absence proves nothing: the key sat in a Git repo,
+history can resurrect it, and "I deleted it" is only a claim. The dent ending is an *artifact*:
+
+> Rather than just throwing away the key, you **do something to it** — so that even if you could technically
+> revert it from history, **any copy of it you give away is pre-dented by you.**
+
+From the moment of ending, your hand only distributes dented copies. Someone can revert the pristine bytes
+out of Git, but they cannot produce a copy *from you* that lacks the dent — the pristine version stops having
+a living distribution path. The revocation isn't that the key is gone (it provably isn't); it's that **the
+key as-given-by-you now permanently says "this was let go."**
+
+And the crucial sharpening: **it doesn't matter that all the dents are the same.** The dent is not an
+identity mark — the signature already does identity. The dent is a *state* mark: uniqueness is the
+signature's job; **givenness is the dent's.** A thousand identical dents on a thousand handed-out copies all
+say the same true thing, which is exactly what a state mark should do.
+
+This also settles the "minimal provably-intentional dent" question *for this case*: at end-of-collection,
+intent is proven by **provenance, not dent shape**. Every copy you emit carries it, so no accident story
+survives — transmission loss doesn't strike every copy identically at the source.
+
+(Mechanically, the carrier is already shaped for this: droplet frames carry a dent-detector checksum, so
+deliberate damage is a counted, survivable, *visible* event — composer/carrier.mjs — never a silent
+poisoning. The pile-ending dent would ride the same machinery.)
+
 ## Acquire-by-doing (and the bigger lens)
 
 Every step should make a person **acquire something by doing something in the real world**. Special
@@ -99,7 +126,8 @@ you to do*. Part of the anecdote tone: **been seen by at least one agent.**
 
 - **Mechanics of the dent.** For fountain data: is the anti-signature literally *N punched-out frames*, and is
   it itself *signed* (sign-your-damage) so the dent is attributable, not just present? What's the minimal
-  dent that's provably intentional (not mere transmission loss)?
+  dent that's provably intentional (not mere transmission loss)? *(Partly answered above for the pile-ending
+  case: there, provenance proves intent, and shape doesn't matter.)*
 - **Fragile handling.** How a "fragile" (un-dentable) blob is labeled, and the anti-smuggling story for opaque
   archives.
 - **Presence proof, concretely.** What artifact a real-space scan produces that stands as "I was there,"
