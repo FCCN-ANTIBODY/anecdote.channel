@@ -31,6 +31,8 @@ const FALLBACK_SHELL = [
   "/composer/qr-decode.mjs",                                    // the bigger lens — the catch reads by it
   "/composer/module-share.mjs",                                 // the system can export itself from a dead room
   "/composer/firmware-offer.mjs",                               // …and caught firmware knocks on the pin gate
+  "/composer/bisect.mjs", "/composer/presence.mjs", "/composer/constituency.mjs",
+  "/composer/constituency-demo.html",                           // find your constituencies in a dead room, no watchers
   "/composer/carrier-loop-demo.html", "/composer/carrier-catch-demo.html",   // both ends of the room, offline
   "/composer/firmware.mjs", "/viewer/poll.mjs", "/git-enough/read.mjs",
 ];
