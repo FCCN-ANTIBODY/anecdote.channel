@@ -1,8 +1,9 @@
 // composer/qr-encode.mjs — "qr-enough": a vendorless byte-mode QR encoder (docs/offline-transfer.md). Just
-// enough of the QR spec to render a poll's minted URL as a scannable static code — versions 1–40, ECC levels
-// L and M, byte mode only (a signed poll URL runs ~800 B → a mid-teens version). The first hands-on carrier:
-// a poll QR is a PLAIN URL QR any phone decodes → opens
-// the answer runtime. No decoder needed on our side (the phone scans); we only need to draw the code.
+// enough of the QR spec to render a payload as a scannable code — versions 1–40, all four ECC levels
+// L/M/Q/H, byte mode (a signed poll URL runs ~800 B → a mid-teens version). The first hands-on carrier:
+// a poll QR is a PLAIN URL QR any phone decodes → opens the answer runtime. The spec tables and the
+// function-module map are exported — composer/qr-decode.mjs (the bigger lens) reads with the same charts
+// this file draws by.
 //
 // Correctness without a scanner in this env is guarded three ways: (1) a codeword-count INVARIANT on the
 // block tables (the typo-prone part) — asserted in the test; (2) format/version info via computed BCH and
@@ -29,8 +30,8 @@ export function rsEncode(data, ec) {
 // Total codewords per version, and the block layout [ecPerBlock, [[blockCount, dataPerBlock], …]] and
 // alignment-pattern centre coordinates. Generated from the ISO 18004 tables (cross-checked against segno);
 // the codeword-count invariant in qr-encode.test.mjs guards against transcription errors.
-const TOTAL_CW = [0, 26, 44, 70, 100, 134, 172, 196, 242, 292, 346, 404, 466, 532, 581, 655, 733, 815, 901, 991, 1085, 1156, 1258, 1364, 1474, 1588, 1706, 1828, 1921, 2051, 2185, 2323, 2465, 2611, 2761, 2876, 3034, 3196, 3362, 3532, 3706];
-const BLOCKS = {
+export const TOTAL_CW = [0, 26, 44, 70, 100, 134, 172, 196, 242, 292, 346, 404, 466, 532, 581, 655, 733, 815, 901, 991, 1085, 1156, 1258, 1364, 1474, 1588, 1706, 1828, 1921, 2051, 2185, 2323, 2465, 2611, 2761, 2876, 3034, 3196, 3362, 3532, 3706];
+export const BLOCKS = {
   L: {
     1: [7, [[1, 19]]], 2: [10, [[1, 34]]], 3: [15, [[1, 55]]], 4: [20, [[1, 80]]],
     5: [26, [[1, 108]]], 6: [18, [[2, 68]]], 7: [20, [[2, 78]]], 8: [24, [[2, 97]]],
@@ -55,8 +56,32 @@ const BLOCKS = {
     33: [28, [[14, 46], [21, 47]]], 34: [28, [[14, 46], [23, 47]]], 35: [28, [[12, 47], [26, 48]]], 36: [28, [[6, 47], [34, 48]]],
     37: [28, [[29, 46], [14, 47]]], 38: [28, [[13, 46], [32, 47]]], 39: [28, [[40, 47], [7, 48]]], 40: [28, [[18, 47], [31, 48]]],
   },
+  Q: {
+    1: [13, [[1, 13]]], 2: [22, [[1, 22]]], 3: [18, [[2, 17]]], 4: [26, [[2, 24]]],
+    5: [18, [[2, 15], [2, 16]]], 6: [24, [[4, 19]]], 7: [18, [[2, 14], [4, 15]]], 8: [22, [[4, 18], [2, 19]]],
+    9: [20, [[4, 16], [4, 17]]], 10: [24, [[6, 19], [2, 20]]], 11: [28, [[4, 22], [4, 23]]], 12: [26, [[4, 20], [6, 21]]],
+    13: [24, [[8, 20], [4, 21]]], 14: [20, [[11, 16], [5, 17]]], 15: [30, [[5, 24], [7, 25]]], 16: [24, [[15, 19], [2, 20]]],
+    17: [28, [[1, 22], [15, 23]]], 18: [28, [[17, 22], [1, 23]]], 19: [26, [[17, 21], [4, 22]]], 20: [30, [[15, 24], [5, 25]]],
+    21: [28, [[17, 22], [6, 23]]], 22: [30, [[7, 24], [16, 25]]], 23: [30, [[11, 24], [14, 25]]], 24: [30, [[11, 24], [16, 25]]],
+    25: [30, [[7, 24], [22, 25]]], 26: [28, [[28, 22], [6, 23]]], 27: [30, [[8, 23], [26, 24]]], 28: [30, [[4, 24], [31, 25]]],
+    29: [30, [[1, 23], [37, 24]]], 30: [30, [[15, 24], [25, 25]]], 31: [30, [[42, 24], [1, 25]]], 32: [30, [[10, 24], [35, 25]]],
+    33: [30, [[29, 24], [19, 25]]], 34: [30, [[44, 24], [7, 25]]], 35: [30, [[39, 24], [14, 25]]], 36: [30, [[46, 24], [10, 25]]],
+    37: [30, [[49, 24], [10, 25]]], 38: [30, [[48, 24], [14, 25]]], 39: [30, [[43, 24], [22, 25]]], 40: [30, [[34, 24], [34, 25]]],
+  },
+  H: {
+    1: [17, [[1, 9]]], 2: [28, [[1, 16]]], 3: [22, [[2, 13]]], 4: [16, [[4, 9]]],
+    5: [22, [[2, 11], [2, 12]]], 6: [28, [[4, 15]]], 7: [26, [[4, 13], [1, 14]]], 8: [26, [[4, 14], [2, 15]]],
+    9: [24, [[4, 12], [4, 13]]], 10: [28, [[6, 15], [2, 16]]], 11: [24, [[3, 12], [8, 13]]], 12: [28, [[7, 14], [4, 15]]],
+    13: [22, [[12, 11], [4, 12]]], 14: [24, [[11, 12], [5, 13]]], 15: [24, [[11, 12], [7, 13]]], 16: [30, [[3, 15], [13, 16]]],
+    17: [28, [[2, 14], [17, 15]]], 18: [28, [[2, 14], [19, 15]]], 19: [26, [[9, 13], [16, 14]]], 20: [28, [[15, 15], [10, 16]]],
+    21: [30, [[19, 16], [6, 17]]], 22: [24, [[34, 13]]], 23: [30, [[16, 15], [14, 16]]], 24: [30, [[30, 16], [2, 17]]],
+    25: [30, [[22, 15], [13, 16]]], 26: [30, [[33, 16], [4, 17]]], 27: [30, [[12, 15], [28, 16]]], 28: [30, [[11, 15], [31, 16]]],
+    29: [30, [[19, 15], [26, 16]]], 30: [30, [[23, 15], [25, 16]]], 31: [30, [[23, 15], [28, 16]]], 32: [30, [[19, 15], [35, 16]]],
+    33: [30, [[11, 15], [46, 16]]], 34: [30, [[59, 16], [1, 17]]], 35: [30, [[22, 15], [41, 16]]], 36: [30, [[2, 15], [64, 16]]],
+    37: [30, [[24, 15], [46, 16]]], 38: [30, [[42, 15], [32, 16]]], 39: [30, [[10, 15], [67, 16]]], 40: [30, [[20, 15], [61, 16]]],
+  },
 };
-const ALIGN = {
+export const ALIGN = {
   1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26],
   5: [6, 30], 6: [6, 34], 7: [6, 22, 38], 8: [6, 24, 42],
   9: [6, 26, 46], 10: [6, 28, 50], 11: [6, 30, 54], 12: [6, 32, 58],
@@ -68,7 +93,7 @@ const ALIGN = {
   33: [6, 30, 58, 86, 114, 142], 34: [6, 34, 62, 90, 118, 146], 35: [6, 30, 54, 78, 102, 126, 150], 36: [6, 24, 50, 76, 102, 128, 154],
   37: [6, 28, 54, 80, 106, 132, 158], 38: [6, 32, 58, 84, 110, 136, 162], 39: [6, 26, 54, 82, 110, 138, 166], 40: [6, 30, 58, 86, 114, 142, 170],
 };
-const EC_BITS = { L: 0b01, M: 0b00 };
+export const EC_BITS = { L: 0b01, M: 0b00, Q: 0b11, H: 0b10 };
 
 export function dataCodewords(version, level) { const [ec, groups] = BLOCKS[level][version]; let d = 0, n = 0; for (const [c, dpb] of groups) { d += c * dpb; n += c; } return { data: d, ec, blocks: n }; }
 
@@ -140,7 +165,7 @@ function placeData(x, cw) {
   }
 }
 
-const MASKS = [(r, c) => (r + c) % 2 === 0, (r, c) => r % 2 === 0, (r, c) => c % 3 === 0, (r, c) => (r + c) % 3 === 0, (r, c) => (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0, (r, c) => ((r * c) % 2) + ((r * c) % 3) === 0, (r, c) => (((r * c) % 2) + ((r * c) % 3)) % 2 === 0, (r, c) => (((r + c) % 2) + ((r * c) % 3)) % 2 === 0];
+export const MASKS = [(r, c) => (r + c) % 2 === 0, (r, c) => r % 2 === 0, (r, c) => c % 3 === 0, (r, c) => (r + c) % 3 === 0, (r, c) => (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0, (r, c) => ((r * c) % 2) + ((r * c) % 3) === 0, (r, c) => (((r * c) % 2) + ((r * c) % 3)) % 2 === 0, (r, c) => (((r + c) % 2) + ((r * c) % 3)) % 2 === 0];
 function applyMask(x, maskFn) { const o = x.m.map((row) => row.slice()); for (let r = 0; r < x.size; r++) for (let c = 0; c < x.size; c++) if (!x.fn[r][c] && maskFn(r, c)) o[r][c] ^= 1; return o; }
 
 function penalty(m) {
@@ -172,6 +197,10 @@ function writeFormat(m, x, level, mask) {
   for (let i = 7; i <= 14; i++) m[8][s - 15 + i] = B(i);  // cols s-8..s-1
 }
 function writeVersion(m, x, version) { if (version < 7) return; const bits = bchVersion(version), s = x.size; for (let i = 0; i < 18; i++) { const b = (bits >> i) & 1; const r = Math.floor(i / 3), c = i % 3; m[s - 11 + c][r] = b; m[r][s - 11 + c] = b; } }
+
+// The function-module map for a version — shared with the decoder (composer/qr-decode.mjs), which must
+// skip exactly the same cells when it reads the zigzag back.
+export function functionModules(version) { const x = newMatrix(17 + 4 * version); functionPatterns(x, version); return x; }
 
 // ---- public API -------------------------------------------------------------------------------------
 
