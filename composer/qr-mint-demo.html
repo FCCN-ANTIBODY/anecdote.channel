@@ -32,6 +32,10 @@ is not a powerless chamber). It mints a QR whose <em>token</em> authorizes repli
 
 <div class="card">
   <div class="k">Minted signed QR</div>
+  <p class="note">A poll QR is just a <strong>plain URL QR</strong>: any phone camera decodes it and opens the
+  answer runtime (cached offline by the service worker). Point a phone at this to scan-test it.</p>
+  <canvas id="qr" style="image-rendering: pixelated; width: min(320px, 100%); height: auto; display: block; margin: .4rem 0;"></canvas>
+  <div class="note" id="qrmeta">…</div>
   <pre id="url">…</pre>
 </div>
 
@@ -39,7 +43,18 @@ is not a powerless chamber). It mints a QR whose <em>token</em> authorizes repli
 import { generateIdentity } from "./sign.mjs";
 import { mintQR } from "./qr-mint.mjs";
 import { signCanon, allowedSignersLine } from "./qr-sign.mjs";
+import { encodeQR } from "./qr-encode.mjs";
 import { buildPoll } from "../viewer/poll.mjs";
+
+// Draw a QR matrix onto a canvas: one module → `scale` px, with a 4-module quiet zone (required for scanners).
+function drawQR(canvas, q, scale = 6) {
+  const quiet = 4, n = q.size, W = (n + 2 * quiet) * scale;
+  canvas.width = W; canvas.height = W;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, W);
+  ctx.fillStyle = "#000";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.modules[r][c]) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+}
 
 // In production the device key is a non-extractable CryptoKey in domain-scoped IndexedDB; here we generate
 // a fresh one for the demo. The pile QR secret would come from your Tell bootstrap.
@@ -56,9 +71,17 @@ document.getElementById("enroll").textContent = enrollLine;
 document.getElementById("kid").textContent = minted.kid;
 document.getElementById("url").textContent = minted.url;
 
+// Render the minted URL as an actual scannable QR (error-correction level M leaves headroom for a phone
+// camera + eventual crimping; see docs/anti-signature.md).
+const qr = encodeQR(minted.url, { ecLevel: "M" });
+drawQR(document.getElementById("qr"), qr);
+document.getElementById("qrmeta").textContent =
+  `version ${qr.version} · ${qr.size}×${qr.size} modules · ECC ${qr.ecLevel} · mask ${qr.mask} · ${minted.url.length} B`;
+
 // Expose what a verifier needs so the headless check can confirm ssh-keygen -Y verify accepts this
 // browser-produced signature (canon + newline is the signed message; armored is the SSHSIG PEM).
 const armored = (await signCanon(minted.canon, identity)).armored;
 window.__mint = { url: minted.url, kid: minted.kid, canon: minted.canon, enrollLine, armored,
+                  qr: { version: qr.version, size: qr.size, ecLevel: qr.ecLevel, mask: qr.mask, modules: qr.modules },
                   env: { subtle: typeof (self.crypto && self.crypto.subtle), secure: isSecureContext } };
 </script>
