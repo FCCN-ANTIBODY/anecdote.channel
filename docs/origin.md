@@ -76,6 +76,10 @@ verifies with real `ssh-keygen`) with the origin dead. The residual, by design: 
 fetched from the origin on update, so pinning the SW code from a possessed origin is the **optical/QR
 firmware**'s job (the recursive-favicon fingerprint / code-QRs), anchored on this same trust root — which is
 also the on-ramp to **offline data transfer** (verify a signed payload from any carrier, decide trust locally).
+The full analysis of this residual — why the browser makes it unpreventable, the defense-in-depth
+(gesture-gated keys so a swapped worker can't act as you; loud out-of-band notification; the optical
+origin-bypass) — plus the consent-as-platform-gesture model, the "cracked judge," and the tamper-evident
+authority journal (where even a deletion leaves a scar), is in [consent-surface.md](consent-surface.md).
 
 ## Home base: the trove is Origin
 
