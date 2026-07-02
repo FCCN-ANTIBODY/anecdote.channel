@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<!-- composer/carrier-catch-demo.html — THE CATCH: the receiver end of the video loop
+     (docs/offline-transfer.md). Point this device's camera at another device running
+     composer/carrier-loop-demo.html (the billboard). Every camera frame goes through OUR OWN lens
+     (composer/qr-decode.mjs — BarcodeDetector is absent on iOS Safari, so we bring our own), droplet
+     frames feed a real carrierSession, and the fountain heals through whatever the room does to the
+     light: misses, blur, dents.
+
+     THE TUNING LINE: the phones may not be face-to-face, so the operators are the negotiation channel.
+     Both pages show one BRIEF, READABLE line in a shared vocabulary — the sender says "POUR 4/s · v12 ·
+     128B", this page says "CATCH 2.1/s · hit 52% · 9/12" — so "drop to three" can cross the room by
+     voice. (Mutual-camera auto-negotiation is the banked future; the spoken channel ships today.)
+
+     THE GAP, MEASURED: attempts, hits, hit-rate, unique frames vs duplicates, dents, time-to-complete —
+     the numbers the real-world tests are for. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — the catch</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<!-- Hold the shell so catching works in a room with no connection (sw.js). -->
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{type:"module"}).then(function(){return navigator.serviceWorker.ready;}).then(function(){if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:"firmware-check"});}).catch(function(){});});</script>
+<style>
+  :root { --bg:#293033; --panel:#1f2528; --fg:#dfdfdf; --muted:#9aa4a6; --accent:#990049; --line:#3a4145; --ok:#7bc98a; --warn:#ffb02e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+  header a { color: var(--fg); text-decoration: none; font-weight: 700; }
+  header .tag { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-left: .6rem; }
+  main { max-width: 40rem; margin: 1.25rem auto; padding: 0 1.25rem; }
+  .lede { color: var(--muted); font-size: .92rem; }
+  .card { border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); padding: .8rem 1rem; margin-top: 1rem; }
+  .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  video { width: 100%; border-radius: .4rem; background: #000; }
+  .tune { font: 700 1.35rem/1.4 ui-monospace, Menlo, monospace; letter-spacing: .02em; margin: .3rem 0; }
+  .tune .hot { color: var(--warn); }
+  .done .tune { color: var(--ok); }
+  .stat { font: .78rem/1.7 ui-monospace, Menlo, monospace; color: var(--muted); word-break: break-all; }
+  .stat b { color: var(--fg); }
+  .bar { height: .55rem; background: #171b1d; border-radius: .3rem; overflow: hidden; margin: .4rem 0; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  .done .bar i { background: var(--ok); }
+  button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--fg); border-radius: .5rem; padding: .5rem 1rem; cursor: pointer; margin-top: .5rem; }
+  button.primary { background: var(--accent); font-weight: 700; }
+  .verified { color: var(--ok); font-weight: 700; }
+  .note { color: var(--muted); font-size: .85rem; }
+</style>
+<body>
+<header><a href="/">anecdote.channel</a><span class="tag">the catch</span></header>
+<main>
+  <p class="lede">Point this camera at a device running <strong>the video loop</strong>. Every frame goes
+  through our own lens; droplets feed a real carrier session; the fountain heals around whatever the room
+  does to the light. Read the big line to the other operator — that's the tuning channel.</p>
+
+  <div class="card">
+    <div class="k">The tuning line — read this aloud to the sender</div>
+    <div class="tune" id="tune">CATCH —</div>
+    <video id="cam" playsinline muted></video>
+    <button class="primary" id="start">Start Catching</button>
+    <div class="note" id="camNote"></div>
+  </div>
+
+  <div class="card" id="rx">
+    <div class="k">The catch — a real carrierSession, drinking</div>
+    <div class="bar"><i id="prog"></i></div>
+    <div class="stat" id="rxStat">waiting for the camera…</div>
+    <div class="stat" id="rxDone"></div>
+  </div>
+
+  <div class="card">
+    <div class="k">The gap, measured — numbers for the field notes</div>
+    <div class="stat" id="gap">—</div>
+  </div>
+</main>
+
+<script type="module">
+import { decodeImage } from "./qr-decode.mjs";
+import { parseFrame, carrierSession } from "./carrier.mjs";
+
+const $ = (id) => document.getElementById(id);
+const td = new TextDecoder();
+
+// friends: the loop demo mints a fresh identity per run, so a cross-device catch verifies as SOMEONE's
+// (untrusted) — the trust-locally friend-list handshake is its own edge. Verification still runs fully.
+const session = carrierSession({ friends: [] });
+
+const stats = {
+  t0: null, attempts: 0, hits: 0, uniques: 0, dupes: 0, lastText: null,
+  window: [],                                         // [t, hit] pairs for the rolling catch-rate
+  firstCatch: null, completedAt: null,
+};
+function rate() {                                     // unique catches per second over the last 5s
+  const now = performance.now(), cut = now - 5000;
+  stats.window = stats.window.filter(([t]) => t > cut);
+  return stats.window.length / 5;
+}
+
+let verified = null;
+async function onDecode(text) {
+  const snap = await session.feed(text);
+  const m = snap.present[0];
+  const have = m ? m.have : 0, total = m && m.total ? m.total : "?";
+  $("prog").style.width = total !== "?" ? Math.round((100 * have) / total) + "%" : "0";
+  $("rxStat").innerHTML = `caught: <b>${have}/${total}</b> blocks · dents seen &amp; healed: <b>${snap.damaged}</b> · foreign: ${snap.foreign.length}`;
+  if (snap.complete && !verified) {
+    stats.completedAt = performance.now();
+    const r = await session.result();
+    const v = r.ok && r.transfers[0].verify;
+    verified = { ok: !!(v && v.ok), trusted: !!(v && v.trusted) };
+    const text2 = v && v.ok ? td.decode(Uint8Array.from(atob(r.transfers[0].signed.bytes), (ch) => ch.charCodeAt(0))) : "";
+    $("rx").classList.add("done");
+    $("rxDone").innerHTML = verified.ok
+      ? `<span class="verified">✓ reassembled &amp; signature verified${verified.trusted ? " · trusted signer" : " · a stranger's (verifies, not trusted — enroll them to trust)"}</span><br>` +
+        `payload: “${text2.slice(0, 90)}${text2.length > 90 ? "…" : ""}”<br>` +
+        `time to heal: ${((stats.completedAt - stats.firstCatch) / 1000).toFixed(1)}s from first catch`
+      : "reassembled but signature verification FAILED";
+  }
+}
+
+function tick(video, canvas, ctx) {
+  if (video.readyState >= 2) {
+    const W = 640, H = Math.round((video.videoHeight / video.videoWidth) * 640) || 480;
+    canvas.width = W; canvas.height = H;
+    ctx.drawImage(video, 0, 0, W, H);
+    const img = ctx.getImageData(0, 0, W, H);
+    stats.attempts++;
+    const read = decodeImage(img);
+    if (read) {
+      stats.hits++;
+      if (read.text !== stats.lastText) {             // the same tile sits on screen across frames
+        stats.lastText = read.text;
+        stats.uniques++;
+        stats.window.push([performance.now(), 1]);
+        if (!stats.firstCatch) stats.firstCatch = performance.now();
+        const f = parseFrame(read.text);
+        if (f) onDecode(read.text);
+      } else stats.dupes++;
+    }
+    // the tuning line + the gap
+    const hitPct = stats.attempts ? Math.round((100 * stats.hits) / stats.attempts) : 0;
+    const m = session.snapshot().present[0];
+    const blocks = m ? `${m.have}/${m.total ?? "?"}` : "0/?";
+    $("tune").innerHTML = `CATCH <span class="${rate() < 1 ? "hot" : ""}">${rate().toFixed(1)}/s</span> · hit ${hitPct}% · ${blocks}`;
+    const secs = stats.t0 ? ((performance.now() - stats.t0) / 1000).toFixed(0) : 0;
+    $("gap").innerHTML =
+      `lens attempts: <b>${stats.attempts}</b> (${(stats.attempts / Math.max(1, secs)).toFixed(1)}/s) · hits: <b>${stats.hits}</b> (${hitPct}%)<br>` +
+      `unique frames: <b>${stats.uniques}</b> · duplicates: ${stats.dupes} · elapsed: ${secs}s` +
+      (stats.completedAt ? ` · <b>healed in ${((stats.completedAt - stats.firstCatch) / 1000).toFixed(1)}s</b>` : "");
+  }
+  schedule(video, canvas, ctx);
+}
+function schedule(video, canvas, ctx) {
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => tick(video, canvas, ctx));
+  else requestAnimationFrame(() => tick(video, canvas, ctx));
+}
+
+$("start").addEventListener("click", async () => {
+  const video = $("cam");
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 } }, audio: false });
+    video.srcObject = stream;
+    await video.play();
+    $("start").disabled = true; $("start").textContent = "Catching…";
+    $("camNote").textContent = "";
+    stats.t0 = performance.now();
+    const canvas = document.createElement("canvas");
+    schedule(video, canvas, canvas.getContext("2d", { willReadFrequently: true }));
+  } catch (e) {
+    $("camNote").textContent = "camera unavailable: " + e.message + " (a camera needs HTTPS or localhost — the deployed page has it)";
+  }
+});
+
+// expose for the headless fake-camera check
+window.__catch = { session, stats, get verified() { return verified; } };
+</script>
+</body>
+</html>
