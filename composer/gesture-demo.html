@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the gesture gate</title>
+<body>
+<p>Gesture gate demo — enroll a passkey, then sign only behind a verified user-verification gesture.</p>
+<script type="module">
+import { generateIdentity } from "./sign.mjs";
+import { enrollGesture, gatedAttest, verifyGated } from "./gesture.mjs";
+
+// The device identity whose USE we gate (kept for Tell interop; the passkey gates it, doesn't replace it).
+const identity = await generateIdentity();
+
+window.G = {
+  enroll: () => enrollGesture({ rpId: location.hostname }),
+  // Attempt a gated signing. Returns the outcome; on a failed gesture it reports the refusal (no signature).
+  trySign: async (cred, obj) => {
+    try {
+      const r = await gatedAttest(obj, identity, cred);
+      const v = await verifyGated(r.signed, { spki: cred.spki, alg: cred.alg, rpId: cred.rpId, origin: cred.origin });
+      return { ok: true, gated: !!r.signed.gesture, verified: v.ok };
+    } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+  },
+};
+window.__ready = true;
+</script>

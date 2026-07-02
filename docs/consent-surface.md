@@ -4,7 +4,8 @@
 > one place the system touches a person: how consent is asked, why the keys are gesture-gated, what we can
 > and cannot do about a possessed origin re-serving the service worker, and the forensic journal that keeps
 > all of it legible to an imperfect judge. Companion to the three-rung ladder in
-> [probe-line-consent.md](probe-line-consent.md); this is the *surface* the ladder is asked through.
+> [probe-line-consent.md](probe-line-consent.md); this is the *surface* the ladder is asked through. See also
+> [single-attention.md](single-attention.md) — the *attention* half (the stick, the data-pile halt).
 
 ## The cracked judge
 
@@ -62,12 +63,25 @@ push downstream as you without a live OS prompt you did not start — which the 
 turns "the origin can run a different agent" from **catastrophe** (it acts as you) into **nuisance +
 detectable** (it can show you a screen; the moment it tries to *act* as you, the platform asks).
 
-> **Open fork (to decide, not decided here): the key style.** Either (a) the **passkey is the signing
-> identity** — cleanest human-gating, but its assertion is not the `ssh-ed25519`/SSHSIG the Tell verifies
-> ([qr-provenance.md](qr-provenance.md)), so it breaks Tell interop; or (b) the **device Ed25519 key stays**
-> (for interop) and the **passkey gates/unlocks its use** (e.g. a PRF-derived wrap, or a required
-> user-verification step before each signing). Both are offline-viable. (b) preserves interop; (a) is
-> simpler but siloed. This note only fixes that *some* unforgeable gesture gates signing.
+**Decided (b), and built.** The **device Ed25519 key stays** (for Tell interop —
+[qr-provenance.md](qr-provenance.md)) and the **passkey gates its use.** [`composer/gesture.mjs`](../composer/gesture.mjs)
+is the gate: `enrollGesture` creates a platform passkey and stores its pubkey with us (we're our own relying
+party — offline-viable); `gatedAttest` requires a **user-verified** WebAuthn assertion whose **challenge is
+the hash of the exact object being signed**, verifies it locally, then folds the assertion *into* the signed
+bytes — so a valid Ed25519 signature **contains proof-of-presence for that act**. An old assertion can't be
+replayed (different challenge), a forged one is impossible (no passkey), and skipping the gesture yields an
+**ungated artifact `verifyGated` rejects** (the intruder's smudge). **Chromium-verified** with a virtual
+authenticator: user-verified → signs; **no user-verification → refused; no authenticator → refused** (no
+signature at all — "make them do something they don't want to do to proceed").
+
+> **Stronger follow-on (noted, not built): the PRF unlock.** Today the gate is *procedural* — code must call
+> `gatedAttest`, and a gesture-less artifact is *detectable* but the Ed25519 key is still technically usable
+> by same-origin code. The cryptographic version derives an at-rest wrap key from the passkey (WebAuthn PRF
+> extension) so the Ed25519 key is **unusable without the gesture**, not merely gated. That closes the gap
+> between "a swapped queen leaves a smudge" and "a swapped queen physically cannot sign."
+>
+> Option (a) — **passkey *is* the identity** — was rejected: its assertion isn't the `ssh-ed25519`/SSHSIG the
+> Tell verifies, so it would silo us from the constellation.
 
 ## The possessed origin re-serving the service worker — honest analysis
 
