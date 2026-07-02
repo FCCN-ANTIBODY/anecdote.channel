@@ -29,6 +29,7 @@ const FALLBACK_SHELL = [
   "/composer/qr-encode.mjs",                                    // the mint demo imports it — must ride along
   "/composer/transfer.mjs", "/composer/fountain.mjs", "/composer/carrier.mjs",
   "/composer/qr-decode.mjs",                                    // the bigger lens — the catch reads by it
+  "/composer/module-share.mjs",                                 // the system can export itself from a dead room
   "/composer/carrier-loop-demo.html", "/composer/carrier-catch-demo.html",   // both ends of the room, offline
   "/composer/firmware.mjs", "/viewer/poll.mjs", "/git-enough/read.mjs",
 ];

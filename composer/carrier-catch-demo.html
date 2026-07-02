@@ -78,6 +78,7 @@
 <script type="module">
 import { decodeImage } from "./qr-decode.mjs";
 import { parseFrame, carrierSession } from "./carrier.mjs";
+import { verifyModule, isModuleTransfer } from "./module-share.mjs";
 
 const $ = (id) => document.getElementById(id);
 const td = new TextDecoder();
@@ -107,15 +108,37 @@ async function onDecode(text) {
   if (snap.complete && !verified) {
     stats.completedAt = performance.now();
     const r = await session.result();
+    const caught = r.ok && r.transfers[0].signed;
     const v = r.ok && r.transfers[0].verify;
     verified = { ok: !!(v && v.ok), trusted: !!(v && v.trusted) };
-    const text2 = v && v.ok ? td.decode(Uint8Array.from(atob(r.transfers[0].signed.bytes), (ch) => ch.charCodeAt(0))) : "";
     $("rx").classList.add("done");
-    $("rxDone").innerHTML = verified.ok
-      ? `<span class="verified">✓ reassembled &amp; signature verified${verified.trusted ? " · trusted signer" : " · a stranger's (verifies, not trusted — enroll them to trust)"}</span><br>` +
-        `payload: “${text2.slice(0, 90)}${text2.length > 90 ? "…" : ""}”<br>` +
-        `time to heal: ${((stats.completedAt - stats.firstCatch) / 1000).toFixed(1)}s from first catch`
-      : "reassembled but signature verification FAILED";
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const trustLine = verified.trusted ? " · trusted signer" : " · a stranger's (verifies, not trusted — enroll them to trust)";
+    const healLine = `time to heal: ${((stats.completedAt - stats.firstCatch) / 1000).toFixed(1)}s from first catch`;
+    if (verified.ok && isModuleTransfer(caught)) {
+      // THE GRAVEL COMES HOME: a piece of the system itself, caught off a screen, verified. Seeable, not
+      // privileged — nothing executes; save it, read it, verify it. Adoption is a separate, gated edge.
+      const mv = await verifyModule(caught, { friends: [] });
+      verified.module = mv.ok ? mv.path : "(module payload refused: " + mv.errors.join("; ") + ")";
+      if (mv.ok) {
+        const blob = URL.createObjectURL(new Blob([mv.source], { type: "text/javascript" }));
+        const name = mv.path.split("/").pop();
+        $("rxDone").innerHTML =
+          `<span class="verified">✓ A MODULE OF THE SYSTEM, caught off a screen &amp; verified${trustLine}</span><br>` +
+          `<b>${esc(mv.path)}</b> · ${mv.source.length} B · ${esc(mv.sourceHash.slice(0, 23))}…<br>` +
+          `signed by ${esc((mv.by || "").slice(0, 24))}…<br>` +
+          `<a class="reply" href="${blob}" download="${esc(name)}" style="color:var(--ok)">Save ${esc(name)} →</a>` +
+          ` <span class="note">(seeable, not privileged — nothing installs or runs)</span><br>${healLine}`;
+      } else {
+        $("rxDone").innerHTML = `<span class="verified">✓ envelope verified</span> but the module payload was refused: ${esc(mv.errors.join("; "))}`;
+      }
+    } else {
+      const text2 = v && v.ok ? td.decode(Uint8Array.from(atob(caught.bytes), (ch) => ch.charCodeAt(0))) : "";
+      $("rxDone").innerHTML = verified.ok
+        ? `<span class="verified">✓ reassembled &amp; signature verified${trustLine}</span><br>` +
+          `payload: “${esc(text2.slice(0, 90))}${text2.length > 90 ? "…" : ""}”<br>${healLine}`
+        : "reassembled but signature verification FAILED";
+    }
   }
 }
 
