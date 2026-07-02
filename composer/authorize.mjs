@@ -38,6 +38,9 @@ export const OP_CATALOG = {
   "poll.mint":               { rung: 1, persists: false },  // mint a poll's QR — a shareable authorization (secret stays Elevated)
   "poll.remember":           { rung: 1, persists: true  },  // remember a poll you answered (Elevated persistence)
   "poll.answered":           { rung: 0, persists: false },  // list the polls you've answered
+  "friends.add":             { rung: 1, persists: true  },  // enroll a trusted signer — one friend, one confirm
+  "friends.list":            { rung: 0, persists: false },
+  "carrier.accept":          { rung: 1, persists: true  },  // keep a caught transfer, with a signed encounter record
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.
