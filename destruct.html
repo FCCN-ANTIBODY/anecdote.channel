@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<!-- anecdote.channel/destruct.html — SELF DESTRUCT: the dev-flow escape hatch. The shell is deliberately
+     hard to dislodge (sw.js is cache-first and pin-enforcing — that's the possession guarantee), which is
+     exactly wrong when you're iterating or when a first load wedges on half-installed state. This page
+     shows the machine state (what controls this page, what's held, what's pinned) and, on a DELIBERATE
+     two-step click, destroys the SHELL machinery: unregister every service worker, delete every Cache-API
+     cache, forget the firmware pin. YOUR DATA IS UNTOUCHED (the trove IndexedDB is spared). The next load
+     comes entirely from the network and re-pins at first contact.
+
+     Two deliberate choices:
+     - NEVER auto-destruct (no ?nuke= param): forgetting the pin re-opens trust-on-first-contact, so a
+       drive-by link must not be able to trigger it. Destructing is a knowing, willing act — two clicks.
+     - NOT in sw.js's FALLBACK_SHELL, on purpose: the hatch always comes from the network, so you cannot
+       reach it while the origin is dead — a failsafe against destructing the only copy you still hold.
+       (The runtime cache may hold a copy after a visit; destructing clears that too, so the hatch never
+       goes stale twice.) -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — self destruct</title>
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<style>
+  :root { --bg:#293033; --panel:#1f2528; --fg:#dfdfdf; --muted:#9aa4a6; --accent:#990049; --line:#3a4145; --warn:#ffb02e; --ok:#7bc98a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+  header a { color: var(--fg); text-decoration: none; font-weight: 700; }
+  header .tag { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-left: .6rem; }
+  main { max-width: 40rem; margin: 1.5rem auto; padding: 0 1.25rem; }
+  .lede { color: var(--muted); font-size: .95rem; }
+  .card { border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); padding: .8rem 1rem; margin-top: 1rem; }
+  .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  pre { font: .78rem/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; color: var(--fg); margin: .5rem 0 0; }
+  button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--fg); border-radius: .5rem; padding: .6rem 1rem; cursor: pointer; margin-top: .6rem; }
+  button.armed { background: var(--accent); font-weight: 700; }
+  button[disabled] { opacity: .5; cursor: default; }
+  .note { color: var(--muted); font-size: .85rem; }
+  .warn { color: var(--warn); } .ok { color: var(--ok); }
+  a.home { color: var(--fg); }
+</style>
+<body>
+<header><a href="/">anecdote.channel</a><span class="tag">self destruct</span></header>
+<main>
+  <p class="lede">The shell is built to be hard to dislodge — cache-first, pin-enforcing — which is the
+  possession guarantee working. This hatch is for when that works <em>against</em> you: dev iteration, or a
+  first load wedged on half-installed state. It destroys the <strong>shell machinery only</strong> — service
+  workers, held caches, the firmware pin. <strong>Your data (the trove) is untouched.</strong></p>
+
+  <div class="card">
+    <div class="k">Machine state — what holds this page right now</div>
+    <pre id="state">reading…</pre>
+  </div>
+
+  <div class="card">
+    <div class="k">The hatch</div>
+    <p class="note">Two clicks, on purpose: forgetting the pin re-opens trust-on-first-contact, so this must
+    never be reachable by a link alone. After destructing, the running copy stays in control until you
+    navigate — reload to come back entirely from the network and re-pin.</p>
+    <button id="go">Self Destruct</button>
+    <pre id="report"></pre>
+  </div>
+</main>
+
+<script>
+// Zero imports on purpose: the escape hatch must not depend on the very modules a poisoned or
+// half-installed cache would serve.
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var PIN_DB = "anecdote-firmware";     // the shell's pin (sw.js) — destroyed
+  var DATA_DBS = ["anecdote"];          // the trove (reducer/store.mjs) — SPARED, listed so the report can say so
+
+  // ---- status: make the held state legible (this is the canary surface — read it when a load misbehaves)
+  async function readState() {
+    var lines = [];
+    try {
+      var c = navigator.serviceWorker && navigator.serviceWorker.controller;
+      lines.push("controller : " + (c ? c.scriptURL + " [" + c.state + "]" : "none (this load came from the network)"));
+      var regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+      lines.push("registered : " + (regs.length ? regs.map(function (r) {
+        var w = r.active || r.waiting || r.installing;
+        return r.scope + (w ? " [" + w.state + "]" : " [empty]");
+      }).join("  ") : "none"));
+    } catch (e) { lines.push("service worker probe failed: " + e); }
+    try {
+      var names = await caches.keys();
+      if (!names.length) lines.push("caches     : none");
+      for (var i = 0; i < names.length; i++) {
+        var keys = await (await caches.open(names[i])).keys();
+        lines.push("cache      : " + names[i] + " — " + keys.length + " entries");
+      }
+    } catch (e) { lines.push("cache probe failed: " + e); }
+    try {
+      if (indexedDB.databases) {
+        var dbs = (await indexedDB.databases()).map(function (d) { return d.name; });
+        lines.push("pin        : " + (dbs.indexOf(PIN_DB) >= 0 ? "held (" + PIN_DB + ")" : "none"));
+        var data = DATA_DBS.filter(function (n) { return dbs.indexOf(n) >= 0; });
+        lines.push("your data  : " + (data.length ? data.join(", ") + " — spared by this page" : "none found"));
+      } else {
+        lines.push("pin        : unknown (this browser can't list databases without creating them)");
+      }
+    } catch (e) { lines.push("pin probe failed: " + e); }
+    return lines.join("\n");
+  }
+
+  // ---- the destruct: report each step truthfully; a blocked step is said, not hidden
+  async function destruct(report) {
+    var out = [];
+    var say = function (s) { out.push(s); report.textContent = out.join("\n"); };
+    try {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      for (var i = 0; i < regs.length; i++) await regs[i].unregister();
+      say("service workers unregistered: " + regs.length + (regs.length ? " (release control on next navigation)" : ""));
+    } catch (e) { say("sw unregister FAILED: " + e); }
+    try {
+      var names = await caches.keys();
+      for (var j = 0; j < names.length; j++) await caches.delete(names[j]);
+      say("caches deleted: " + (names.length ? names.join(", ") : "none held"));
+    } catch (e) { say("cache delete FAILED: " + e); }
+    await new Promise(function (res) {
+      var rq = indexedDB.deleteDatabase(PIN_DB);
+      rq.onsuccess = function () { say("firmware pin forgotten (" + PIN_DB + ") — next visit re-pins at first contact"); res(); };
+      rq.onerror = function () { say("pin delete FAILED: " + rq.error); res(); };
+      rq.onblocked = function () { say("pin delete BLOCKED — another tab or the worker holds it; it clears when they let go"); res(); };
+    });
+    say("your data: untouched (" + DATA_DBS.join(", ") + ")");
+    say("\nDone. Reload to come back from the network.");
+  }
+
+  // ---- two-step arm: click once to arm (disarms itself in 5s), click again to fire
+  var go = $("go"), armed = false, disarm = null;
+  go.addEventListener("click", function () {
+    if (!armed) {
+      armed = true; go.classList.add("armed"); go.textContent = "Armed — Click Again To Destruct";
+      disarm = setTimeout(function () { armed = false; go.classList.remove("armed"); go.textContent = "Self Destruct"; }, 5000);
+      return;
+    }
+    clearTimeout(disarm); go.disabled = true; go.textContent = "Destructing…";
+    destruct($("report")).then(function () {
+      go.textContent = "Destructed";
+      readState().then(function (s) { $("state").textContent = s; });
+    });
+  });
+
+  readState().then(function (s) { $("state").textContent = s; });
+})();
+</script>
+</body>
+</html>
