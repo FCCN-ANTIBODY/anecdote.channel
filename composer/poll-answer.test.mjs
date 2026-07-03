@@ -165,5 +165,33 @@ const TS = "2026-07-01T00:00:00.000Z";
   ok(failed && /403/.test(failed.error) && failed.issueUrl, "a failed submit is surfaced (error + fallback link), never silent");
 }
 
+// 8. the QR-carried post credential — parsed, but NEVER in the provenance field or the submission body, and
+// used as the fallback credential for the anonymous-public submit. (bin/qr appends post= after the signed
+// canon; the client mirrors the tell's exclusion.)
+{
+  const CRED = "ghs_public_qr_token";
+  // a signed QR that also carries the post credential (post rides last, after sig)
+  const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&sig=SIGBYTES&kid=SHA256%3Akkk&post=${CRED}`;
+  const cfg = parseQR(QR);
+  ok(cfg.cred === CRED, "the QR's post= credential is parsed (decoded) into cfg.cred");
+  ok(!/post=/.test(cfg.rawQuery), "post= is STRIPPED from rawQuery — the provenance field never carries the credential");
+  ok(/tok=abc123/.test(cfg.rawQuery) && /sig=SIGBYTES/.test(cfg.rawQuery), "the rest of the signed query survives byte-for-byte (only post is excised)");
+
+  // the submission block's provenance field (qr) must not contain the credential
+  const block = submissionBlock(cfg, "Keep", { ts: TS });
+  ok(block.qr && !block.qr.includes(CRED), "block.qr carries the signed QR for provenance but NOT the credential");
+  ok(!JSON.stringify(block).includes(CRED), "the credential appears nowhere in the submission block");
+
+  // the anonymous-public path: poll.submit uses the QR-carried credential when none is host-injected
+  let seen = null;
+  const api = async (call) => { seen = call; return { status: 201, json: { number: 5, html_url: "https://github.com/o/r/issues/5" } }; };
+  const ops = pollAnswerOps({ qr: QR, ts: TS, egressApi: api });
+  const run = async (input) => { const frames = []; const s = elevatedSession({ ops, emit: (f) => frames.push(f), context: () => ({ recordingOn: true, grants: [] }) });
+    await s.handle(request({ id: "q", op: "poll.submit", input, confirmed: true })); return frames; };
+  const sent = (await run({ answer: "Keep" })).find((f) => f.type === FRAME && "submitted" in f);   // NO input.credential
+  ok(seen && seen.token === CRED, "poll.submit falls back to the QR-carried credential for anonymous public");
+  ok(sent && sent.submitted === true && !JSON.stringify(sent).includes(CRED), "it sends, and the credential never enters the emitted frame");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall poll-answer tests passed");

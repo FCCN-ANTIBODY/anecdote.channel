@@ -41,6 +41,13 @@ export function parseQR(input, { canonicalRepo = CANONICAL_REPO } = {}) {
   return normalize(out, { canonicalRepo, rawQuery });
 }
 
+// Remove the `post=` credential pair from a raw query, preserving the rest byte-for-byte. bin/qr appends it
+// AFTER the signature preimage and tl_qr_canon drops `post`, so the Tell never signs it; the client must
+// likewise keep it OUT of the provenance field it carries forward (block.qr), and out of the submission body.
+function stripCred(q) {
+  return String(q || "").replace(/(?:^|&)post=[^&]*/g, "").replace(/^&/, "");
+}
+
 function normalize(cfg, { canonicalRepo, rawQuery }) {
   const loaded = !!(cfg.pile && cfg.poll && cfg.round && cfg.tok);
   const options = (cfg.opts ? String(cfg.opts).split(",") : []).map((s) => s.trim()).filter(Boolean);
@@ -51,7 +58,9 @@ function normalize(cfg, { canonicalRepo, rawQuery }) {
     type: cfg.type || "open", asker: cfg.asker || "", guidance: cfg.guidance || "",
     question: cfg.q || (cfg.pile && cfg.poll ? `Reply to ${cfg.pile} / ${cfg.poll}` : ""),
     options,                       // SUGGESTED answers (may be empty)
-    repo, sig: cfg.sig || null, rawQuery,
+    repo, sig: cfg.sig || null,
+    cred: cfg.post || null,        // the semi-public post credential the QR carried (decoded), if any
+    rawQuery: stripCred(rawQuery), // the credential NEVER rides in the provenance field or the submission body
   };
 }
 
@@ -165,7 +174,8 @@ export function pollAnswerOps({ qr, canonicalRepo, ts, egressApi } = {}) {
     // one it emits the issueUrl so the caller falls back to the link. The credential never enters a frame.
     "poll.submit": async (input, api) => {
       const answer = ((input && input.answer) || "").trim();
-      const credential = input && input.credential;
+      // host-injected credential wins (operator chamber); else the QR-carried post token (anonymous public)
+      const credential = (input && input.credential) || cfg.cred;
       if (!answer) { api.emit({ submitted: null, issueUrl: null }); return; }
       if (!credential) { api.emit({ submitted: null, issueUrl: issueUrl(cfg, answer, { ts }) }); return; }
       try {
