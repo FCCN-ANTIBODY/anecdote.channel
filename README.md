@@ -42,6 +42,10 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
 
 ## Design notes
 
+- [`docs/dark-mode.md`](docs/dark-mode.md) — **Milestone: Dark Mode** (vision, shaping): the offline
+  origin fleshed out as its own category — QR exchange proven in place of PR mechanics, delivery
+  carried from Atlases and friend Atlases, the Atlas offline frontend, the mere-anecdotes public
+  layer, the label reducer reading whole documents, and why it all still works when DNS doesn't.
 - [`docs/origin.md`](docs/origin.md) — **Milestone: Origin** (vision + broad-strokes contract): the
   offline-first **shipyard of data:chambers**. The held copy eclipses the served origin (first-contact
   signer-pinning); the trove is home base; a powerless `data:` chamber is handed powers — including
