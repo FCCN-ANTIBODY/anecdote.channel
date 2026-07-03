@@ -27,7 +27,7 @@ const td = new TextDecoder();
 // The §B family: each registry's entry shape, as its `_data/*.yml` expects it. Strict on purpose —
 // an unknown key is a typo'd consent, refused before anyone signs anything.
 export const REGISTRIES = {
-  piles:   { path: "_data/piles.yml",   required: ["id", "scope", "feed", "age_recipient"], optional: ["repo_url"] },
+  piles:   { path: "_data/piles.yml",   required: ["id", "scope", "feed", "age_recipient"], optional: ["repo_url", "provisioner", "provisioner_spec"] },
   tells:   { path: "_data/tells.yml",   required: ["id", "name", "url", "scope", "signer"], optional: ["reports"] },
   atlases: { path: "_data/atlases.yml", required: ["id", "url", "scope", "signer"],         optional: ["name", "reports", "repo"] },
   needs:   { path: "_data/needs.yml",   required: ["id", "asker_repo", "scope", "topic"],   optional: ["terms", "need_url", "constitution"] },
@@ -140,7 +140,9 @@ export async function verifyConsent(envelope, receipt, { friends = [] } = {}) {
 // PR openers emit, on the family's branch convention. The exchange changes where consent happens, not
 // what the registries hold.
 const FIELD_ORDER = {
-  piles: ["id", "scope", "feed", "age_recipient", "repo_url"],
+  // piles may carry the provisioner attestation (data-pile CONTRACT.md → spec-or-attested):
+  // a managed pile says so wherever its entry travels, the offline exchange included.
+  piles: ["id", "scope", "feed", "age_recipient", "repo_url", "provisioner", "provisioner_spec"],
   tells: ["id", "name", "url", "scope", "signer", "reports"],
   atlases: ["id", "name", "url", "scope", "signer", "reports", "repo"],
   needs: ["id", "asker_repo", "scope", "topic", "terms", "need_url", "constitution"],
