@@ -103,7 +103,7 @@ export function request(deliver, opts = {}) {
 // The credential is passed to the api ONLY; it never enters the returned placement.
 export async function post(deliver, opts = {}) {
   const req = request(deliver, opts);
-  const api = opts.api || defaultApi;
+  const api = opts.api || githubApi;
   const res = await api({ method: req.method, path: req.path, body: req.payload, token: opts.credential });
   if (!res || res.status >= 300) {
     throw new Error(`egress: github responded ${res ? res.status : "?"}${res && res.json && res.json.message ? " — " + res.json.message : ""}`);
@@ -139,7 +139,9 @@ export function interpretStatus(obj, opts = {}) {
   return { state: obj.state === "closed" ? "closed" : "pending" };
 }
 
-async function defaultApi({ method, path, body, token }) {
+// The default GitHub HTTP transport: token in the Authorization header ONLY, never in the body. Exported so
+// the poll-answer face (poll-answer.mjs) submits over the SAME client instead of minting a second one.
+export async function githubApi({ method, path, body, token }) {
   if (typeof fetch !== "function") throw new Error("egress: no fetch; inject opts.api");
   const res = await fetch("https://api.github.com" + path, {
     method,

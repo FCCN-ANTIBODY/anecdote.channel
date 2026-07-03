@@ -2,8 +2,8 @@
 // format tell.anecdote.channel/index.md emits. The oracle below is index.md's own issueUrl construction
 // (lines 67-83) frozen as the migration contract: when index.md is retired, this test still guards the
 // shape anecdote must keep emitting. Run: node composer/poll-answer.test.mjs
-import { elevatedSession, request, FRAME } from "./probe-line.mjs";
-import { parseQR, submissionBlock, issueUrl, answerView, pollAnswerOps, SUBMISSION_SCHEMA, CANONICAL_REPO } from "./poll-answer.mjs";
+import { elevatedSession, request, FRAME, ERROR } from "./probe-line.mjs";
+import { parseQR, submissionBlock, issueUrl, issueRequest, submitAnswer, answerView, pollAnswerOps, SUBMISSION_SCHEMA, CANONICAL_REPO } from "./poll-answer.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -116,6 +116,53 @@ const TS = "2026-07-01T00:00:00.000Z";
 
   const empty = (await run("poll.compose", { answer: "  " })).find((f) => f.type === FRAME && "issueUrl" in f);
   ok(empty && empty.issueUrl === null, "poll.compose with a blank answer yields no link (nothing to submit yet)");
+}
+
+// 7. the HTTP submit — the tap that SENDS. Same block as the URL (equivalence), credential header-only,
+// failure surfaced not swallowed, and no-credential falls back to the issueUrl (phones-home-nothing).
+{
+  const QR = "pile=cd04-q1&poll=budget&round=1&tok=abc123&type=multichoice&opts=Cut,Keep&guidance=Pick+one.";
+  const cfg = parseQR(QR);
+  const CRED = "ghs_semi_public_post_token";
+
+  // equivalence: the POST request carries byte-identical content to the issues/new URL's body/title/labels.
+  const req = issueRequest(cfg, "Keep", { ts: TS });
+  const urlBody = new URL(issueUrl(cfg, "Keep", { ts: TS })).searchParams.get("body");
+  ok(req.method === "POST" && req.path === "/repos/FCCN-ANTIBODY/tell.anecdote.channel/issues", "issueRequest posts a fresh issue to the Tell repo");
+  ok(req.payload.body === urlBody && req.payload.title === "tell submission cd04-q1 / budget" && req.payload.labels[0] === "tell-submission",
+     "the POST submits the SAME block/title/labels as the URL — URL and direct submit are equivalent");
+
+  // submitAnswer: the credential rides only in the transport token, never in the body; returns the placement.
+  let seen = null;
+  const api = async (call) => { seen = call; return { status: 201, json: { id: 7, number: 9, html_url: "https://github.com/o/r/issues/9" } }; };
+  const out = await submitAnswer(cfg, "Keep", { api, credential: CRED, ts: TS });
+  ok(seen.token === CRED, "the post credential is used as the transport token");
+  ok(!JSON.stringify(seen.body).includes(CRED), "the credential is NEVER in the posted body");
+  ok(out.placement.url === "https://github.com/o/r/issues/9" && out.placement.issue === 9, "the placement carries where the answer landed");
+
+  // the op: with a credential it submits; the emitted frame carries the placement and NOT the credential.
+  const ops = pollAnswerOps({ qr: QR, ts: TS, egressApi: api });
+  const run = async (op, input, confirmed = true) => { const frames = []; const s = elevatedSession({ ops, emit: (f) => frames.push(f), context: () => ({ recordingOn: true, grants: [] }) });
+    await s.handle(request({ id: "s", op, input, confirmed })); return frames; };
+
+  // CONFIRM POSTURE: poll.submit is Rung 1 — without a fresh confirmation the gate asks first, never sends.
+  const gated = (await run("poll.submit", { answer: "Keep", credential: CRED }, false)).find((f) => f.type === ERROR);
+  ok(gated && gated.needsConfirm, "poll.submit is confirm-gated — an unconfirmed tap asks first, it does not fire");
+
+  const sent = (await run("poll.submit", { answer: "Keep", credential: CRED })).find((f) => f.type === FRAME && "submitted" in f);
+  ok(sent && sent.submitted === true && sent.placement && !JSON.stringify(sent).includes(CRED), "a confirmed poll.submit sends and emits the placement — the credential never enters a frame");
+
+  // no credential → falls back to the issueUrl (the no-cred, phones-home-nothing path is preserved).
+  const fell = (await run("poll.submit", { answer: "Keep" })).find((f) => f.type === FRAME && "issueUrl" in f);
+  ok(fell && fell.submitted === null && fell.issueUrl === issueUrl(cfg, "Keep", { ts: TS }), "no credential → poll.submit falls back to the issueUrl link");
+
+  // failure is surfaced, not swallowed (the promise: you will know if it wasn't accepted).
+  const boom = async () => ({ status: 403, json: { message: "no" } });
+  const opsF = pollAnswerOps({ qr: QR, ts: TS, egressApi: boom });
+  const runF = async (input) => { const frames = []; const s = elevatedSession({ ops: opsF, emit: (f) => frames.push(f), context: () => ({ recordingOn: true, grants: [] }) });
+    await s.handle(request({ id: "f", op: "poll.submit", input, confirmed: true })); return frames; };
+  const failed = (await runF({ answer: "Keep", credential: CRED })).find((f) => f.type === FRAME && f.submitted === false);
+  ok(failed && /403/.test(failed.error) && failed.issueUrl, "a failed submit is surfaced (error + fallback link), never silent");
 }
 
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
