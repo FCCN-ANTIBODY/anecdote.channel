@@ -91,6 +91,47 @@ ecosphere — anything: the current Atlas's adopted state-border shape, someone 
   link is the phase that's **allowed to have metadata**. (Named item: **commit size limits where
   they impact a hub piece.**)
 
+## The sneakernet: from polling pull to cascading push
+
+The friend-Atlas delivery glossed above, un-glossed: it is a **sneakernet of manually delivered
+data updates**. Everyone is carrying the last snapshot they saw. **They're not even in
+agreement — but they're all signed, and they all have timestamps.** Slow, asynchronous
+information in a chaotic slow simulation, and yet everyone's shit is signed.
+
+- **Drop-off semantics.** You can hand someone the latest update that's newer than theirs — and
+  do it **in stacks**: all the Atlases you're a part of, all the Tell servers on Atlases you
+  interact with. You're carrying that offline data around and you can give it to goddamn
+  anybody. More than memes and offline HTML games: **we can deliver those city documents to each
+  other** — stacks of the town-hall bills you've seen, handed to someone who needed at least a
+  little bit of an update on them.
+- **Constituency masking.** Delivering your whole snapshot set works like the constituency
+  bisect: the ones you're *both* in are all you really care about, so you mask to the overlap.
+  They can separately offer you membership in something — Atlases are always public, just not
+  all connected to all things.
+- **The offline matcher.** Atlas-the-offline-app runs a needs-matching layer over **your
+  device's slice of what you've got**, so when new snapshots come in — instead of you going to
+  fetch them — **the exact same workflows are working for you offline**, and you get all the
+  local benefits the entire time. As long as new snapshots keep arriving, that's cool.
+- **The chaos doesn't touch the heartbeat.** Everyone's hierarchy snapshots are a soup of
+  shifting dates — irregular deliveries, all stale, all *right at one point in time*, all signed
+  underneath. None of the frequency/heartbeat structure is affected: as long as the Atlases keep
+  talking to each other for structure, keep their records consistent, and **keep broadcasting a
+  truthful one when they aren't being fetched for their truthful one** (connectivity problems),
+  the whole record stays intact — as long as everyone keeps behaving well.
+- **The signed snapshot export.** Ingesting stops meaning `git pull`: a communication arrives
+  representing itself as *the data snapshot for something canonical you know about* — so an
+  Atlas must be able to **export a snapshot of itself, signed a certain way**, and the local
+  checkout must **verify that signature on ingest**. Probably not code-bound — it is signing the
+  **content of the checkout**, so you can know it was real at one time. (The layout/envelope
+  grammar and the git-enough tree are the obvious primitives; which signs what is this
+  milestone's design work.)
+- **Transport-promiscuous by design.** Whatever transport the next milestone springs, **QR and
+  QR-video are the proof of basic concept** — a piece of data transfer no one can stop you from
+  as long as you're together and you have cameras (the carrier's fountain frames already speak
+  it). Sound, or something funnier, can follow: one working example, add anything else, all dark
+  mode. There will be a **promiscuous sharing of these items so that they proliferate** — the
+  move is from a **polling pull model to a cascading push model.**
+
 ## The label reducer grows up
 
 The reducer must learn to **read entire documents and strategically summarize them** — locating
@@ -142,4 +183,9 @@ round.
 7. **Label reducer: documents** — progressive hierarchical summarization, reverse-digital-form
    extraction, TTL'd recurring documents, cumulative catalogue effort, and query-miss
    categorization (couples §O's supply/verification story).
-8. **Friend-Atlas delivery** — carrying delivery one hop through the neighbor model, offline.
+8. **The sneakernet** — stacked snapshot drop-off (newer-than-yours semantics), constituency
+   masking to the overlap, the offline matcher over your device's slice, and the pull→push
+   inversion; heartbeat/structure invariants stated (truthful broadcast when unfetchable).
+9. **Signed snapshot export + verify-on-ingest** — an Atlas exports a signed snapshot of its
+   checkout's content; the local copy verifies it before ingest ("real at one time"); which
+   primitive signs what (layout envelope vs git-enough tree) is the design work.
