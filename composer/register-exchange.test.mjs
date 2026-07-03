@@ -98,6 +98,12 @@ const PILE = { id: "cd04-q1", scope: "colorado", feed: "feed/colorado/cd04-q1",
   ok(y.startsWith("- id: cd04-q1\n") && y.includes('  age_recipient: "age1586') && y.includes('  repo_url: "https://github.com/acme/cd04-q1"'),
      "piles entry replays as the handshake YAML shape");
   ok(branchFor("piles", PILE) === "handshake/cd04-q1", "piles branch follows handshake/<repo>");
+  // the provisioner attestation rides the offline exchange too (spec-or-attested)
+  const MANAGED = { ...PILE, provisioner: "acme/host", provisioner_spec: "data-pile/pile-new/v1" };
+  ok(validateEntry("piles", MANAGED).ok, "a managed pile's attestation fields validate");
+  const my = registryYaml("piles", MANAGED);
+  ok(my.includes('  provisioner: "acme/host"') && my.includes('  provisioner_spec: "data-pile/pile-new/v1"'),
+     "the attestation travels in the replayed entry");
   const TELL = { id: "my-tell", name: "N", url: "https://t", scope: "district", signer: "SHA256:x", reports: "reports/govern-*" };
   ok(branchFor("tells", TELL) === "tell/district/my-tell", "tells branch carries the ownership claim (tell/<scope>/<id>)");
   ok(registryYaml("tells", TELL).includes('  signer: "SHA256:x"'), "tells entry carries the signer anchor");
