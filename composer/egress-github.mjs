@@ -139,6 +139,27 @@ export function interpretStatus(obj, opts = {}) {
   return { state: obj.state === "closed" ? "closed" : "pending" };
 }
 
+// The Tell's submit-gateway transport: same {status, json} contract as githubApi, but the request goes to
+// the Tell's OWN relay worker (tell …/workers/submit-gateway) which injects the credential SERVER-SIDE.
+// The client holds no token at all — the QR carried only the worker's non-secret address (`su=`). The relay
+// accepts exactly the GitHub-API shape ({path, body}) so the fenced block arrives byte-identical and the
+// three-token discipline gains nothing to confuse: there is no credential on this side to leak.
+export function relayApi(submitUrl) {
+  const u = String(submitUrl || "");
+  if (!/^https:\/\//.test(u)) throw new Error("egress: submit relay must be https");
+  return async ({ method, path, body }) => {
+    if (typeof fetch !== "function") throw new Error("egress: no fetch; inject opts.api");
+    const res = await fetch(u, {
+      method: method || "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, body }),
+    });
+    let json = null;
+    try { json = await res.json(); } catch { /* empty/non-json */ }
+    return { status: res.status, json };
+  };
+}
+
 // The default GitHub HTTP transport: token in the Authorization header ONLY, never in the body. Exported so
 // the poll-answer face (poll-answer.mjs) submits over the SAME client instead of minting a second one.
 export async function githubApi({ method, path, body, token }) {
