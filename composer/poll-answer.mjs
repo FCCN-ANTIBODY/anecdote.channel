@@ -13,6 +13,8 @@
 // index.md emits (schema/field order/URL shape) is the migration contract — see poll-answer.test.mjs, whose
 // oracle is index.md's own construction frozen as the contract.
 
+import { githubApi } from "./egress-github.mjs";
+
 export const SUBMISSION_SCHEMA = "tell.submission/v1";
 export const CANONICAL_REPO = "FCCN-ANTIBODY/tell.anecdote.channel";
 const REPO_RE = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
@@ -74,15 +76,48 @@ export function submissionBlock(cfg, answer, { ts } = {}) {
   return block;
 }
 
-// The pre-filled GitHub issues/new URL for a chosen answer (byte-identical to index.md's issueUrl).
-export function issueUrl(cfg, answer, { ts } = {}) {
+// The issue content for a chosen answer — title, labels, body — in ONE place, so the pre-filled URL and the
+// direct POST submit byte-identical content (the migration equivalence; both carry the same signed block).
+export function issueParts(cfg, answer, { ts } = {}) {
   const block = submissionBlock(cfg, answer, { ts });
   const body = `Reply to **${cfg.pile}** / poll **${cfg.poll}** — option: **${answer}**\n\n` +
                "```tell\n" + JSON.stringify(block) + "\n```\n";
-  const qs = "title=" + encodeURIComponent(`tell submission ${cfg.pile} / ${cfg.poll}`) +
-             "&labels=" + encodeURIComponent("tell-submission") +
+  return { title: `tell submission ${cfg.pile} / ${cfg.poll}`, labels: ["tell-submission"], body, block };
+}
+
+// The pre-filled GitHub issues/new URL for a chosen answer (byte-identical to index.md's issueUrl). This is
+// the NO-CREDENTIAL, phones-home-nothing fallback: it only builds a link; the click is the user's. Kept as
+// the escape hatch even once the direct POST lands (works over long-press/new-tab, needs no post token).
+export function issueUrl(cfg, answer, { ts } = {}) {
+  const { title, labels, body } = issueParts(cfg, answer, { ts });
+  const qs = "title=" + encodeURIComponent(title) +
+             "&labels=" + encodeURIComponent(labels.join(",")) +
              "&body=" + encodeURIComponent(body);
   return `https://github.com/${cfg.repo}/issues/new?` + qs;
+}
+
+// The same submission as a GitHub API request — POST a fresh issue instead of navigating to issues/new. No
+// network, no credential here (pure): the credential is passed to the transport at call time, header-only.
+export function issueRequest(cfg, answer, { ts } = {}) {
+  const [owner, name] = String(cfg.repo).split("/");
+  const { title, labels, body } = issueParts(cfg, answer, { ts });
+  return { method: "POST", path: `/repos/${owner}/${name}/issues`, payload: { title, body, labels } };
+}
+
+// Submit a chosen answer directly over HTTP — the tap that SENDS, lifting the seam off the github.com URL
+// that routes badly on mobile. The `credential` is the semi-public post token (host-supplied, transient);
+// it rides ONLY in the transport's Authorization header, NEVER in the request body or the returned
+// placement. Throws on a non-2xx so the caller can surface "not accepted" — the submit is never silent.
+export async function submitAnswer(cfg, answer, { api, credential, ts } = {}) {
+  const a = (answer || "").trim();
+  if (!a) throw new Error("poll-answer: nothing to submit");
+  if (!credential) throw new Error("poll-answer: no post credential — use issueUrl (the no-credential fallback)");
+  const req = issueRequest(cfg, a, { ts });
+  const call = api || githubApi;
+  const res = await call({ method: req.method, path: req.path, body: req.payload, token: credential });
+  if (!res || res.status >= 300) throw new Error(`poll-answer: github responded ${res ? res.status : "?"}${res && res.json && res.json.message ? " — " + res.json.message : ""}`);
+  const j = res.json || {};
+  return { placement: { repo: cfg.repo, url: j.html_url || null, id: j.id != null ? j.id : null, issue: j.number != null ? j.number : null } };
 }
 
 // The view-model a chamber renders: the question + guidance + SUGGESTED options (each with its prebuilt
@@ -111,11 +146,13 @@ export function answerView(cfg, { ts } = {}) {
   };
 }
 
-// The poll-answer view as probe-line capabilities. Both Rung 0: rendering the poll and building the reply
-// link are pure compute — no persistence, no egress (the submit is the user leaving to click the link).
-// `qr` is the scanned QR (Elevated has the real URL; the powerless chamber does not). The later "remember
-// the polls you answered" face adds a Rung-1 `poll.remember` op that persists into a pile.
-export function pollAnswerOps({ qr, canonicalRepo, ts } = {}) {
+// The poll-answer view as probe-line capabilities. `poll.view` and `poll.compose` are Rung 0 — rendering the
+// poll and building the reply link/block are pure compute. `poll.compose` is the PREVIEW the confirm shows
+// (the answer + exactly what will be sent); `poll.submit` is the Rung-1 tap that actually SENDS it — the two
+// split encodes the confirm posture (a tap never fires an irrevocable submit; you confirm what compose drew).
+// `qr` is the scanned QR (Elevated has the real URL; the powerless chamber does not). `egressApi` is the
+// injected GitHub transport; the post credential is host-supplied per submit, transient, never stored.
+export function pollAnswerOps({ qr, canonicalRepo, ts, egressApi } = {}) {
   const cfg = parseQR(qr, { canonicalRepo });
   return {
     "poll.view": async (_input, api) => { api.emit({ view: answerView(cfg, { ts }) }); },
@@ -123,6 +160,20 @@ export function pollAnswerOps({ qr, canonicalRepo, ts } = {}) {
       const answer = ((input && input.answer) || "").trim();
       api.emit({ answer, issueUrl: answer ? issueUrl(cfg, answer, { ts }) : null,
                  block: answer ? submissionBlock(cfg, answer, { ts }) : null });
+    },
+    // The confirm-gated SEND. With a post credential it POSTs directly (no github.com tap-through); without
+    // one it emits the issueUrl so the caller falls back to the link. The credential never enters a frame.
+    "poll.submit": async (input, api) => {
+      const answer = ((input && input.answer) || "").trim();
+      const credential = input && input.credential;
+      if (!answer) { api.emit({ submitted: null, issueUrl: null }); return; }
+      if (!credential) { api.emit({ submitted: null, issueUrl: issueUrl(cfg, answer, { ts }) }); return; }
+      try {
+        const { placement } = await submitAnswer(cfg, answer, { api: egressApi, credential, ts });
+        api.emit({ submitted: true, placement });                 // no credential in the frame
+      } catch (e) {
+        api.emit({ submitted: false, error: e.message, issueUrl: issueUrl(cfg, answer, { ts }) });  // never silent; fallback offered
+      }
     },
   };
 }

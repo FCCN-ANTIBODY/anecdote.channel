@@ -35,6 +35,7 @@ export const OP_CATALOG = {
   "viewer.storage":          { rung: 0, persists: false },  // raw device storage surfaces
   "poll.view":               { rung: 0, persists: false },  // the poll-answer view (anecdote shaped by a QR)
   "poll.compose":            { rung: 0, persists: false },  // build the reply link — the submit is the user's click
+  "poll.submit":             { rung: 1, persists: false },  // confirm-gated HTTP submit — network egress; falls back to the issueUrl link with no credential
   "poll.mint":               { rung: 1, persists: false },  // mint a poll's QR — a shareable authorization (secret stays Elevated)
   "poll.remember":           { rung: 1, persists: true  },  // remember a poll you answered (Elevated persistence)
   "poll.answered":           { rung: 0, persists: false },  // list the polls you've answered
