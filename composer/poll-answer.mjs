@@ -13,7 +13,7 @@
 // index.md emits (schema/field order/URL shape) is the migration contract — see poll-answer.test.mjs, whose
 // oracle is index.md's own construction frozen as the contract.
 
-import { githubApi } from "./egress-github.mjs";
+import { githubApi, relayApi } from "./egress-github.mjs";
 
 export const SUBMISSION_SCHEMA = "tell.submission/v1";
 export const CANONICAL_REPO = "FCCN-ANTIBODY/tell.anecdote.channel";
@@ -59,7 +59,11 @@ function normalize(cfg, { canonicalRepo, rawQuery }) {
     question: cfg.q || (cfg.pile && cfg.poll ? `Reply to ${cfg.pile} / ${cfg.poll}` : ""),
     options,                       // SUGGESTED answers (may be empty)
     repo, sig: cfg.sig || null,
-    cred: cfg.post || null,        // the semi-public post credential the QR carried (decoded), if any
+    cred: cfg.post || null,        // the semi-public post credential the QR carried (decoded), if any (legacy)
+    // the Tell's submit-gateway address (`su=`) — a non-secret relay that holds the credential SERVER-SIDE
+    // (tell …/workers/submit-gateway). https-only, mirroring bin/qr's own validation. Unlike `post` it may
+    // stay in rawQuery: it is an address, not a bearer token, and the Tell's canon drops it (tl_qr_canon).
+    submitUrl: /^https:\/\//.test(cfg.su || "") ? cfg.su : null,
     rawQuery: stripCred(rawQuery), // the credential NEVER rides in the provenance field or the submission body
   };
 }
@@ -114,15 +118,19 @@ export function issueRequest(cfg, answer, { ts } = {}) {
 }
 
 // Submit a chosen answer directly over HTTP — the tap that SENDS, lifting the seam off the github.com URL
-// that routes badly on mobile. The `credential` is the semi-public post token (host-supplied, transient);
-// it rides ONLY in the transport's Authorization header, NEVER in the request body or the returned
-// placement. Throws on a non-2xx so the caller can surface "not accepted" — the submit is never silent.
-export async function submitAnswer(cfg, answer, { api, credential, ts } = {}) {
+// that routes badly on mobile. Two routes, one wire shape:
+//   credential — the semi-public post token (host-supplied, transient); rides ONLY in the transport's
+//                Authorization header, NEVER in the request body or the returned placement.
+//   submitUrl  — the Tell's submit-gateway relay (`su=`): the client holds NO credential at all; the
+//                worker injects it server-side. Preferred over a QR-carried credential.
+// Throws on a non-2xx so the caller can surface "not accepted" — the submit is never silent.
+export async function submitAnswer(cfg, answer, { api, credential, submitUrl, ts } = {}) {
   const a = (answer || "").trim();
   if (!a) throw new Error("poll-answer: nothing to submit");
-  if (!credential) throw new Error("poll-answer: no post credential — use issueUrl (the no-credential fallback)");
+  const relay = submitUrl || cfg.submitUrl;
+  if (!credential && !relay) throw new Error("poll-answer: no submit route — use issueUrl (the no-credential fallback)");
   const req = issueRequest(cfg, a, { ts });
-  const call = api || githubApi;
+  const call = api || (credential ? githubApi : relayApi(relay));
   const res = await call({ method: req.method, path: req.path, body: req.payload, token: credential });
   if (!res || res.status >= 300) throw new Error(`poll-answer: github responded ${res ? res.status : "?"}${res && res.json && res.json.message ? " — " + res.json.message : ""}`);
   const j = res.json || {};
@@ -170,14 +178,15 @@ export function pollAnswerOps({ qr, canonicalRepo, ts, egressApi } = {}) {
       api.emit({ answer, issueUrl: answer ? issueUrl(cfg, answer, { ts }) : null,
                  block: answer ? submissionBlock(cfg, answer, { ts }) : null });
     },
-    // The confirm-gated SEND. With a post credential it POSTs directly (no github.com tap-through); without
-    // one it emits the issueUrl so the caller falls back to the link. The credential never enters a frame.
+    // The confirm-gated SEND. Route order: a host-injected credential wins (operator chamber); else the
+    // Tell's submit-gateway relay (`su=` — no client credential at all); else the QR-carried post token
+    // (legacy anonymous public); else emit the issueUrl so the caller falls back to the link. Neither a
+    // credential nor the relay address ever enters a frame.
     "poll.submit": async (input, api) => {
       const answer = ((input && input.answer) || "").trim();
-      // host-injected credential wins (operator chamber); else the QR-carried post token (anonymous public)
-      const credential = (input && input.credential) || cfg.cred;
+      const credential = (input && input.credential) || (cfg.submitUrl ? null : cfg.cred);
       if (!answer) { api.emit({ submitted: null, issueUrl: null }); return; }
-      if (!credential) { api.emit({ submitted: null, issueUrl: issueUrl(cfg, answer, { ts }) }); return; }
+      if (!credential && !cfg.submitUrl) { api.emit({ submitted: null, issueUrl: issueUrl(cfg, answer, { ts }) }); return; }
       try {
         const { placement } = await submitAnswer(cfg, answer, { api: egressApi, credential, ts });
         api.emit({ submitted: true, placement });                 // no credential in the frame

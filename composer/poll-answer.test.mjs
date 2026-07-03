@@ -193,5 +193,48 @@ const TS = "2026-07-01T00:00:00.000Z";
   ok(sent && sent.submitted === true && !JSON.stringify(sent).includes(CRED), "it sends, and the credential never enters the emitted frame");
 }
 
+// 9. the submit-gateway relay (`su=`) — the graduated route: the QR carries a non-secret worker address
+// instead of a credential (tell …/workers/submit-gateway); the client holds no token at all and POSTs the
+// same GitHub-shaped request to the relay. su may stay in rawQuery (it is an address, not a bearer token;
+// the Tell's canon drops it), and it beats the legacy QR-carried credential when both somehow appear.
+{
+  const SU = "https://tell.anecdote.channel/submit";
+  const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&su=${encodeURIComponent(SU)}`;
+  const cfg = parseQR(QR);
+  ok(cfg.submitUrl === SU, "the QR's su= relay address is parsed (decoded) into cfg.submitUrl");
+  ok(/su=/.test(cfg.rawQuery), "su stays in rawQuery — an address is not a credential, and the Tell's canon drops it");
+  ok(parseQR("pile=p&poll=q&round=1&tok=t&su=http%3A%2F%2Finsecure").submitUrl === null, "a non-https su is refused, not carried");
+
+  // submitAnswer with NO credential routes through the relay transport: the request body is {path, body},
+  // it goes to the su URL, and no Authorization header exists anywhere on this side.
+  const fetches = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { fetches.push({ url, init }); return { status: 201, json: async () => ({ number: 5, html_url: "https://github.com/o/r/issues/5" }) }; };
+  try {
+    const out = await submitAnswer(cfg, "Keep", { ts: TS });                   // no api, no credential
+    ok(fetches.length === 1 && fetches[0].url === SU, "the relay route POSTs to the su address, not api.github.com");
+    const relayed = JSON.parse(fetches[0].init.body);
+    ok(relayed.path === "/repos/FCCN-ANTIBODY/tell.anecdote.channel/issues" && relayed.body && relayed.body.labels[0] === "tell-submission",
+       "the relay carries the same GitHub-shaped {path, body} the direct route would send");
+    ok(!fetches[0].init.headers.Authorization, "no Authorization header — the client holds no credential at all");
+    ok(out.placement.issue === 5, "the relay's projection still resolves to a placement");
+  } finally { globalThis.fetch = realFetch; }
+
+  // poll.submit routes via the relay when no credential is host-injected — even if a stray post= rode along.
+  const QR2 = QR + "&post=ghs_should_lose";
+  let seen = null;
+  const api = async (call) => { seen = call; return { status: 201, json: { number: 6, html_url: "https://github.com/o/r/issues/6" } }; };
+  const ops = pollAnswerOps({ qr: QR2, ts: TS, egressApi: api });
+  const run = async (input) => { const frames = []; const s = elevatedSession({ ops, emit: (f) => frames.push(f), context: () => ({ recordingOn: true, grants: [] }) });
+    await s.handle(request({ id: "r", op: "poll.submit", input, confirmed: true })); return frames; };
+  const sent = (await run({ answer: "Keep" })).find((f) => f.type === FRAME && "submitted" in f);
+  ok(sent && sent.submitted === true, "poll.submit sends through the relay route with no client credential");
+  ok(seen && !seen.token, "the relay route hands the transport NO token — the stray legacy credential lost");
+  // a host-injected credential still wins (the operator's own chamber bypasses the relay)
+  seen = null;
+  await run({ answer: "Keep", credential: "ghs_host" });
+  ok(seen && seen.token === "ghs_host", "an explicitly host-injected credential still wins over the relay");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall poll-answer tests passed");
