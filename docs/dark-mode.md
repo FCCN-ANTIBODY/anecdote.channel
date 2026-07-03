@@ -165,27 +165,28 @@ know what you'll need to prove, so it lets you make the attestations.**
 
 ## The items
 
-Named here so nothing from the founding memo evaporates; slicing into issues is its own planning
-round.
+Named here so nothing from the founding memo evaporates — and now sliced: **one civic-node issue
+each**, written with the constellation's full context so a focused agent inherits the anchors
+instead of inventing answers in isolation.
 
-1. **Atlas offline frontend** — the local copy of an Atlas, probe-methodology, read-everything
+1. [civic-node#73](https://github.com/FCCN-ANTIBODY/civic-node/issues/73) — **Atlas offline frontend** — the local copy of an Atlas, probe-methodology, read-everything
    offline; the metadata crunch for offline public directories.
-2. **QR exchange proven in place** — chamber UI, registry-side replay (couples §B), and
+2. [civic-node#74](https://github.com/FCCN-ANTIBODY/civic-node/issues/74) — **QR exchange proven in place** — chamber UI, registry-side replay (couples §B), and
    **module-install-from-QR as an origin op**.
-3. **Workspace switching + maintenance UX** — the single-focus lock; manual triggers as the
+3. [civic-node#75](https://github.com/FCCN-ANTIBODY/civic-node/issues/75) — **Workspace switching + maintenance UX** — the single-focus lock; manual triggers as the
    general form of workspace maintenance (the workflow mirror, made a UI).
-4. **Tell as re-broadcast splitter** — the RSS-shaped delivery question; constituency document
+4. [civic-node#76](https://github.com/FCCN-ANTIBODY/civic-node/issues/76) — **Tell as re-broadcast splitter** — the RSS-shaped delivery question; constituency document
    feeds (agendas, minutes, streams) riding it.
-5. **Mere anecdotes layer** — uncatalogued public churn; commentary-threshold cataloguing on
+5. [civic-node#77](https://github.com/FCCN-ANTIBODY/civic-node/issues/77) — **Mere anecdotes layer** — uncatalogued public churn; commentary-threshold cataloguing on
    large, many-neighbored Atlas nodes; the photo drop; hearsay listings.
-6. **Embedded vs linked posting + metadata phase** — and commit size limits where they impact a
+6. [civic-node#78](https://github.com/FCCN-ANTIBODY/civic-node/issues/78) — **Embedded vs linked posting + metadata phase** — and commit size limits where they impact a
    hub piece.
-7. **Label reducer: documents** — progressive hierarchical summarization, reverse-digital-form
+7. [civic-node#79](https://github.com/FCCN-ANTIBODY/civic-node/issues/79) — **Label reducer: documents** — progressive hierarchical summarization, reverse-digital-form
    extraction, TTL'd recurring documents, cumulative catalogue effort, and query-miss
    categorization (couples §O's supply/verification story).
-8. **The sneakernet** — stacked snapshot drop-off (newer-than-yours semantics), constituency
+8. [civic-node#72](https://github.com/FCCN-ANTIBODY/civic-node/issues/72) — **The sneakernet** — stacked snapshot drop-off (newer-than-yours semantics), constituency
    masking to the overlap, the offline matcher over your device's slice, and the pull→push
    inversion; heartbeat/structure invariants stated (truthful broadcast when unfetchable).
-9. **Signed snapshot export + verify-on-ingest** — an Atlas exports a signed snapshot of its
+9. [civic-node#71](https://github.com/FCCN-ANTIBODY/civic-node/issues/71) — **Signed snapshot export + verify-on-ingest** — an Atlas exports a signed snapshot of its
    checkout's content; the local copy verifies it before ingest ("real at one time"); which
    primitive signs what (layout envelope vs git-enough tree) is the design work.
