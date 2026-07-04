@@ -21,7 +21,7 @@
 import { pktLine, FLUSH, parseAdvertisement } from "./send-pack.mjs";
 import { readPack } from "./unpack.mjs";
 import { repo as newRepo } from "./repo.mjs";
-import { parseCommit, parseTree } from "./read.mjs";
+import { parseCommit, parseTree, walkTree } from "./read.mjs";
 
 const dec = new TextDecoder();
 function concat(parts) {
@@ -156,4 +156,42 @@ export async function fetchFileAt({ url, credential, commitOid, treeOid, path, i
     return blob ? { path, oid: entry.oid, content: blob.content, size: blob.content.length } : null;
   }
   return null;
+}
+
+// THE LISTING, NO BODIES (docs/atlas-index.md tier 2): recursively fetch just the TREE objects under a
+// root tree — never a blob. One round trip per depth level (every subtree oid at a given level is already
+// known from the level above, so they batch into a single fetchObjects call), not one per node. Returns an
+// objects Map (oid → { type, content }) containing every tree reached; feed it straight to the existing
+// `walkTree`/`filesAt` (git-enough/read.mjs) to enumerate paths — they already tolerate absent blobs
+// (`size: null`), which is exactly this map's shape.
+export async function fetchTree({ url, credential, treeOid, inflate, fetch = globalThis.fetch } = {}) {
+  const objects = new Map();
+  let frontier = [treeOid];
+  while (frontier.length) {
+    const unseen = [...new Set(frontier)].filter((oid) => !objects.has(oid));
+    if (!unseen.length) break;
+    const fetched = await fetchObjects({ url, credential, oids: unseen, inflate, fetch });
+    frontier = [];
+    for (const oid of unseen) {
+      const tree = fetched.get(oid);
+      if (!tree || tree.type !== "tree") throw new Error(`fetch-pack: ${oid} is not a tree`);
+      objects.set(oid, tree);
+      for (const e of parseTree(tree.content)) if (e.mode === "40000") frontier.push(e.oid);
+    }
+  }
+  return objects;
+}
+
+// Pick up an index and pull out every file under a path prefix, many at a time: list the tree (no blobs),
+// keep only entries whose path starts with `prefix` (an empty prefix keeps everything), then batch-fetch
+// exactly those blobs in one request. Returns [{ path, oid, content, size }], newest listing order.
+export async function fetchFilesUnder({ url, credential, treeOid, prefix = "", inflate, fetch = globalThis.fetch } = {}) {
+  const treeObjects = await fetchTree({ url, credential, treeOid, inflate, fetch });
+  const matches = [...walkTree(treeObjects, treeOid)].filter((f) => f.path.startsWith(prefix));
+  if (!matches.length) return [];
+  const blobs = await fetchObjects({ url, credential, oids: matches.map((f) => f.oid), inflate, fetch });
+  return matches.map((f) => {
+    const b = blobs.get(f.oid);
+    return { path: f.path, oid: f.oid, content: b ? b.content : null, size: b ? b.content.length : f.size };
+  });
 }
