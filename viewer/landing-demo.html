@@ -49,18 +49,24 @@ registry.register({ label: "keyring", kind: "keyring", repo: keyring });
 // signed public listing at the time it was fetched (civic-node#71 "signed snapshot export"). Two different
 // Atlases here is the demo of "the list gets more diverse as we keep more copies": add a third snapshot and
 // the index grows by exactly one row, no schema change.
+//
+// Each listed item is its OWN file under listing/<slug>.json — a real git blob, so viewer/atlas-index.mjs's
+// merge can dedup by oid (git's own content addressing) rather than a hand-rolled hash. "park-budget" is
+// deliberately byte-identical in both snapshots below, to demo that dedup: the mixed feed shows it once,
+// with both Atlases listed as sources.
 async function atlasSnapshot(label, source, entries) {
   const a = repo();
-  await a.commitFiles([{ path: "listing.json", content: JSON.stringify(entries, null, 2) + "\n" }],
-    { author, message: `atlas snapshot: ${label}` });
+  const files = entries.map(([slug, item]) => ({ path: `listing/${slug}.json`, content: JSON.stringify(item) + "\n" }));
+  await a.commitFiles(files, { author, message: `atlas snapshot: ${label}` });
   registry.register({ label, kind: "atlas.snapshot", repo: a, source });
 }
 await atlasSnapshot("cd04-atlas", "https://cd04.atlas.example", [
-  { title: "council agenda, March", kind: "document" },
-  { title: "park budget poll", kind: "poll" },
+  ["council-agenda", { title: "council agenda, March", kind: "document" }],
+  ["park-budget", { title: "park budget poll", kind: "poll" }],
 ]);
 await atlasSnapshot("neighbor-atlas", "https://oldtown.atlas.example", [
-  { title: "zoning notice", kind: "document" },
+  ["park-budget", { title: "park budget poll", kind: "poll" }],
+  ["zoning-notice", { title: "zoning notice", kind: "document" }],
 ]);
 
 const CHAMBER = `<!doctype html><meta charset=utf-8><title>landing index</title>
@@ -94,8 +100,19 @@ li:hover{background:#f6f6f6}.kind{font-size:.72rem;color:#666}.id{font-size:.72r
       return "<li data-id='"+r.id+"'><span class='meter "+r.trust.grade+"'>"+r.trust.grade+"</span>"+
         "<b>"+esc(r.label)+"</b> <span class=kind>"+r.kind+"</span><br><span class=id>"+r.id+"</span>"+
         (r.downstreams.length?"<br><span class=down>⇈ "+esc(r.downstreams[0])+"</span>":"")+
-        (r.source?"<br><span class=src>⛁ copy of "+esc(r.source)+"</span>":"")+"</li>";}).join("")+"</ul>"):"<p><i>(nothing kept yet)</i></p>");
+        (r.source?"<br><span class=src>⛁ copy of "+esc(r.source)+"</span>":"")+"</li>";}).join("")+"</ul>"):"<p><i>(nothing kept yet)</i></p>")+
+      "<p class=open-tree id=feed>→ mixed Atlas feed (#90)</p>";
     [].forEach.call(document.querySelectorAll("li[data-id]"),function(li){li.onclick=function(){showRepo(li.getAttribute("data-id"));};});
+    $("feed").onclick=showFeed;
+  }
+  async function showFeed(){
+    var v=(await invoke("viewer.atlasFeed"))[0].view;
+    $("view").innerHTML="<p class=back id=back>← back</p><h3>Mixed Atlas feed ("+v.total+")</h3>"+
+      (v.total?("<ul>"+v.rows.map(function(r){
+        return "<li><span class=kind>"+esc(r.kind)+"</span> <b>"+esc(r.title)+"</b><br>"+
+          "<span class=src>⛁ "+r.sources.map(esc).join(", ")+"</span><br>"+
+          "<span class=id>signed by "+esc(r.signer||"?")+"</span></li>";}).join("")+"</ul>"):"<p><i>(no Atlas snapshots kept yet)</i></p>");
+    $("back").onclick=showList;
   }
   async function showRepo(id){
     curId=id; var f=(await invoke("viewer.repo",{id:id}))[0]||{error:"no frames"};

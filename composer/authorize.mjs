@@ -33,6 +33,7 @@ export const OP_CATALOG = {
   "viewer.poll":             { rung: 0, persists: false },  // a poll pile as its data object + live tally
   "viewer.file":             { rung: 0, persists: false },
   "viewer.storage":          { rung: 0, persists: false },  // raw device storage surfaces
+  "viewer.atlasFeed":        { rung: 0, persists: false },  // the mixed Atlas feed (#90) — a fold, not new storage
   "poll.view":               { rung: 0, persists: false },  // the poll-answer view (anecdote shaped by a QR)
   "poll.compose":            { rung: 0, persists: false },  // build the reply link — the submit is the user's click
   "poll.submit":             { rung: 1, persists: false },  // confirm-gated HTTP submit — network egress; falls back to the issueUrl link with no credential

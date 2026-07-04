@@ -1,9 +1,11 @@
 # The Atlas index — shaping (the thin fetch layer)
 
-> Status: **shaping note**. Not built. Names the missing middle tier between [`git-enough.md`](git-enough.md)'s
-> two built fetch modes — full clone (**the Castle**) and nothing — so a **mixed feed of polls from every
-> Atlas you've attached to (and their friends)** can be shown in the UI without paying full-clone weight per
-> Atlas. Extends the `atlas.snapshot` registry kind added for
+> Status: **shaping note + built** (#90, #91, #94, #95). Named the missing middle tier between
+> [`git-enough.md`](git-enough.md)'s two originally-built fetch modes — full clone (**the Castle**) and
+> nothing — so a **mixed feed of polls from every Atlas you've attached to (and their friends)** can be
+> shown in the UI without paying full-clone weight per Atlas. The fetch/extract/merge machinery below is
+> now real; what's still open is the refresh-policy loop and the per-row foundational/on-demand wiring
+> (see Open questions). Extends the `atlas.snapshot` registry kind added for
 > [issue #87 / PR #88](https://github.com/FCCN-ANTIBODY/anecdote.channel/pull/88) from "one kept snapshot"
 > to "many, merged." Cross-refs [`system-viewer.md`](system-viewer.md) (the registry this feeds) and
 > [`dark-mode.md`](dark-mode.md) ("Atlas, offline" — the friend-Atlas one-hop model).
@@ -20,47 +22,61 @@ when the Atlas is merely seen.
 `git-enough.md` already named this gap and deferred it — its "later degrees" line reads *"incremental fetch
 with `have`s (only what we lack); shallow clone."* This note is that gap, specific to Atlases.
 
-## Three degrees, one already built
+## Four degrees, all now built
 
-Git's own wire protocol has three tiers of "how much do I actually pull." Only the heaviest is implemented
-today.
+Git's own wire protocol has three tiers of "how much do I actually pull," plus a fourth, targeted degree.
+All four exist in `git-enough/fetch-pack.mjs` now (#94, #95) — corrected from this note's original draft,
+which mis-tracked tier 1 as missing and hadn't built tiers 2 or 4 yet.
 
-1. **Ref advertisement — thinnest, not yet built for fetch.** Just `name → oid`. [`git-enough/send-pack.mjs`](../git-enough/send-pack.mjs)'s
-   `discover()` already speaks this for *push* (`GET …/info/refs?service=git-receive-pack`); the *fetch*-side
-   equivalent (`service=git-upload-pack`) doesn't exist yet. Tells you an Atlas's tip **moved** — new content
-   exists — without holding one byte of it. This is the re-poll degree (see Refresh, below).
-2. **Shallow / tip-only fetch — not built.** Pull the tip commit + its tree (the Atlas's *listing*: titles,
-   ids, kinds, signer) but not the blob bodies behind each entry and not ancestor history. This is the
-   **aggregate-index** degree — enough to render a mixed-feed row, too little to be "the data."
-3. **Full clone — built (the Castle).** [`git-enough/read.mjs`](../git-enough/read.mjs) +
-   the Castle's `clone` "kidnap full history" path. Correct for *your own* piles (you want their whole
-   lineage); the wrong tool for a friend-of-a-friend's Atlas you're just indexing.
+1. **Ref advertisement — thinnest.** Just `name → oid`. `discoverFetch()` speaks `service=git-upload-pack`
+   — this predates the whole Atlas-index effort, built as part of the Castle. Tells you an Atlas's tip
+   **moved** — new content exists — without holding one byte of it. This is the re-poll degree (see
+   Refresh, below).
+2. **Shallow / tip-only fetch.** `fetchTree()` recursively lists every tree under a root — no blobs, one
+   round trip per depth level — feeding straight into the existing `walkTree`/`filesAt`
+   (`git-enough/read.mjs`), which already tolerate absent blobs. This is the **aggregate-index** degree —
+   enough to render a mixed-feed row, too little to be "the data."
+3. **Full clone — the Castle.** [`git-enough/read.mjs`](../git-enough/read.mjs) + the Castle's `clone`
+   "kidnap full history" path. Correct for *your own* piles (you want their whole lineage); the wrong tool
+   for a friend-of-a-friend's Atlas you're just indexing.
+4. **Targeted single-object fetch.** `fetchObject`/`fetchObjects` pull already-known oids directly;
+   `fetchFileAt` walks a path down to its blob one tree level at a time; `fetchFilesUnder` batch-fetches
+   everything under a path prefix. Open one item's actual body once a user drills in, by its already-known
+   oid from tier 2 — without a full clone. Paired with [`viewer/materialize.mjs`](../viewer/materialize.mjs)
+   (#91) for where the fetched bytes are kept.
 
-Targeted **single-object fetch** (open one poll's actual body once a user drills in, by its already-known
-oid from tier 2) is a fourth, separate capability — real git gets this from partial-clone filtering
-(`--filter=blob:none` + a later `git fetch <oid>`); git-enough has no equivalent, so it's new work, not an
-unlocked "later degree."
+**One real, documented cost, not papered over:** wanting a blob or tree oid is genuinely minimal (neither
+carries a parent pointer); wanting a *commit* oid without `have` negotiation pulls its full ancestor
+history. That's still the one open "later degree" (`docs/git-enough.md`'s "incremental fetch with `have`s")
+— see Open questions.
 
-## The aggregate index (the merge)
+## The aggregate index (the merge) — built
 
-One local table, built from many tier-2 pulls (one per attached Atlas, one per each Atlas's friends),
-**deduped by content hash** — two Atlases fronting the same friend's listing collapse to one row, not two.
+[`viewer/atlas-index.mjs`](../viewer/atlas-index.mjs)'s `mergeAtlasIndex(registry)` builds one local table
+from every `atlas.snapshot` registry entry, **deduped by content hash** — literally: each listed item is
+its own `listing/<slug>.json` file inside a snapshot's repo, a real git blob, so two Atlases fronting
+byte-identical content for the same item land on the same oid by construction, not by a hand-rolled hash.
 Per row:
 
 | field | meaning |
 |---|---|
 | `oid` | the content-addressed id of the listed item (poll/anecdote/business) — the dedup key |
 | `title`, `kind` | enough to render the row without fetching the body |
-| `source` | the Atlas URL this row arrived through — the same field `viewer/repos.mjs` added per-*snapshot*
-  in #88, needed here per-*row* so a merged feed still shows which Atlas (and whose friend-list) each item
-  came from |
-| `signer` / `tip` | the Atlas's signing key + the snapshot commit the row was read at — what "signed off"
-  in the UI actually checks |
-| `lastSeenTip` | the tier-1 oid last observed for that Atlas — the freshness check (below) |
+| `sources` | **plural**, refined from the original singular sketch: every Atlas URL a deduped row was seen
+  through, not just the first — corroboration (two Atlases agreeing on the same item) is information worth
+  keeping, not noise to discard at the first match |
+| `signer` | the snapshot's commit author at the tip it was read from — what "signed off" in the UI
+  currently checks (real signing over a snapshot is still future work, per `qr-provenance.md`'s SSHSIG path) |
+| `tip` | the snapshot commit this row was read at |
+
+**Not yet in a row:** `lastSeenTip` — the tier-1 oid last observed for an Atlas, for the re-poll/refresh
+check below. That's a property of the *refresh policy* (comparing a fresh ref advertisement against what
+was last merged), not of a single merge pass, and is still open.
 
 This is deliberately **not** a new registry type parallel to `repoRegistry()` — it's a fold *over* several
 `atlas.snapshot` entries, the way `repoListView()` already folds over the whole registry for one Atlas's
-worth of rows.
+worth of rows. Vended over the probe line as `viewer.atlasFeed` (Rung 0), same as everything else the
+system-viewer reads.
 
 ## Refresh, not re-clone ("RAM" behavior)
 
@@ -80,14 +96,15 @@ manifest.
 
 ## Open questions
 
-- **Fetch-side ref advertisement + tier-2 shallow fetch.** Neither exists in `git-enough/*.mjs` yet; tier 1
-  is a small addition to the discover/pack-negotiation code already there for push, tier 2 needs a
-  depth-limited pack request.
-- **Single-object fetch-by-oid (tier 4).** No git-enough equivalent to partial-clone filtering; depends on
-  what git-upload-pack the origin (GitHub, or a future Atlas-run Castle) actually supports.
-- **Where the merge lives.** A pure function over `registry.list().filter(kind === "atlas.snapshot")`, or
-  its own small structure the landing index queries — bears on `system-viewer.md`'s still-open "cross-type
-  connections" question.
+- **Incremental fetch with `have`s.** The one real cost still standing: wanting a commit oid with no `have`
+  negotiation pulls its full ancestor history. `docs/git-enough.md`'s original "later degree," unaffected
+  by tiers 2/4 landing.
+- **The refresh policy itself.** Tiers 1–4 and the merge are all built; what's not built is the *loop* that
+  compares a fresh tier-1 ref advertisement against a row's `tip`, decides whether to escalate to tier 2,
+  and re-merges. `lastSeenTip` (above) belongs to this piece, not to a single merge pass.
+- **The foundational/on-demand split for merged rows.** #91 built this policy for materialized *files*
+  (`viewer/materialize.mjs`); it isn't yet wired to *rows* — does a merged row know whether its full body is
+  actually hydrated (materialized) versus just known-to-exist from a listing?
 - **Eviction of stale rows.** Small individual rows make this low-stakes, but an unbounded number of
   attached-and-abandoned Atlases still isn't free; ties to the quota/eviction discussion (browser storage is
   one shared, LRU-evicted bucket — nothing here is exempt from that).
@@ -98,4 +115,8 @@ manifest.
 - [`docs/dark-mode.md`](dark-mode.md) — "Atlas, offline" and the friend-Atlas one-hop model this is meant to
   scale.
 - [`viewer/repos.mjs`](../viewer/repos.mjs) — the `atlas.snapshot` kind and `source` field this reuses.
+- [`viewer/atlas-index.mjs`](../viewer/atlas-index.mjs) — the merge function; `viewer.atlasFeed` on the probe line.
+- [`viewer/materialize.mjs`](../viewer/materialize.mjs) — tier-4's cache/storage side (#91).
+- [`git-enough/fetch-pack.mjs`](../git-enough/fetch-pack.mjs) — all four fetch degrees (#94, #95).
 - [issue #87](https://github.com/FCCN-ANTIBODY/anecdote.channel/issues/87) / [PR #88](https://github.com/FCCN-ANTIBODY/anecdote.channel/pull/88) — where `atlas.snapshot` first landed.
+- #90, #91 — the issues this closes out the remaining scope of.

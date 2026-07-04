@@ -10,6 +10,7 @@ import { repoDetail, readFile } from "./repo-detail.mjs";
 import { parseAnecdoteUrl } from "./anecdote-url.mjs";
 import { enumerateAll } from "./enumerators.mjs";
 import { pollView } from "./poll.mjs";
+import { mergeAtlasIndex } from "./atlas-index.mjs";
 
 export function viewerOps({ registry, storage } = {}) {
   if (!registry) throw new Error("viewer ops: need a repoRegistry");
@@ -20,6 +21,11 @@ export function viewerOps({ registry, storage } = {}) {
   return {
     // Rung 0 — the account-page index of everything you host locally.
     "viewer.repos": async (_input, api) => { api.emit({ view: repoListView(registry) }); },
+
+    // Rung 0 — the mixed Atlas feed (#90, docs/atlas-index.md): every atlas.snapshot's listing folded into
+    // one deduped, sorted view. A pure fold over the same registry viewer.repos already reads; no new
+    // storage, no new registry type.
+    "viewer.atlasFeed": async (_input, api) => { api.emit({ view: mergeAtlasIndex(registry) }); },
 
     // Rung 0 — what's ACTUALLY on the device: raw storage surfaces (localStorage / IndexedDB / caches /
     // OPFS) + the usage estimate. Shows existence even when the repo registry is empty. Runs Elevated
