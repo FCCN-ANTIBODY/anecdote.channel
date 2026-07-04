@@ -48,6 +48,20 @@ const { session, poll, keyring } = await fixtures();
   ok(gradeRepo({ kind: "pile.poll", downstreams: ["x"] }).grade === "mirrored", "poll pile with a downstream → mirrored");
   ok(gradeRepo({ kind: "pile.poll", downstreams: [] }).grade === "local", "a pile with no downstream → local");
   ok(gradeRepo({ kind: "keyring", downstreams: [] }).grade === "private", "keyring → private");
+  ok(gradeRepo({ kind: "atlas.snapshot", downstreams: [] }).grade === "atlas", "a kept Atlas snapshot → atlas");
+}
+
+// 5. An Atlas snapshot: a kept copy, graded `atlas`, carrying the Atlas URL it was verified against as
+// `source` (not a downstream — nothing is pushed there).
+{
+  const reg = repoRegistry();
+  const atlas = repo();
+  await atlas.commitFiles([{ path: "listing.json", content: "[]\n" }], { author, message: "atlas snapshot: cd04" });
+  reg.register({ label: "cd04-atlas", kind: "atlas.snapshot", repo: atlas, source: "https://cd04.atlas.example" });
+  const row = repoRow(reg.get("cd04-atlas"));
+  ok(row.trust.grade === "atlas", "row: trust grade (atlas)");
+  ok(row.source === "https://cd04.atlas.example", "row: source is the Atlas it's a copy of");
+  ok(row.downstreams.length === 0, "row: an Atlas snapshot pushes nowhere, so downstreams stays empty");
 }
 
 // 4. The account-page view: rows sorted by label, counts by kind.
