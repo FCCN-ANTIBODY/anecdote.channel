@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { looseFiles, refFiles } from "./repo.mjs";
-import { buildFetchRequest, stripToPack, discoverFetch, clone } from "./fetch-pack.mjs";
+import { buildFetchRequest, stripToPack, discoverFetch, clone, fetchObject, fetchObjects, fetchFileAt } from "./fetch-pack.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -51,6 +51,10 @@ try {
   const g = (args, input) => execFileSync("git", ["-C", src, ...args], { input, maxBuffer: 1 << 26 });
   execFileSync("git", ["init", "-q", "-b", "main", src]);
   g(["config", "user.name", "Src"]); g(["config", "user.email", "s@x"]);
+  // github.com's own upload-pack allows wanting any reachable oid, not just ref tips (how `git fetch
+  // origin <full-sha>` works against it) — opt a bare local git into the same behavior so the targeted
+  // fetch tests below exercise a real, unmodified `git upload-pack --stateless-rpc`.
+  g(["config", "uploadpack.allowReachableSHA1InWant", "true"]);
   let v1 = ""; for (let i = 0; i < 3000; i++) v1 += `line ${i}: the state's page is the real-time democracy\n`;
   mkdirSync(join(src, "d2"), { recursive: true }); writeFileSync(join(src, "d2", "n.txt"), "nested\n");
   writeFileSync(join(src, "big.txt"), v1); g(["add", "."]); g(["commit", "-qm", "v1"]);
@@ -84,6 +88,48 @@ try {
     const log = execFileSync("git", ["-C", out, "log", "--format=%s", "main"]).toString().trim().split("\n");
     ok(log[0] === "v2" && log[1] === "v1", "git reads the FULL two-commit lineage back from our clone");
     ok(execFileSync("git", ["-C", out, "cat-file", "-p", "main:d2/n.txt"]).toString() === "nested\n", "a nested file from the cloned history reads back");
+  }
+
+  // 5. THE TARGETED FETCH: fetchObject pulls one already-known, non-tip oid — no ref history at all.
+  {
+    const nestedOid = g(["rev-parse", "HEAD:d2/n.txt"]).toString().trim();
+    const obj = await fetchObject({ url: "http://x/src", fetch: fetchFor(src), inflate, oid: nestedOid });
+    ok(obj && obj.type === "blob", "fetchObject returns the blob type for a known oid");
+    ok(dec.decode(obj.content) === "nested\n", "fetchObject returns the exact bytes for a non-tip oid");
+  }
+
+  // 6. fetchObjects: several already-known NON-COMMIT oids (a tree + a blob) stay minimal — exactly the
+  // objects asked for, nothing extra. (A commit oid would NOT stay minimal here — see the code comment on
+  // fetchObjects — so this deliberately proves the case that actually matters for tier 4.)
+  {
+    const rootTreeOid = g(["rev-parse", "HEAD^{tree}"]).toString().trim();
+    const nestedOid = g(["rev-parse", "HEAD:d2/n.txt"]).toString().trim();
+    const objs = await fetchObjects({ url: "http://x/src", fetch: fetchFor(src), inflate, oids: [rootTreeOid, nestedOid] });
+    ok(objs.size >= 2 && objs.get(rootTreeOid)?.type === "tree" && objs.get(nestedOid)?.type === "blob",
+      "fetchObjects resolves a tree + a blob to their real types, no ref history pulled in");
+  }
+
+  // 7. THE SPARSE PATH WALK: fetchFileAt walks tree → nested tree → blob, one small fetch per level —
+  // never a sibling blob (big.txt, ~3000 lines, is never asked for when reading d2/n.txt).
+  {
+    const rootTreeOid = g(["rev-parse", "HEAD^{tree}"]).toString().trim();
+    const nestedOid = g(["rev-parse", "HEAD:d2/n.txt"]).toString().trim();
+
+    const f = await fetchFileAt({ url: "http://x/src", fetch: fetchFor(src), inflate, treeOid: rootTreeOid, path: "d2/n.txt" });
+    ok(f && dec.decode(f.content) === "nested\n", "fetchFileAt walks a nested path down to its blob (from a known tree)");
+    ok(f.oid === nestedOid, "fetchFileAt reports the real blob oid");
+    ok(f.size === 7, "fetchFileAt reports the blob's size");
+
+    const top = await fetchFileAt({ url: "http://x/src", fetch: fetchFor(src), inflate, commitOid: srcHead, path: "big.txt" });
+    ok(top && top.content.length > 0, "fetchFileAt also resolves a top-level (unnested) path, entering from a commitOid");
+
+    const missing = await fetchFileAt({ url: "http://x/src", fetch: fetchFor(src), inflate, treeOid: rootTreeOid, path: "no/such/file.txt" });
+    ok(missing === null, "fetchFileAt returns null for a path that doesn't exist at this commit");
+
+    let threw = false;
+    try { await fetchFileAt({ url: "http://x/src", fetch: fetchFor(src), inflate, treeOid: rootTreeOid, path: "d2" }); }
+    catch { threw = true; }
+    ok(threw, "fetchFileAt refuses a path that resolves to a directory, not a file");
   }
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
