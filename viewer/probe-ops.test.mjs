@@ -91,5 +91,19 @@ function session_() {
   ok(frames.find((x) => x.type === FRAME && x.error === "not a poll pile"), "viewer.poll on a non-poll pile → error field");
 }
 
+// 8. viewer.atlasFeed — the mixed Atlas feed (#90), Rung 0, folded from an atlas.snapshot registry entry.
+{
+  const atlas = repo();
+  await atlas.commitFiles([{ path: "listing/agenda.json", content: JSON.stringify({ title: "council agenda", kind: "document" }) + "\n" }],
+    { author, message: "atlas snapshot" });
+  registry.register({ label: "cd04-atlas", kind: "atlas.snapshot", repo: atlas, source: "https://cd04.atlas.example" });
+  const { s, frames } = session_();
+  await s.handle(request({ id: "A", op: "viewer.atlasFeed", input: {} }));
+  const view = frames.find((f) => f.type === FRAME && f.view)?.view;
+  ok(view && view.total === 1, "viewer.atlasFeed folds the one atlas.snapshot entry's listing into a row");
+  ok(view.rows[0].title === "council agenda" && view.rows[0].sources[0] === "https://cd04.atlas.example",
+    "the row carries its title and source");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall viewer probe-ops tests passed");
