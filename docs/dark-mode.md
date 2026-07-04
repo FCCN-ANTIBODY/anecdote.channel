@@ -7,6 +7,9 @@
 > primitives they are. Deferrals cite civic-node
 > [`OPEN-QUESTIONS.md`](https://github.com/FCCN-ANTIBODY/civic-node/blob/main/OPEN-QUESTIONS.md)
 > where a section exists; the rest are **this milestone's items**, listed at the end.
+>
+> **Expanded by [`atlas-index.md`](atlas-index.md):** "delivery carried from Atlases and their friend
+> Atlases," made concrete as a thin, mergeable local index instead of a full copy per Atlas.
 
 ## The thesis: the origin is its own category
 

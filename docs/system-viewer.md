@@ -227,3 +227,6 @@ thin, Rung-0 enumerator; the intelligence lives in the per-type widgets, exactly
   `tell.digest/v1` manifest into the `deliveries/` the widget already tallies.
 - **Cross-type connections.** The note's "connectable → inspectable → filterable": what edges join a poll
   to a session (labels? time? the same identity/nonce?), and does filtering live in the index widget.
+- **The Atlas merge.** [`atlas-index.md`](atlas-index.md) folds many `atlas.snapshot` entries into one mixed,
+  deduped feed — a fold over the registry rather than a type of its own; bears directly on where that fold
+  lives relative to the registry/widget split above.
