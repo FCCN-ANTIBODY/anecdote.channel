@@ -4,20 +4,22 @@
 // pushes — the mirrors it forces to match), its kind, and a **trust grade** for the on-screen meter.
 //
 // The offline origin hosts MANY repos (native session piles, Tell-twinned poll piles, the private
-// keyring). This registry tracks them + their metadata; the git facts come from each git-enough repo().
-// Pure view-model; a chamber widget renders it.
+// keyring, and — the landing-index demo's addition — kept copies of Atlases we've seen,
+// `atlas.snapshot`, whose **source** is the Atlas URL the snapshot was verified against rather than
+// something we push to). This registry tracks them + their metadata; the git facts come from each
+// git-enough repo(). Pure view-model; a chamber widget renders it.
 
 import { anecdoteUrl } from "./anecdote-url.mjs";
 import { parseCommit } from "../git-enough/read.mjs";
 
 // The registry of local repositories. `register` returns the repo's local anecdote:// id.
 export function repoRegistry() {
-  const entries = new Map();   // label -> { label, kind, repo, downstreams }
+  const entries = new Map();   // label -> { label, kind, repo, downstreams, source }
   return {
-    register({ label, kind = "repo", repo, downstreams = [] }) {
+    register({ label, kind = "repo", repo, downstreams = [], source = null }) {
       if (!label) throw new Error("repo-registry: a repo needs a label");
       if (!repo) throw new Error("repo-registry: a repo needs its repo()");
-      entries.set(label, { label, kind, repo, downstreams: [...downstreams] });
+      entries.set(label, { label, kind, repo, downstreams: [...downstreams], source });
       return anecdoteUrl("repo", label);
     },
     get(label) { return entries.get(label) || null; },
@@ -30,12 +32,14 @@ export function repoRegistry() {
 //   private  — the keyring (most-private, its own probe line)
 //   native   — created here, no upstream (a session pile is inherently yours)
 //   mirrored — we push it to a downstream we force to match (a poll pile)
+//   atlas    — a kept copy of someone else's signed public snapshot (an Atlas we've seen)
 //   local    — anything else held locally
 export function gradeRepo(entry) {
   const hasDownstreams = (entry.downstreams || []).length > 0;
   let grade;
   if (entry.kind === "keyring") grade = "private";
   else if (entry.kind === "pile.session") grade = "native";
+  else if (entry.kind === "atlas.snapshot") grade = "atlas";
   else if (hasDownstreams) grade = "mirrored";
   else grade = "local";
   return { grade, local: true, mirrored: hasDownstreams };
@@ -53,6 +57,7 @@ export function repoRow(entry) {
     label: entry.label,
     kind: entry.kind,
     downstreams: entry.downstreams || [],   // the resolvable-web mirrors (empty for native/private)
+    source: entry.source || null,           // for atlas.snapshot: the Atlas this is a kept copy of
     head,
     tip: tip || null,
     lastMessage,
