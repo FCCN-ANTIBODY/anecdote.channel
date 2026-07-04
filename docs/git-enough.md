@@ -4,6 +4,10 @@
 > "enough-client" family (git-enough, jekyll-enough, and the **seal-enough** factory this note surfaces).
 > Phase 0 (the git object layer) is implemented in [`git-enough/objects.mjs`](../git-enough/objects.mjs),
 > cross-verified byte-for-byte against a real `git` — see **The phased plan** below.
+>
+> **Expanded by [`atlas-index.md`](atlas-index.md):** the "later degrees" this note defers — incremental
+> fetch, shallow clone — get named specifically for keeping an attached Atlas as a thin, mergeable index
+> rather than a full clone.
 
 ## git is shorthand for capabilities, not a goal
 
