@@ -63,12 +63,25 @@ counter-scan), the registry-side replay, and module installation — **a module 
 the QR-read module, as an op in the offline origin.** (The remainder items civic-node §P already
 tracks, plus the install-op named here.)
 
-## Tell as a re-broadcast splitter
+## Pinned live filters (the softened "Tell as RSS")
 
-An open shaping question: can a Tell server be something like **RSS** — designed to deliver
-something to everyone, a **re-broadcast splitter** — so that as a client of it you experience it
-like an RSS broadcast? This would give the "fetch documents attached to your constituencies" story
-its transport: the Tell fronts the recurring feed; the origin subscribes like a reader.
+Not push, and not the Tell doing more work. Joining an Atlas puts a lot in reach — direct, and
+secondhand where the Atlas has friends — and filtering it must not fall on every member: **search
+stays the archives posture** (fully capable, never hard; it feels like going to the archives,
+looking for what you want). What *comes to you* is the Tell's **last-mile benefit**: it **pins live
+filters** — keyword/label groups, maybe per category — reads the Atlas(es) it is registered to
+(inheriting the one-hop friend range every Atlas already pulls in), and publishes **dynamic lists
+of what's out there** for its community to fetch and discuss locally. *The RSS of it is setting
+your dynamic searches and seeing them populate.* Being on a Tell that tracks the right subjects
+for you is just fine — which makes starting your own **extremely inoffensive**: a new light in the
+constellation that might connect with you (a little atlas between yourselves; mailboxes kept on
+each other), never the fork-vs-star anxiety.
+
+What this drags in, unanticipated: **how labeling gets done at the public layer** — the labeler has
+run local-side only, and tags are a miserable way to perform search. That question is pinned at
+civic-node [`OPEN-QUESTIONS.md` §Q](https://github.com/FCCN-ANTIBODY/civic-node/blob/main/OPEN-QUESTIONS.md)
+(Tell-side labeler service / cooperative public queue / jury-by-gesture) and is flagged to solve
+**before the origin items steal the show**.
 
 ## Mere anecdotes: the uncatalogued public layer
 
@@ -131,6 +144,15 @@ information in a chaotic slow simulation, and yet everyone's shit is signed.
   it). Sound, or something funnier, can follow: one working example, add anything else, all dark
   mode. There will be a **promiscuous sharing of these items so that they proliferate** — the
   move is from a **polling pull model to a cascading push model.**
+- **Socializing at contact — the reciprocal crank + the border.** The cascade seen from the ground:
+  two origins that meet don't just hand over newer snapshots, they **each label one of the other's
+  unlabeled items** (growth, not homework — a copy never deletes theirs; you just saw it, so you can
+  remember it), and the mutual scan writes on the same real-world consent layer a poll request does.
+  Because everyone runs the singular pinned instrument (§O), label-convergence at the border becomes
+  a soft **cracked-agent detector** — a wire-format faker can't cheaply match the real reducer's
+  behavior. Pinned at civic-node
+  [`OPEN-QUESTIONS.md` §R](https://github.com/FCCN-ANTIBODY/civic-node/blob/main/OPEN-QUESTIONS.md);
+  supervision rides the existing probe-line consent ladder (ambient/confirmed/standing).
 
 ## The label reducer grows up
 
@@ -175,8 +197,10 @@ instead of inventing answers in isolation.
    **module-install-from-QR as an origin op**.
 3. [civic-node#75](https://github.com/FCCN-ANTIBODY/civic-node/issues/75) — **Workspace switching + maintenance UX** — the single-focus lock; manual triggers as the
    general form of workspace maintenance (the workflow mirror, made a UI).
-4. [civic-node#76](https://github.com/FCCN-ANTIBODY/civic-node/issues/76) — **Tell as re-broadcast splitter** — the RSS-shaped delivery question; constituency document
-   feeds (agendas, minutes, streams) riding it.
+4. [civic-node#76](https://github.com/FCCN-ANTIBODY/civic-node/issues/76) — **Pinned live filters** —
+   dynamic lists of what's out there, published by your Tell; constituency document feeds riding
+   them. **Blocked by [civic-node#80](https://github.com/FCCN-ANTIBODY/civic-node/issues/80) — the
+   labeling commons (§Q), the pre-work to solve before the origin items.**
 5. [civic-node#77](https://github.com/FCCN-ANTIBODY/civic-node/issues/77) — **Mere anecdotes layer** — uncatalogued public churn; commentary-threshold cataloguing on
    large, many-neighbored Atlas nodes; the photo drop; hearsay listings.
 6. [civic-node#78](https://github.com/FCCN-ANTIBODY/civic-node/issues/78) — **Embedded vs linked posting + metadata phase** — and commit size limits where they impact a
@@ -190,3 +214,13 @@ instead of inventing answers in isolation.
 9. [civic-node#71](https://github.com/FCCN-ANTIBODY/civic-node/issues/71) — **Signed snapshot export + verify-on-ingest** — an Atlas exports a signed snapshot of its
    checkout's content; the local copy verifies it before ingest ("real at one time"); which
    primitive signs what (layout envelope vs git-enough tree) is the design work.
+
+## What this prepares — Milestone: CONSTITUTION
+
+Dark Mode labels the world and moves it around; the next horizon turns that inward. **Milestone:
+CONSTITUTION** ([`constitution-milestone.md`](constitution-milestone.md)) is where a person, out of
+all that free association, drafts what they mean — their own law, co-authored with the labeler, from
+what they did with its labels. Two things Dark Mode must land for it to be reachable: **labels
+signed by their labelers** (so a divergent label carries who/what made it, and can be adopted on the
+merits) and **socialization possible in side channels**. Build the signing and the side channels
+now, so the constitution has DNA to assemble from later.
