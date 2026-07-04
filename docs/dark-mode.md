@@ -144,6 +144,15 @@ information in a chaotic slow simulation, and yet everyone's shit is signed.
   it). Sound, or something funnier, can follow: one working example, add anything else, all dark
   mode. There will be a **promiscuous sharing of these items so that they proliferate** — the
   move is from a **polling pull model to a cascading push model.**
+- **Socializing at contact — the reciprocal crank + the border.** The cascade seen from the ground:
+  two origins that meet don't just hand over newer snapshots, they **each label one of the other's
+  unlabeled items** (growth, not homework — a copy never deletes theirs; you just saw it, so you can
+  remember it), and the mutual scan writes on the same real-world consent layer a poll request does.
+  Because everyone runs the singular pinned instrument (§O), label-convergence at the border becomes
+  a soft **cracked-agent detector** — a wire-format faker can't cheaply match the real reducer's
+  behavior. Pinned at civic-node
+  [`OPEN-QUESTIONS.md` §R](https://github.com/FCCN-ANTIBODY/civic-node/blob/main/OPEN-QUESTIONS.md);
+  supervision rides the existing probe-line consent ladder (ambient/confirmed/standing).
 
 ## The label reducer grows up
 
