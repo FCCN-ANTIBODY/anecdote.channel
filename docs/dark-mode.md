@@ -214,3 +214,13 @@ instead of inventing answers in isolation.
 9. [civic-node#71](https://github.com/FCCN-ANTIBODY/civic-node/issues/71) — **Signed snapshot export + verify-on-ingest** — an Atlas exports a signed snapshot of its
    checkout's content; the local copy verifies it before ingest ("real at one time"); which
    primitive signs what (layout envelope vs git-enough tree) is the design work.
+
+## What this prepares — Milestone: CONSTITUTION
+
+Dark Mode labels the world and moves it around; the next horizon turns that inward. **Milestone:
+CONSTITUTION** ([`constitution-milestone.md`](constitution-milestone.md)) is where a person, out of
+all that free association, drafts what they mean — their own law, co-authored with the labeler, from
+what they did with its labels. Two things Dark Mode must land for it to be reachable: **labels
+signed by their labelers** (so a divergent label carries who/what made it, and can be adopted on the
+merits) and **socialization possible in side channels**. Build the signing and the side channels
+now, so the constitution has DNA to assemble from later.

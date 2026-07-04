@@ -42,6 +42,12 @@ See [`composer/README.md`](composer/README.md) for the full experience model.
 
 ## Design notes
 
+- [`docs/constitution-milestone.md`](docs/constitution-milestone.md) — **Milestone: CONSTITUTION**
+  (vision, horizon): the successor to Dark Mode — your constitution drafted *with you* by the
+  labeler, out of what you did with its labels. The thesis: if something as dumb as the labeler can
+  write an effective constitution, governance is clear objective statement of preference, not the
+  grace of our words. Statements-not-questions, commingled labelers as diversified DNA, the
+  baton/interrupt focus-lock, and the free-agent socialization framework.
 - [`docs/dark-mode.md`](docs/dark-mode.md) — **Milestone: Dark Mode** (vision, shaping): the offline
   origin fleshed out as its own category — QR exchange proven in place of PR mechanics, delivery
   carried from Atlases and friend Atlases, the Atlas offline frontend, the mere-anecdotes public
