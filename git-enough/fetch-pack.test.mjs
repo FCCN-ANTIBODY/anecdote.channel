@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { looseFiles, refFiles } from "./repo.mjs";
-import { buildFetchRequest, stripToPack, discoverFetch, clone, fetchObject, fetchObjects, fetchFileAt } from "./fetch-pack.mjs";
+import { buildFetchRequest, stripToPack, discoverFetch, clone, fetchObject, fetchObjects, fetchFileAt, fetchTree, fetchFilesUnder } from "./fetch-pack.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -57,6 +57,7 @@ try {
   g(["config", "uploadpack.allowReachableSHA1InWant", "true"]);
   let v1 = ""; for (let i = 0; i < 3000; i++) v1 += `line ${i}: the state's page is the real-time democracy\n`;
   mkdirSync(join(src, "d2"), { recursive: true }); writeFileSync(join(src, "d2", "n.txt"), "nested\n");
+  writeFileSync(join(src, "d2", "other.txt"), "sibling\n");
   writeFileSync(join(src, "big.txt"), v1); g(["add", "."]); g(["commit", "-qm", "v1"]);
   writeFileSync(join(src, "big.txt"), v1 + "one more line\n"); g(["add", "."]); g(["commit", "-qm", "v2"]);
   g(["repack", "-adq"]);
@@ -130,6 +131,29 @@ try {
     try { await fetchFileAt({ url: "http://x/src", fetch: fetchFor(src), inflate, treeOid: rootTreeOid, path: "d2" }); }
     catch { threw = true; }
     ok(threw, "fetchFileAt refuses a path that resolves to a directory, not a file");
+  }
+
+  // 8. THE LISTING, NO BODIES: fetchTree walks every subtree, one round trip per depth level, never a blob.
+  {
+    const rootTreeOid = g(["rev-parse", "HEAD^{tree}"]).toString().trim();
+    const d2TreeOid = g(["rev-parse", "HEAD:d2"]).toString().trim();
+    const treeObjects = await fetchTree({ url: "http://x/src", fetch: fetchFor(src), inflate, treeOid: rootTreeOid });
+    ok(treeObjects.has(rootTreeOid) && treeObjects.has(d2TreeOid), "fetchTree reaches the root tree and its nested subtree");
+    ok([...treeObjects.values()].every((o) => o.type === "tree"), "fetchTree's map holds only tree objects, no blobs");
+  }
+
+  // 9. MANY AT A TIME, FILTERED: fetchFilesUnder lists + batch-fetches everything under a path prefix.
+  {
+    const rootTreeOid = g(["rev-parse", "HEAD^{tree}"]).toString().trim();
+    const under = await fetchFilesUnder({ url: "http://x/src", fetch: fetchFor(src), inflate, treeOid: rootTreeOid, prefix: "d2/" });
+    const byPath = Object.fromEntries(under.map((f) => [f.path, f]));
+    ok(under.length === 2 && byPath["d2/n.txt"] && byPath["d2/other.txt"], "fetchFilesUnder returns exactly the two files under d2/");
+    ok(dec.decode(byPath["d2/n.txt"].content) === "nested\n" && dec.decode(byPath["d2/other.txt"].content) === "sibling\n",
+      "each matched file's real content came back");
+    ok(!("big.txt" in byPath), "a file outside the prefix is not fetched or returned");
+
+    const everything = await fetchFilesUnder({ url: "http://x/src", fetch: fetchFor(src), inflate, treeOid: rootTreeOid });
+    ok(everything.length === 3, "an empty prefix returns every file in the tree");
   }
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
