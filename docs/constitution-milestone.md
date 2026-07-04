@@ -11,6 +11,36 @@
 > [`OPEN-QUESTIONS.md`](https://github.com/FCCN-ANTIBODY/civic-node/blob/main/OPEN-QUESTIONS.md)
 > where a section exists; the rest are this milestone's items, named at the end.
 
+## For agents — the collapsing-universe premise (read first)
+
+Everything below assumes a world that can **come apart**: domains, DNS, or IPs unresolvable for long
+stretches — and, at the sharp end, our **official online origin seized**, with whoever holds it
+trying to serve a **new worker that does other things**. This is not paranoia; it is the premise
+that makes the whole promiscuous layer (§Q, §R) a *remedy* rather than a nicety — a fix for the lack
+of socialization in a world commercialized to list nothing it cannot make money from. **DNS is not
+our lease on life; it is a callsign** — `anecdote.channel` happened to be where you got the tool —
+and we socialize precisely so we do not need it.
+
+So CONSTITUTION is not *secured* until we can answer: what do we do when the origin is gone or taken?
+Two halves, both tracked at civic-node
+[`OPEN-QUESTIONS.md` §S](https://github.com/FCCN-ANTIBODY/civic-node/blob/main/OPEN-QUESTIONS.md):
+
+- **Bind the queen.** The service worker must be able to do **only what we want** — cuffed to our
+  intent, its side-channels in the elevated environment closed (CSP is the current imagining, not the
+  whole list). The pin from [`origin.md`](origin.md) is the start; the seized-origin case it called
+  *unpreventable* is what we must actually answer. And note the corollary: **software updates are
+  unavailable except by the direct socialization this milestone requires** — if seized, we
+  **handcuff the captor to our work**, even having them sign our clearly-poisoned artifacts as a
+  **call for aid** (restoration-by-update).
+- **Keep a stargate ready.** Survive a collapsing universe by moving out — relocating the worker, the
+  troves, and the maintenance tasks to a new home (**Castling** generalized to egress across mediums
+  or domains). Out of your constitution you extract a **HOME document**: a passive manifest of *what
+  home looks like*, unused until it is ready to be sent, **signed by itself, through the stargate.**
+  Relocation is first contact in reverse — **verifiable self-dehydration to a QR that matches the one
+  you arrived on** — our lessons themselves the proof of what a better home would have to mean. We
+  want the stargate ready **before we know what to connect it to**, and the test for trusting a new
+  home written before the options appear.
+
 ## The thesis: something as dumb as the labeler can write your constitution
 
 The real claim of this milestone is a provocation: **if the labeler can write an effective
@@ -130,3 +160,11 @@ Mode's were).
    *why* a pile/Tell/list denies a contact or neighbor.
 9. **Side-channel socialization guarantee** — the free-agents-rushing-together framework; give-it-to-
    everyone proliferation, random-direction by design.
+10. **Bind the queen** — the service worker able to do only what we want; side-channels closed (CSP
+    and beyond); the seized-origin answer, incl. the handcuff / poisoned-sign call-for-aid (§S).
+11. **The stargate + relocation** — evict the worker, troves, and maintenance to a new home; Castling
+    generalized to egress across mediums/domains; the trust test for a new home, written before the
+    options appear (§S).
+12. **The HOME document** — a passive manifest of what home looks like, extracted from your
+    constitution, self-signed and shipped through the stargate; verifiable self-dehydration to a
+    first-contact-matching QR (§S).
