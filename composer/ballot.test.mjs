@@ -2,7 +2,7 @@
 // content-id convergence, and the turn-in projection onto the mirror's tell.submission/v1 idiom.
 // Run: node composer/ballot.test.mjs
 import { generateIdentity } from "./sign.mjs";
-import { buildBallot, signBallot, verifyBallot, isBallot, ballotId, lateSubmission,
+import { buildBallot, signBallot, verifyBallot, isBallot, ballotId, turnInSubmission,
          BALLOT_SCHEMA, SUBMISSION_SCHEMA } from "./ballot.mjs";
 
 let fails = 0;
@@ -34,7 +34,7 @@ ok((await ballotId(signed)) !== (await ballotId(await signBallot(buildBallot({ .
   "a different answer is a different ballot");
 
 // 4. turn-in projection: the Tell-readable fields in contract order, the signed ballot riding whole.
-const block = lateSubmission(signed);
+const block = turnInSubmission(signed);
 ok(block.schema === SUBMISSION_SCHEMA, "projects to tell.submission/v1");
 ok(JSON.stringify(Object.keys(block)) === JSON.stringify(["schema", "pile", "poll", "round", "tok", "answer", "ts", "ballot"]),
   "key order is the contract: " + Object.keys(block).join(","));
