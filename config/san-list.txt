@@ -25,6 +25,12 @@
 anecdote.channel
 *.anecdote.channel
 
+# --- the Floor: Tell's wildcard-served pile rooms (#93; tell repo docs/floor.md) -
+# <pile-name>.tell.anecdote.channel — the leaf label IS the pile name. One label
+# per wildcard, so *.anecdote.channel covers the bare tell host but not names
+# under it.
+*.tell.anecdote.channel
+
 # --- per-state wildcards (covers <city>.<state>.anecdote.channel) --------------
 *.colorado.anecdote.channel
 
