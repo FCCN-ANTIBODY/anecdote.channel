@@ -93,9 +93,12 @@ apart, revocations and changes included, are trajectory data a snapshot never wa
    `meetOffer` sends quells first, then the push tier + the peer's solicitation + anything
    scoped to where the peer can turn in; `receiveMeet` verifies quells and prunes BEFORE any
    ballot lands; and the co-signed `exchangeReceipt`/`countersign` pair makes one transcript
-   two-signature evidence — valid only when the countersigner is the named peer. Still
-   unbuilt: the physical leg (member envelopes over `transfer.mjs`/`carrier.mjs` framing,
-   riding the same gesture that rolls the labeler and mints met-records). No per-hop signing:
+   two-signature evidence — valid only when the countersigner is the named peer. The physical
+   leg is built too (`meet-carrier.mjs`): the hello rides as one standalone signed transfer;
+   the trade is a signed layout of member envelopes (quells + ballots, ONE VOICE — a member
+   signed by anyone but the layout's signer is refused even if it verifies), framed as
+   rateless fountain bursts a QR loop advances until the set completes. What remains is the
+   page: hanging this off the same gesture that rolls the labeler and mints met-records. No per-hop signing:
    the artifacts' own signatures are the integrity; encounter receipts (`accept.mjs`) stay
    local and optional.
 
