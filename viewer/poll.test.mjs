@@ -68,6 +68,10 @@ const author = { name: "You", email: "you@origin", epoch: 1700000000, tz: "+0000
   ok(pollState(lc, Date.parse("2026-06-01T00:00:00Z")).state === "open", "mid-window → open");
   ok(pollState(lc, Date.parse("2025-06-01T00:00:00Z")).state === "scheduled", "before opens_at → scheduled");
   ok(pollState(lc, Date.parse("2027-01-01T00:00:00Z")).state === "closed", "after closes_at → closed");
+  const llc = { ...lc, late_until: "2027-02-01T00:00:00Z" };
+  ok(pollState(llc, Date.parse("2027-01-01T00:00:00Z")).state === "late", "closed but inside late_until → late (the hand-carried window)");
+  ok(pollState(llc, Date.parse("2027-03-01T00:00:00Z")).state === "closed", "past late_until → closed for real");
+  ok(pollState(llc, Date.parse("2026-06-01T00:00:00Z")).state === "open", "late_until never reopens an open poll early");
 }
 
 // 6. pollView assembles the whole widget model from a registry entry.
