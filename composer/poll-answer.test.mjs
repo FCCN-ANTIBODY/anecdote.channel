@@ -3,7 +3,7 @@
 // (lines 67-83) frozen as the migration contract: when index.md is retired, this test still guards the
 // shape anecdote must keep emitting. Run: node composer/poll-answer.test.mjs
 import { elevatedSession, request, FRAME, ERROR } from "./probe-line.mjs";
-import { parseQR, submissionBlock, issueUrl, issueRequest, submitAnswer, answerView, pollAnswerOps, SUBMISSION_SCHEMA, CANONICAL_REPO } from "./poll-answer.mjs";
+import { parseQR, submissionBlock, issueUrl, commentRequest, submitAnswer, answerView, pollAnswerOps, SUBMISSION_SCHEMA, CANONICAL_REPO } from "./poll-answer.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -120,25 +120,32 @@ const TS = "2026-07-01T00:00:00.000Z";
 
 // 7. the HTTP submit — the tap that SENDS. Same block as the URL (equivalence), credential header-only,
 // failure surfaced not swallowed, and no-credential falls back to the issueUrl (phones-home-nothing).
+// Every credentialed submit lands as a COMMENT on the poll's canonical issue — issue-per-response is
+// retired; only the issueUrl fallback (the respondent's own click) still opens a fresh issue.
 {
-  const QR = "pile=cd04-q1&poll=budget&round=1&tok=abc123&type=multichoice&opts=Cut,Keep&guidance=Pick+one.";
+  const QR = "pile=cd04-q1&poll=budget&round=1&tok=abc123&type=multichoice&opts=Cut,Keep&guidance=Pick+one.&canonical=7";
   const cfg = parseQR(QR);
   const CRED = "ghs_semi_public_post_token";
+  ok(cfg.canonical === "7", "the QR's canonical= issue number is parsed into cfg.canonical");
+  ok(parseQR("pile=p&poll=q&round=1&tok=t&canonical=7x").canonical === null, "a non-numeric canonical is refused, not carried");
 
-  // equivalence: the POST request carries byte-identical content to the issues/new URL's body/title/labels.
-  const req = issueRequest(cfg, "Keep", { ts: TS });
+  // equivalence: the comment carries the byte-identical BODY the issues/new URL would — same fenced block,
+  // different envelope (a comment takes no title/labels; those belong to the issueUrl's own-click path).
+  const req = commentRequest(cfg, "Keep", { ts: TS });
   const urlBody = new URL(issueUrl(cfg, "Keep", { ts: TS })).searchParams.get("body");
-  ok(req.method === "POST" && req.path === "/repos/FCCN-ANTIBODY/tell.anecdote.channel/issues", "issueRequest posts a fresh issue to the Tell repo");
-  ok(req.payload.body === urlBody && req.payload.title === "tell submission cd04-q1 / budget" && req.payload.labels[0] === "tell-submission",
-     "the POST submits the SAME block/title/labels as the URL — URL and direct submit are equivalent");
+  ok(req.method === "POST" && req.path === "/repos/FCCN-ANTIBODY/tell.anecdote.channel/issues/7/comments",
+     "commentRequest posts a comment onto the poll's canonical issue — never a fresh issue");
+  ok(req.payload.body === urlBody && !("title" in req.payload) && !("labels" in req.payload),
+     "the comment carries the SAME block bytes as the URL and nothing else — URL and direct submit stay equivalent");
 
   // submitAnswer: the credential rides only in the transport token, never in the body; returns the placement.
   let seen = null;
-  const api = async (call) => { seen = call; return { status: 201, json: { id: 7, number: 9, html_url: "https://github.com/o/r/issues/9" } }; };
+  const api = async (call) => { seen = call; return { status: 201, json: { id: 77, html_url: "https://github.com/o/r/issues/7#issuecomment-77" } }; };
   const out = await submitAnswer(cfg, "Keep", { api, credential: CRED, ts: TS });
   ok(seen.token === CRED, "the post credential is used as the transport token");
   ok(!JSON.stringify(seen.body).includes(CRED), "the credential is NEVER in the posted body");
-  ok(out.placement.url === "https://github.com/o/r/issues/9" && out.placement.issue === 9, "the placement carries where the answer landed");
+  ok(out.placement.url === "https://github.com/o/r/issues/7#issuecomment-77" && out.placement.issue === 7,
+     "the placement carries where the answer landed — the canonical issue, not a fresh one");
 
   // the op: with a credential it submits; the emitted frame carries the placement and NOT the credential.
   const ops = pollAnswerOps({ qr: QR, ts: TS, egressApi: api });
@@ -165,13 +172,41 @@ const TS = "2026-07-01T00:00:00.000Z";
   ok(failed && /403/.test(failed.error) && failed.issueUrl, "a failed submit is surfaced (error + fallback link), never silent");
 }
 
+// 7b. THE RETIREMENT: a credentialed submit with NO canonical issue is refused — issue-per-response is
+// gone from every credentialed path. The credential-free issueUrl fallback (the respondent's own click)
+// is offered instead; nothing is posted.
+{
+  const QR = "pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open";   // no canonical=
+  const cfg = parseQR(QR);
+  const CRED = "ghs_semi_public_post_token";
+
+  let called = false;
+  const api = async () => { called = true; return { status: 201, json: {} }; };
+  let threw = null;
+  try { await submitAnswer(cfg, "Keep", { api, credential: CRED, ts: TS }); } catch (e) { threw = e; }
+  ok(threw && /retired/.test(threw.message) && /issueUrl/.test(threw.message),
+     "submitAnswer refuses a credentialed submit with no canonical issue and points at the issueUrl fallback");
+  ok(!called, "nothing was posted — the refusal happens before any transport is touched");
+  let threwReq = false;
+  try { commentRequest(cfg, "Keep", { ts: TS }); } catch { threwReq = true; }
+  ok(threwReq, "commentRequest has no target without a canonical issue");
+
+  const ops = pollAnswerOps({ qr: QR, ts: TS, egressApi: api });
+  const run = async (input) => { const frames = []; const s = elevatedSession({ ops, emit: (f) => frames.push(f), context: () => ({ recordingOn: true, grants: [] }) });
+    await s.handle(request({ id: "n", op: "poll.submit", input, confirmed: true })); return frames; };
+  const fell = (await run({ answer: "Keep", credential: CRED })).find((f) => f.type === FRAME && "issueUrl" in f);
+  ok(fell && fell.submitted === null && fell.issueUrl === issueUrl(cfg, "Keep", { ts: TS }),
+     "poll.submit with a credential but no canonical refuses and offers the issueUrl fallback (own-click authority)");
+  ok(!called, "…and the credentialed route was never exercised");
+}
+
 // 8. the QR-carried post credential — parsed, but NEVER in the provenance field or the submission body, and
 // used as the fallback credential for the anonymous-public submit. (bin/qr appends post= after the signed
 // canon; the client mirrors the tell's exclusion.)
 {
   const CRED = "ghs_public_qr_token";
-  // a signed QR that also carries the post credential (post rides last, after sig)
-  const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&sig=SIGBYTES&kid=SHA256%3Akkk&post=${CRED}`;
+  // a signed comment-paradigm QR that also carries the post credential (post rides last, after sig)
+  const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&sig=SIGBYTES&kid=SHA256%3Akkk&post=${CRED}`;
   const cfg = parseQR(QR);
   ok(cfg.cred === CRED, "the QR's post= credential is parsed (decoded) into cfg.cred");
   ok(!/post=/.test(cfg.rawQuery), "post= is STRIPPED from rawQuery — the provenance field never carries the credential");
@@ -184,12 +219,13 @@ const TS = "2026-07-01T00:00:00.000Z";
 
   // the anonymous-public path: poll.submit uses the QR-carried credential when none is host-injected
   let seen = null;
-  const api = async (call) => { seen = call; return { status: 201, json: { number: 5, html_url: "https://github.com/o/r/issues/5" } }; };
+  const api = async (call) => { seen = call; return { status: 201, json: { id: 501, html_url: "https://github.com/o/r/issues/7#issuecomment-501" } }; };
   const ops = pollAnswerOps({ qr: QR, ts: TS, egressApi: api });
   const run = async (input) => { const frames = []; const s = elevatedSession({ ops, emit: (f) => frames.push(f), context: () => ({ recordingOn: true, grants: [] }) });
     await s.handle(request({ id: "q", op: "poll.submit", input, confirmed: true })); return frames; };
   const sent = (await run({ answer: "Keep" })).find((f) => f.type === FRAME && "submitted" in f);   // NO input.credential
   ok(seen && seen.token === CRED, "poll.submit falls back to the QR-carried credential for anonymous public");
+  ok(seen.path.endsWith("/issues/7/comments"), "…and the QR-carried credential only ever comments on the canonical issue");
   ok(sent && sent.submitted === true && !JSON.stringify(sent).includes(CRED), "it sends, and the credential never enters the emitted frame");
 }
 
@@ -199,7 +235,7 @@ const TS = "2026-07-01T00:00:00.000Z";
 // the Tell's canon drops it), and it beats the legacy QR-carried credential when both somehow appear.
 {
   const SU = "https://tell.anecdote.channel/submit";
-  const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&su=${encodeURIComponent(SU)}`;
+  const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&su=${encodeURIComponent(SU)}`;
   const cfg = parseQR(QR);
   ok(cfg.submitUrl === SU, "the QR's su= relay address is parsed (decoded) into cfg.submitUrl");
   ok(/su=/.test(cfg.rawQuery), "su stays in rawQuery — an address is not a credential, and the Tell's canon drops it");
@@ -209,15 +245,16 @@ const TS = "2026-07-01T00:00:00.000Z";
   // it goes to the su URL, and no Authorization header exists anywhere on this side.
   const fetches = [];
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => { fetches.push({ url, init }); return { status: 201, json: async () => ({ number: 5, html_url: "https://github.com/o/r/issues/5" }) }; };
+  globalThis.fetch = async (url, init) => { fetches.push({ url, init }); return { status: 201, json: async () => ({ id: 501, html_url: "https://github.com/o/r/issues/7#issuecomment-501" }) }; };
   try {
     const out = await submitAnswer(cfg, "Keep", { ts: TS });                   // no api, no credential
     ok(fetches.length === 1 && fetches[0].url === SU, "the relay route POSTs to the su address, not api.github.com");
     const relayed = JSON.parse(fetches[0].init.body);
-    ok(relayed.path === "/repos/FCCN-ANTIBODY/tell.anecdote.channel/issues" && relayed.body && relayed.body.labels[0] === "tell-submission",
-       "the relay carries the same GitHub-shaped {path, body} the direct route would send");
+    ok(relayed.path === "/repos/FCCN-ANTIBODY/tell.anecdote.channel/issues/7/comments" && relayed.body && !relayed.body.labels,
+       "the relay carries the canonical issue's comments path — never the bare issues (new-issue) path");
+    ok(/```tell\n/.test(relayed.body.body), "…and the comment body carries the fenced block, byte-identical to the direct route");
     ok(!fetches[0].init.headers.Authorization, "no Authorization header — the client holds no credential at all");
-    ok(out.placement.issue === 5, "the relay's projection still resolves to a placement");
+    ok(out.placement.issue === 7, "the relay's projection still resolves to a placement on the canonical issue");
   } finally { globalThis.fetch = realFetch; }
 
   // poll.submit routes via the relay when no credential is host-injected — even if a stray post= rode along.

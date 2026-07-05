@@ -87,6 +87,26 @@ function refQR(secret, args) {
   ok(threw, "mintQR without a secret is refused");
 }
 
+// 6b. THE RETIREMENT, mirrored from bin/qr: the default is the comment paradigm, and mode=issue is
+// refused — the credential-free issueUrl fallback is the one new-issue path left.
+{
+  const { url } = await mintQR({ pile: "p", poll: "q" }, { secret: SECRET });
+  ok(url.includes("mode=comment"), "the default mode is comment — the paradigm");
+  let msg = ""; try { await mintQR({ pile: "p", poll: "q" }, { secret: SECRET, mode: "issue" }); } catch (e) { msg = e.message; }
+  ok(/retired/.test(msg) && /issueUrl/.test(msg), "mode=issue is refused with a pointer at the comment paradigm + issueUrl fallback");
+  if (haveQR) {
+    let refused = true;
+    try { refQR(SECRET, ["--pile", "p", "--poll", "q", "--mode", "issue"]); refused = false; } catch {}
+    ok(refused, "bin/qr refuses --mode issue too — the refusal is mirrored, not just the mint");
+  }
+  const { url: canon } = await mintQR({ pile: "p", poll: "q" }, { secret: SECRET, canonical: "7" });
+  ok(canon.includes("canonical=7"), "a canonical issue number rides as canonical= for the comment thread");
+  if (haveQR) {
+    const ref = refQR(SECRET, ["--pile", "p", "--poll", "q", "--round", "1", "--type", "open", "--canonical", "7"]);
+    ok(canon === ref, "canonical-carrying mint stays byte-identical to bin/qr");
+  }
+}
+
 // 7. poll.mint over the probe line: Rung 1 (needs confirm), and the secret never crosses to the chamber.
 {
   const ops = qrMintOps({ secret: SECRET, domain: "https://tell.anecdote.channel" });

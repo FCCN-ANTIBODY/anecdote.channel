@@ -45,7 +45,12 @@ Two modes (`request`/`post` take `mode`):
   comment's place in the thread, which the Tell derives at sweep time — no client-side counting.)
   Comments **cannot carry labels**, so all metadata lives in the body block.
 - **`issue`** — a fresh issue per response, which **can** carry labels (`via:anecdote`, `poll:…`,
-  `round:…`, `run:…`) for human filtering.
+  `round:…`, `run:…`) for human filtering. **Retired for every relayed/credentialed path** (the
+  Tell's `docs/sealed-credential.md` → "What it forces, usefully"): QRs no longer mint it,
+  `poll-answer.mjs`'s credentialed submit refuses it, and the Tell's submit-gateway allowlist is
+  comments-only. The serializer keeps the shape for historical status reads (`interpretStatus`)
+  and for a host posting on its **own** authority through the tunnel; the credential-free
+  `issueUrl` fallback remains the one new-issue path.
 
 ## The serialized body (Tell-parser-compatible)
 

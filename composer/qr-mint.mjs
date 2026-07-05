@@ -53,10 +53,16 @@ export function qrCanon(pairs) {
 // repo?, then sig?, kid? (appended after the signed preimage, exactly as bin/qr does). Pass `sign` =
 // { identity, namespace? } (the device identity from sign.mjs) to add a provenance signature over the
 // canonical preimage. Returns { url, tok, round, run, canon, pairs, sig?, kid? }.
+//
+// mode=issue is RETIRED, mirroring bin/qr byte-for-byte: the comment paradigm is the paradigm — one
+// poll, one canonical issue, every reply a comment on it. A canonical-less QR still mints; it carries
+// only the credential-free issueUrl fallback, where the respondent's own click is the authority.
 export async function mintQR(poll, { secret, domain = "https://tell.anecdote.channel", repo, asker = "",
-                                     mode = "issue", canonical = "", run, sign } = {}) {
+                                     mode = "comment", canonical = "", run, sign } = {}) {
   if (!secret) throw new Error("qr-mint: minting needs the pile's TELL_QR_SECRET (you run the Tell)");
   if (!poll || !poll.pile || !poll.poll) throw new Error("qr-mint: need a poll object with pile + poll");
+  if (mode === "issue") throw new Error("qr-mint: mode=issue is retired — mint against the poll's canonical issue (comment mode); the credential-free issueUrl fallback is the one new-issue path left");
+  if (mode !== "comment") throw new Error(`qr-mint: mode must be comment (got: ${mode})`);
   const round = String((poll.lifecycle && poll.lifecycle.round) ?? 1);
   const tok = await mintToken(secret, poll.pile, poll.poll, round);
   const runId = run || tok.slice(0, 12);       // default run tag: stable per (pile,poll,round), like bin/qr
