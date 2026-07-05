@@ -1,9 +1,10 @@
 // composer/poll-answer.mjs — the poll-answer view: anecdote shaped by a Tell QR (docs/system-viewer.md,
 // the "answer face"). This is what `tell.anecdote.channel/index.md` becomes when it moves into anecdote:
 // you land on a poll's QR, it shows the single question, and — always offering a CUSTOM answer, with any
-// options shown only as SUGGESTIONS — it builds a pre-filled GitHub issue carrying a `tell.submission/v1`
-// block addressed to the Tell whose Issues are this poll's mailbox. Nothing phones home: this only builds a
-// link; the click that opens the issue is the user's.
+// options shown only as SUGGESTIONS — it composes a `tell.submission/v1` block addressed to the Tell whose
+// Issues are this poll's mailbox. A credentialed submit only ever COMMENTS on the poll's canonical issue
+// (`canonical=`; issue-per-response is retired). The base face still phones home nothing: it builds a
+// pre-filled issues/new link, and the click that opens the issue is the user's — the one new-issue path.
 //
 // The QR was addressed to a Tell from the start (the token is minted against pile+poll+round); an Atlas
 // showing it in public is just lending the photocopy. So "answering a poll" is always a Tell submission.
@@ -64,6 +65,10 @@ function normalize(cfg, { canonicalRepo, rawQuery }) {
     // (tell …/workers/submit-gateway). https-only, mirroring bin/qr's own validation. Unlike `post` it may
     // stay in rawQuery: it is an address, not a bearer token, and the Tell's canon drops it (tl_qr_canon).
     submitUrl: /^https:\/\//.test(cfg.su || "") ? cfg.su : null,
+    // the poll's CANONICAL issue number (`canonical=`, bin/open-poll → bin/qr) — the one thread every
+    // credentialed reply comments onto. Digits only, like bin/qr's own validation. Absent => the only
+    // submit route is the credential-free issueUrl fallback (mode=issue is retired for credentialed paths).
+    canonical: /^[0-9]+$/.test(cfg.canonical || "") ? String(cfg.canonical) : null,
     rawQuery: stripCred(rawQuery), // the credential NEVER rides in the provenance field or the submission body
   };
 }
@@ -109,12 +114,16 @@ export function issueUrl(cfg, answer, { ts } = {}) {
   return `https://github.com/${cfg.repo}/issues/new?` + qs;
 }
 
-// The same submission as a GitHub API request — POST a fresh issue instead of navigating to issues/new. No
+// The same submission as a GitHub API request — a COMMENT on the poll's canonical issue, the one thread
+// every credentialed reply lands on (issue-per-response is retired; only the issueUrl fallback still opens
+// a fresh issue, and there the click is the respondent's own). The comment body carries the identical
+// fenced block the issueUrl would — same bytes, different envelope (comments take no title/labels). No
 // network, no credential here (pure): the credential is passed to the transport at call time, header-only.
-export function issueRequest(cfg, answer, { ts } = {}) {
+export function commentRequest(cfg, answer, { ts } = {}) {
+  if (!cfg.canonical) throw new Error("poll-answer: no canonical issue to comment on (the QR carried no canonical=)");
   const [owner, name] = String(cfg.repo).split("/");
-  const { title, labels, body } = issueParts(cfg, answer, { ts });
-  return { method: "POST", path: `/repos/${owner}/${name}/issues`, payload: { title, body, labels } };
+  const { body } = issueParts(cfg, answer, { ts });
+  return { method: "POST", path: `/repos/${owner}/${name}/issues/${cfg.canonical}/comments`, payload: { body } };
 }
 
 // Submit a chosen answer directly over HTTP — the tap that SENDS, lifting the seam off the github.com URL
@@ -123,18 +132,22 @@ export function issueRequest(cfg, answer, { ts } = {}) {
 //                Authorization header, NEVER in the request body or the returned placement.
 //   submitUrl  — the Tell's submit-gateway relay (`su=`): the client holds NO credential at all; the
 //                worker injects it server-side. Preferred over a QR-carried credential.
+// EVERY credentialed route lands as a comment on the poll's canonical issue — issue-per-response is
+// retired, and a QR with no canonical= has no credentialed route at all (the caller falls back to
+// issueUrl, where the respondent's own click is the authority).
 // Throws on a non-2xx so the caller can surface "not accepted" — the submit is never silent.
 export async function submitAnswer(cfg, answer, { api, credential, submitUrl, ts } = {}) {
   const a = (answer || "").trim();
   if (!a) throw new Error("poll-answer: nothing to submit");
   const relay = submitUrl || cfg.submitUrl;
   if (!credential && !relay) throw new Error("poll-answer: no submit route — use issueUrl (the no-credential fallback)");
-  const req = issueRequest(cfg, a, { ts });
+  if (!cfg.canonical) throw new Error("poll-answer: no canonical issue — a credentialed submit only ever comments on the poll's one thread (issue-per-response is retired); use issueUrl, the own-click fallback");
+  const req = commentRequest(cfg, a, { ts });
   const call = api || (credential ? githubApi : relayApi(relay));
   const res = await call({ method: req.method, path: req.path, body: req.payload, token: credential });
   if (!res || res.status >= 300) throw new Error(`poll-answer: github responded ${res ? res.status : "?"}${res && res.json && res.json.message ? " — " + res.json.message : ""}`);
   const j = res.json || {};
-  return { placement: { repo: cfg.repo, url: j.html_url || null, id: j.id != null ? j.id : null, issue: j.number != null ? j.number : null } };
+  return { placement: { repo: cfg.repo, url: j.html_url || null, id: j.id != null ? j.id : null, issue: Number(cfg.canonical) } };
 }
 
 // The view-model a chamber renders: the question + guidance + SUGGESTED options (each with its prebuilt
@@ -180,13 +193,15 @@ export function pollAnswerOps({ qr, canonicalRepo, ts, egressApi } = {}) {
     },
     // The confirm-gated SEND. Route order: a host-injected credential wins (operator chamber); else the
     // Tell's submit-gateway relay (`su=` — no client credential at all); else the QR-carried post token
-    // (legacy anonymous public); else emit the issueUrl so the caller falls back to the link. Neither a
-    // credential nor the relay address ever enters a frame.
+    // (legacy anonymous public); else emit the issueUrl so the caller falls back to the link. Every
+    // credentialed route comments on the poll's canonical issue — with no canonical= there is no
+    // credentialed route, and the issueUrl fallback (the respondent's own click) is offered instead.
+    // Neither a credential nor the relay address ever enters a frame.
     "poll.submit": async (input, api) => {
       const answer = ((input && input.answer) || "").trim();
       const credential = (input && input.credential) || (cfg.submitUrl ? null : cfg.cred);
       if (!answer) { api.emit({ submitted: null, issueUrl: null }); return; }
-      if (!credential && !cfg.submitUrl) { api.emit({ submitted: null, issueUrl: issueUrl(cfg, answer, { ts }) }); return; }
+      if ((!credential && !cfg.submitUrl) || !cfg.canonical) { api.emit({ submitted: null, issueUrl: issueUrl(cfg, answer, { ts }) }); return; }
       try {
         const { placement } = await submitAnswer(cfg, answer, { api: egressApi, credential, ts });
         api.emit({ submitted: true, placement });                 // no credential in the frame
