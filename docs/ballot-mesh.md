@@ -88,10 +88,16 @@ apart, revocations and changes included, are trajectory data a snapshot never wa
    Private polls never satchel-broadcast in the first place (the client knows the routing);
    taking one public is a re-signed poll object, free to reach discovery, where any data an
    Atlas already holds is harmless — it is all signed.
-3. **The meet wiring.** Satchel + quell exchange riding the same gesture that rolls the
-   labeler and mints met-records — transport over `transfer.mjs`/`carrier.mjs` framing, more
-   member envelopes in the layout. No per-hop signing: the artifacts' own signatures are the
-   integrity; encounter receipts (`accept.mjs`) stay local and optional.
+3. **The meet wiring — choreography built (`meet.mjs`), transport not.** The trade's logic
+   exists: a `greeting` declares pins + turn-in scopes (solicitation without a second round);
+   `meetOffer` sends quells first, then the push tier + the peer's solicitation + anything
+   scoped to where the peer can turn in; `receiveMeet` verifies quells and prunes BEFORE any
+   ballot lands; and the co-signed `exchangeReceipt`/`countersign` pair makes one transcript
+   two-signature evidence — valid only when the countersigner is the named peer. Still
+   unbuilt: the physical leg (member envelopes over `transfer.mjs`/`carrier.mjs` framing,
+   riding the same gesture that rolls the labeler and mints met-records). No per-hop signing:
+   the artifacts' own signatures are the integrity; encounter receipts (`accept.mjs`) stay
+   local and optional.
 
 ## What is deliberately not here
 
