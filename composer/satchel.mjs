@@ -20,6 +20,7 @@
 // a ballot inside the constituency it was trying to reach should be TURNED IN, not re-broadcast.
 
 import { verifyBallot, ballotId, isBallot } from "./ballot.mjs";
+import { quells } from "./quell.mjs";
 
 export const DEFAULT_CAP = 100;
 
@@ -97,8 +98,17 @@ export async function takeOffered(satchel, offered, { pins, cap, now, staleAfter
   return { satchel: pruneSatchel(r.satchel, { pins, cap, now, staleAfterMs }), added: r.added, dropped: r.dropped };
 }
 
+// TERMINAL quells retire what they name: one packet replaces N dead ballots in this pocket
+// (the caller decides which quells are terminal — isAuthorQuell with the poll's known kid;
+// HOST quells never reach here, they only close one door's routing). The quells themselves
+// keep riding the same labels so the retirement spreads.
+export function applyQuells(satchel, terminalQuells) {
+  const dead = (e) => (terminalQuells || []).some((q) => quells(q, e.ballot));
+  return { satchel: satchel.filter((e) => !dead(e)), pruned: satchel.filter(dead) };
+}
+
 // A ballot that has REACHED the constituency it was addressed to should be turned in, not
-// re-broadcast (lateSubmission -> the poll's canonical issue, or dumped into any reachable Atlas
+// re-broadcast (turnInSubmission -> the poll's canonical issue, or dumped into any reachable Atlas
 // that routes it — the Kevin Bacon hop ends here). Partition the satchel against where you are.
 export function arrived(satchel, myScopes) {
   const here = new Set(myScopes || []);

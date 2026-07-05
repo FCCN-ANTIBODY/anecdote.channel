@@ -16,9 +16,10 @@
 //
 // Turn-in is the register-exchange.mjs move: the offline artifact REPLAYS onto the GitHub mirror as
 // the ordinary idiom — here, a tell.submission/v1 comment on the poll's canonical issue, with the
-// signed ballot attached so lateness is evidenced (its ts is inside the respondent's signature),
-// not asserted. Whether a late ballot is ADMITTED stays the Tell's call (lifecycle late_until —
-// viewer/poll.mjs pollState's "late" window).
+// signed ballot attached so its age is evidenced (the ts is inside the respondent's signature),
+// not asserted. Admission stays the Tell's call — and "late" is not a state: a dated poll's
+// close is FINAL (the date is its standing quell, composer/quell.mjs); an undated poll's answer
+// timeline is simply an artifact, revocations and changes included.
 
 import { attest, verifyAttestation, canonicalize } from "./sign.mjs";
 import { defaultHash } from "./anecdote.mjs";
@@ -73,7 +74,7 @@ export async function ballotId(signed) {
 // (a comment on the poll's canonical issue). Key order mirrors poll-answer.mjs's contract for the
 // fields the Tell's authz reads (pile/poll/round/tok/answer/ts); the signed ballot rides whole under
 // `ballot` at the end — attribution and age stamp, verifiable by anyone at the door.
-export function lateSubmission(signed) {
+export function turnInSubmission(signed) {
   if (!isBallot(signed)) throw new Error("ballot: not a ballot");
   const block = { schema: SUBMISSION_SCHEMA, pile: signed.pile, poll: signed.poll };
   if (signed.round !== undefined) block.round = signed.round;

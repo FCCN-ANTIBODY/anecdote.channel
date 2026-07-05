@@ -41,25 +41,57 @@ filter:
 Everything is verify-from-anyone before it is kept; whose signature you *act* on stays the
 friend-list's question (`accept.mjs`).
 
+## There is no "late" — the quell, and the timeline as artifact
+
+Lateness is not a state; it is a position on a timeline already evidenced (every ballot's `ts`
+rides inside its signature). What ends a poll is one of two things:
+
+* **A close date** — final on its face. The date inside the signed poll IS a standing quell:
+  post-close traffic is derelict, and anyone holding the poll can shrug at it without ever
+  seeing a packet. (This retired the `late_until` window and the `late` bucket — v1 ideas
+  superseded before they grew doors.)
+* **A quell** (`quell.mjs`) — for undated polls (an RSVP is a poll; general-sentiment questions
+  someone eventually ends on purpose) and for withdrawals. Two claims, told apart by who
+  signed:
+  - **author quell** (hostless, the poll's own kid): the QUESTION is ended — terminal, final,
+    no listing resurrects it. Carriers prune its ballots (`applyQuells` — one packet replaces
+    N dead ballots in every pocket) and carry the quell onward on the same labels they were
+    already pinning. The quit-a-Tell case lives here: take your pile, end or re-home the
+    question on your own signature.
+  - **host quell** (names its `host`): MY door is closed — archived per end-of-life policy,
+    membership removed, a donated pile sealed ("a box in storage now"). It binds nobody else:
+    the same poll on two hosts with different archive policies has one door close while the
+    other keeps collecting, maybe forever, maybe as its whole purpose. And it loses to
+    freshness (`supersededBy`): a same-host listing newer than the quell means your cache saw
+    the door open after it supposedly closed — believe the newer signed word. Host quells
+    never prune ballots.
+
+  `stillLive()` is the client's whole question: dead if author-quelled; otherwise alive while
+  ANY known door stands unquelled-or-superseded.
+
+For open sentiment polls the timeline becomes the interesting artifact — answers dated months
+apart, revocations and changes included, are trajectory data a snapshot never was.
+
 ## The doors (unbuilt, in order)
 
-1. **Turn-in at the mirror.** `lateSubmission()` already projects a carried ballot into the
+1. **Turn-in at the mirror.** `turnInSubmission()` already projects a carried ballot into the
    ordinary `tell.submission/v1` idiom — a comment on the poll's canonical issue, the signed
-   ballot riding whole so lateness is *evidenced* (the age stamp is inside the signature), not
-   asserted. This is `register-exchange.mjs`'s replay move applied to answers. Tell-side:
-   `bin/authz`/`bin/govern` learn the **late window** — a poll's lifecycle gains `late_until`
-   (already understood by `pollState`, state `"late"`), and a ballot arriving closed-but-late
-   is admitted into the **late bucket** (`late: true` on the record; `tallyDeliveries` already
-   counts and surfaces it) instead of rejected. Two buckets, one poll, recognizably the same.
-2. **The Atlas door.** A carrier who reaches *any* running node — including a git server alive
-   without internet — dumps what they hold; if it's for that Atlas it ingests, or routes to
-   the right Tell as originally designed. Late ballots arriving on the discovery pipeline
-   means the late ballot-box is a **discoverable pile that never registered its poll** — the
-   opposite of the two-question pile: one question used twice, registered once. Needs the
-   Atlas-side drop surface.
-3. **The meet wiring.** Satchel exchange riding the same gesture that rolls the labeler and
-   mints met-records — transport over `transfer.mjs`/`carrier.mjs` framing, one more member
-   envelope in the layout.
+   ballot riding whole so its age is *evidenced*, not asserted. `register-exchange.mjs`'s
+   replay move applied to answers. Admission stays the Tell's: closed-dated means closed.
+2. **The Atlas door, with the three-rule table.** For hand-carried traffic reaching an Atlas:
+   poll known here → ingest and route — and the Atlas may **provision the ballot-box pile
+   itself**, signed as exactly what it is (data-pile's `provisioner`/`provisioner_spec`
+   grammar, the Atlas as attested provisioner; aggregation is then automatic). Poll quelled or
+   past its close date → shrug — and the efficient shrug hands the quell BACK to the carrier,
+   who prunes and spreads it. Poll unknown, no quell → flood to friends and forget; free
+   forwarding, no custody. Atlases hold quell lists long and generously, purge eventually.
+   Private polls never satchel-broadcast in the first place (the client knows the routing);
+   taking one public is a re-signed poll object, free to reach discovery, where any data an
+   Atlas already holds is harmless — it is all signed.
+3. **The meet wiring.** Satchel + quell exchange riding the same gesture that rolls the
+   labeler and mints met-records — transport over `transfer.mjs`/`carrier.mjs` framing, more
+   member envelopes in the layout. No per-hop signing: the artifacts' own signatures are the
+   integrity; encounter receipts (`accept.mjs`) stay local and optional.
 
 ## What is deliberately not here
 

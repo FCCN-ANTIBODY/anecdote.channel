@@ -65,7 +65,7 @@ export function deliveryRecords(repo, { ref } = {}) {
 export function tallyDeliveries(records, { poll, options = [] } = {}) {
   const listed = new Set(options);
   const counts = new Map();
-  let total = 0, pending = 0, rejected = 0, late = 0;
+  let total = 0, pending = 0, rejected = 0;
   for (const r of records) {
     if (!r || typeof r.answer !== "string") continue;
     if (poll && r.poll && r.poll !== poll) continue;
@@ -74,32 +74,28 @@ export function tallyDeliveries(records, { poll, options = [] } = {}) {
     if (v === "needs-judgment" || v === "held") { pending++; continue; }
     counts.set(r.answer, (counts.get(r.answer) || 0) + 1);
     total++;
-    if (r.late) late++;                       // hand-carried, admitted in the late window — counted AND visible
   }
   // Seed listed options at 0 so the widget shows every choice even before anyone picks it.
   for (const o of options) if (!counts.has(o)) counts.set(o, 0);
   const tally = [...counts.entries()]
     .map(([answer, count]) => ({ answer, count, listed: listed.has(answer) }))
     .sort((a, b) => b.count - a.count || (a.answer < b.answer ? -1 : 1));
-  return { total, pending, rejected, late, tally };
+  return { total, pending, rejected, tally };
 }
 
 // Lifecycle state at a moment. Pure: caller passes `now` (epoch ms) — no clock in here. Without a `now`,
 // state is "unknown" (we still report the window). opens_at/closes_at are ISO strings (Tell convention).
 export function pollState(lifecycle = {}, now) {
-  const win = { round: lifecycle.round ?? null, opens_at: lifecycle.opens_at || null, closes_at: lifecycle.closes_at || null,
-                late_until: lifecycle.late_until || null };
+  const win = { round: lifecycle.round ?? null, opens_at: lifecycle.opens_at || null, closes_at: lifecycle.closes_at || null };
   if (now == null) return { state: "unknown", ...win };
   const opens = win.opens_at ? Date.parse(win.opens_at) : null;
   const closes = win.closes_at ? Date.parse(win.closes_at) : null;
-  const late = win.late_until ? Date.parse(win.late_until) : null;
   let state = "open";
   if (opens != null && now < opens) state = "scheduled";
-  else if (closes != null && now >= closes) {
-    // The hand-carried window: a closed poll may, BY POLICY, keep accepting mesh-carried ballots
-    // whose age stamps ride inside their signatures (composer/ballot.mjs) until late_until.
-    state = late != null && now < late ? "late" : "closed";
-  }
+  else if (closes != null && now >= closes) state = "closed";
+  // Closed is FINAL: a dated poll's close date is its standing quell (composer/quell.mjs) —
+  // post-close traffic is derelict and shruggable, and "late" is not a state, only a position
+  // on the answer timeline already evidenced inside each ballot's signature.
   return { state, ...win };
 }
 
