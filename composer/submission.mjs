@@ -54,17 +54,24 @@ function normalize(cfg, { canonicalRepo, rawQuery }) {
   const repo = cfg.repo && REPO_RE.test(cfg.repo) ? cfg.repo : canonicalRepo;
   return {
     loaded,
+    // ---- anecdote's namespace: self-describing, promised, read by the core -----------------------
     pile: cfg.pile, poll: cfg.poll, round: cfg.round, tok: cfg.tok,
     type: cfg.type || "open", asker: cfg.asker || "", guidance: cfg.guidance || "",
     question: cfg.q || (cfg.pile && cfg.poll ? `Reply to ${cfg.pile} / ${cfg.poll}` : ""),
-    options,                       // SUGGESTED answers (may be empty)
-    repo, sig: cfg.sig || null,
-    // ---- the backend credential slot: parsed, carried, NEVER interpreted here ----
-    cred: cfg.post || null,        // legacy semi-public post token (decoded), if any
-    submitUrl: /^https:\/\//.test(cfg.su || "") ? cfg.su : null,   // a relay address (`su=`), https-only
-    canonical: /^[0-9]+$/.test(cfg.canonical || "") ? String(cfg.canonical) : null, // the poll's one thread
-    // -------------------------------------------------------------------------------
-    rawQuery: stripCred(rawQuery), // the credential NEVER rides in the provenance field or the submission body
+    options, sig: cfg.sig || null,  // SUGGESTED answers (may be empty); sig is anecdote's provenance
+    rawQuery: stripCred(rawQuery),  // the credential NEVER rides in the provenance field or the submission body
+    // ---- the backend namespace: opaque to the core — CARRIED, NEVER READ here --------------------
+    // The routing-namespace law (anecdote.channel#105): a backend owns these; only the adapter
+    // (egress-github.mjs) and the router (submit-route.mjs) read them. A backend may collapse its
+    // whole namespace into one opaque blob later — `sc` (docs/sealed-credential.md) is the first.
+    // `auth` is RESERVED at the top level for anecdote's OWN credential someday — unspent for now,
+    // and no backend may squat it (whoever declares a field owns it exclusively).
+    backend: {
+      repo,                         // OWNER/NAME address the adapter resolves (never a URL the core builds)
+      canonical: /^[0-9]+$/.test(cfg.canonical || "") ? String(cfg.canonical) : null, // the poll's one thread
+      cred: cfg.post || null,       // legacy semi-public post token (decoded), if any
+      submitUrl: /^https:\/\//.test(cfg.su || "") ? cfg.su : null,   // a relay address (`su=`), https-only
+    },
   };
 }
 
@@ -106,7 +113,7 @@ export function answerView(cfg) {
   return {
     loaded: true,
     pile: cfg.pile, poll: cfg.poll, round: cfg.round, type: cfg.type,
-    question: cfg.question, guidance: cfg.guidance, repo: cfg.repo, signed: !!cfg.sig,
+    question: cfg.question, guidance: cfg.guidance, signed: !!cfg.sig,   // repo is the backend's namespace — not surfaced here
     alwaysCustom: true,                                             // anecdote's invariant
     options: cfg.options.map((o) => ({ answer: o })),              // suggestions only, no destinations
   };

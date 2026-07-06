@@ -39,7 +39,7 @@ export async function rememberAnswer(store, { qr, cfg, answer, receipt = null, t
     pile: c.pile, poll: c.poll, round: c.round, type: c.type,
     question: c.question, options: c.options, repo: c.repo,
     answer, tok: c.tok,
-    canonical: c.canonical || null,   // the poll's one thread (github adapter's placement anchor), if the QR named it
+    canonical: (c.backend && c.backend.canonical) || null,   // the poll's one thread (backend namespace, #105), if named
     submission: submissionBlock(c, answer, { ts: at }),
     receipt,                    // the trove nonce this answer produced (the anecdote you made), or null
     answered_at: at,

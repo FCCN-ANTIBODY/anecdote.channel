@@ -7,8 +7,8 @@
 //     ballot through the mesh, composer/ballot.mjs). No URL, no github — a held answer is not a failure.
 //
 // This file names no issue, comment, POST, or token; all github vocabulary lives in egress-github.mjs, and
-// the mesh is composer/ballot.mjs. The credential slot (cfg.cred / cfg.submitUrl / cfg.canonical) is read
-// ONLY to decide the route and is handed to the adapter untouched — never into a frame.
+// the mesh is composer/ballot.mjs. The backend namespace (cfg.backend — #105's routing-namespace law) is
+// read ONLY to decide the route and is handed to the adapter untouched — never into a frame.
 
 import { parseQR, answerView, submissionBlock } from "./submission.mjs";
 import { deliver } from "./egress-github.mjs";
@@ -18,7 +18,8 @@ import { deliver } from "./egress-github.mjs";
 // `poll.submit` is the Rung-1 tap that routes it. `egressApi` is the injected github transport (test seam).
 export function pollAnswerOps({ qr, canonicalRepo, ts, egressApi } = {}) {
   const cfg = parseQR(qr, { canonicalRepo });
-  const hasPublicRoute = (credential) => (credential || cfg.cred || cfg.submitUrl) && cfg.canonical;
+  const b = cfg.backend || {};   // the backend namespace — carried by the core, read only here + the adapter
+  const hasPublicRoute = (credential) => (credential || b.cred || b.submitUrl) && b.canonical;
   return {
     "poll.view": async (_input, api) => { api.emit({ view: answerView(cfg) }); },
     "poll.compose": async (input, api) => {
@@ -30,11 +31,11 @@ export function pollAnswerOps({ qr, canonicalRepo, ts, egressApi } = {}) {
     // relay address ever enters a frame.
     "poll.submit": async (input, api) => {
       const answer = ((input && input.answer) || "").trim();
-      const credential = (input && input.credential) || (cfg.submitUrl ? null : cfg.cred);
+      const credential = (input && input.credential) || (b.submitUrl ? null : b.cred);
       if (!answer) { api.emit({ submitted: null }); return; }
       if (!hasPublicRoute(credential)) { api.emit({ submitted: null, held: true }); return; }  // → carry as a ballot
       try {
-        const { placement } = await deliver(cfg, answer, { api: egressApi, credential, submitUrl: cfg.submitUrl, ts });
+        const { placement } = await deliver(cfg, answer, { api: egressApi, credential, submitUrl: b.submitUrl, ts });
         api.emit({ submitted: true, placement });                 // no credential in the frame
       } catch (e) {
         api.emit({ submitted: false, error: e.message, held: true });  // never silent; hold to retry/carry

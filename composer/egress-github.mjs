@@ -159,9 +159,10 @@ export function commentBody(cfg, answer, { ts } = {}) {
 // The submission as a GitHub API request — a comment on the poll's canonical issue. No network, no
 // credential (pure): the credential is handed to the transport at call time, header-only.
 export function commentRequest(cfg, answer, { ts } = {}) {
-  if (!cfg.canonical) throw new Error("egress: no canonical issue to comment on (the QR carried no canonical=)");
-  const [owner, name] = String(cfg.repo).split("/");
-  return { method: "POST", path: `/repos/${owner}/${name}/issues/${cfg.canonical}/comments`, payload: { body: commentBody(cfg, answer, { ts }) } };
+  const b = cfg.backend || {};   // the backend namespace is the adapter's to read (#105)
+  if (!b.canonical) throw new Error("egress: no canonical issue to comment on (the QR carried no canonical=)");
+  const [owner, name] = String(b.repo).split("/");
+  return { method: "POST", path: `/repos/${owner}/${name}/issues/${b.canonical}/comments`, payload: { body: commentBody(cfg, answer, { ts }) } };
 }
 
 // deliver — the backend seam the router calls: turn a chosen answer into a placement on the public backend.
@@ -170,16 +171,17 @@ export function commentRequest(cfg, answer, { ts } = {}) {
 //                it server-side. Preferred over a QR-carried credential.
 // Comment-only, on the poll's canonical issue. Throws on a non-2xx so the router surfaces "not accepted".
 export async function deliver(cfg, answer, { api, credential, submitUrl, ts } = {}) {
+  const b = cfg.backend || {};   // the backend namespace (#105)
   const a = (answer || "").trim();
   if (!a) throw new Error("egress: nothing to submit");
-  const relay = submitUrl || cfg.submitUrl;
+  const relay = submitUrl || b.submitUrl;
   if (!credential && !relay) throw new Error("egress: no public backend route (no credential, no relay)");
   const req = commentRequest(cfg, a, { ts });
   const call = api || (credential ? githubApi : relayApi(relay));
   const res = await call({ method: req.method, path: req.path, body: req.payload, token: credential });
   if (!res || res.status >= 300) throw new Error(`egress: github responded ${res ? res.status : "?"}${res && res.json && res.json.message ? " — " + res.json.message : ""}`);
   const j = res.json || {};
-  return { placement: { repo: cfg.repo, url: j.html_url || null, id: j.id != null ? j.id : null, issue: Number(cfg.canonical) } };
+  return { placement: { repo: b.repo, url: j.html_url || null, id: j.id != null ? j.id : null, issue: Number(b.canonical) } };
 }
 
 // The Tell's submit-gateway transport: same {status, json} contract as githubApi, but the request goes to
