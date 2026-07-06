@@ -167,7 +167,7 @@ export function commentRequest(cfg, answer, { ts } = {}) {
 
 // deliver — the backend seam the router calls: turn a chosen answer into a placement on the public backend.
 //   credential — a host-supplied post token; rides ONLY in the transport Authorization header.
-//   submitUrl  — the Tell's submit-gateway relay (`su=`): the client holds NO credential; the worker injects
+//   submitUrl  — the Tell's submit-gateway relay (`submit=`): the client holds NO credential; the worker injects
 //                it server-side. Preferred over a QR-carried credential.
 // Comment-only, on the poll's canonical issue. Throws on a non-2xx so the router surfaces "not accepted".
 export async function deliver(cfg, answer, { api, credential, submitUrl, ts } = {}) {
@@ -186,7 +186,7 @@ export async function deliver(cfg, answer, { api, credential, submitUrl, ts } = 
 
 // The Tell's submit-gateway transport: same {status, json} contract as githubApi, but the request goes to
 // the Tell's OWN relay worker (tell …/workers/submit-gateway) which injects the credential SERVER-SIDE.
-// The client holds no token at all — the QR carried only the worker's non-secret address (`su=`). The relay
+// The client holds no token at all — the QR carried only the worker's non-secret address (`submit=`). The relay
 // accepts exactly the GitHub-API shape ({path, body}) so the fenced block arrives byte-identical and the
 // three-token discipline gains nothing to confuse: there is no credential on this side to leak.
 export function relayApi(submitUrl) {
