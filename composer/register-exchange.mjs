@@ -52,7 +52,7 @@ export function validateEntry(registry, entry) {
 // ---- OPEN — the proposer's half ----------------------------------------------------------------------
 
 // Propose a registration: the entry, named to its registry, signed into a transfer envelope. This is
-// the offline `issues/new` moment — nothing is registered yet; the envelope is the ask.
+// the offline propose-a-registration moment — nothing is registered yet; the envelope is the ask.
 export async function openRegistration(registry, entry, identity, opts = {}) {
   const v = validateEntry(registry, entry);
   if (!v.ok) throw new Error("register-exchange: " + v.errors.join("; "));

@@ -7,7 +7,7 @@ import fs from "node:fs";
 import { mintToken, mintQR, qrCanon, hmacHex, qrMintOps } from "./qr-mint.mjs";
 import { elevatedSession, request, FRAME, ERROR } from "./probe-line.mjs";
 import { buildPoll } from "../viewer/poll.mjs";
-import { parseQR } from "./poll-answer.mjs";
+import { parseQR } from "./submission.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -88,12 +88,12 @@ function refQR(secret, args) {
 }
 
 // 6b. THE RETIREMENT, mirrored from bin/qr: the default is the comment paradigm, and mode=issue is
-// refused — the credential-free issueUrl fallback is the one new-issue path left.
+// refused — an answer with no public thread is held and carried through the mesh.
 {
   const { url } = await mintQR({ pile: "p", poll: "q" }, { secret: SECRET });
   ok(url.includes("mode=comment"), "the default mode is comment — the paradigm");
   let msg = ""; try { await mintQR({ pile: "p", poll: "q" }, { secret: SECRET, mode: "issue" }); } catch (e) { msg = e.message; }
-  ok(/retired/.test(msg) && /issueUrl/.test(msg), "mode=issue is refused with a pointer at the comment paradigm + issueUrl fallback");
+  ok(/retired/.test(msg), "mode=issue is refused (the mint mirrors bin/qr's retirement)");
   if (haveQR) {
     let refused = true;
     try { refQR(SECRET, ["--pile", "p", "--poll", "q", "--mode", "issue"]); refused = false; } catch {}

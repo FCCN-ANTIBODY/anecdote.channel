@@ -18,7 +18,7 @@ const QR = "pile=cd04-q1&poll=budget&round=1&tok=abc123&type=multichoice&opts=Cu
   const rec = await rememberAnswer(store, { qr: QR, answer: "Keep", ts: "2026-07-01T00:00:00.000Z" });
   ok(rec.schema === ANSWERED && rec.key === "cd04-q1:budget:1", "keyed by pile:poll:round");
   ok(rec.answer === "Keep" && rec.submission.answer === "Keep" && rec.submission.tok === "abc123", "keeps the answer + the composed tell.submission/v1");
-  ok(rec.issueUrl.includes("/issues/new"), "keeps the reply link");
+  ok(!("issueUrl" in rec) && rec.submission, "no github link on the record — the neutral submission is what's kept");
   ok((await listAnswered(store)).length === 1, "listAnswered shows it");
   ok((await getAnswered(store, "cd04-q1:budget:1")).answer === "Keep", "getAnswered by key");
 }
@@ -83,7 +83,7 @@ const QR = "pile=cd04-q1&poll=budget&round=1&tok=abc123&type=multichoice&opts=Cu
 
   // confirmed → persists + returns the link
   const done = await run("poll.remember", { qr: QR, answer: "Keep" }, { recordingOn: true, grants: [], confirmed: true });
-  ok(done.some((f) => f.type === FRAME && f.remembered && f.issueUrl), "confirmed poll.remember persists + returns the reply link");
+  ok(done.some((f) => f.type === FRAME && f.remembered), "confirmed poll.remember persists + returns the record");
 
   // poll.answered lists it (Rung 0, no prompt)
   const listed = await run("poll.answered", {}, { recordingOn: true, grants: [] });

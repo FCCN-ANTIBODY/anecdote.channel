@@ -41,7 +41,7 @@
 
 <script type="module">
 import { spawnChamber, serveProbeLine } from "./composer/probe-line.mjs";
-import { pollAnswerOps } from "./composer/poll-answer.mjs";
+import { pollAnswerOps } from "./composer/submit-route.mjs";
 
 // The scanned QR: params after "?" (bin/qr / anecdote mintQR put them there), hash as the fallback.
 const qr = (location.search || "").replace(/^\?/, "") || (location.hash || "").replace(/^#/, "");
@@ -60,8 +60,8 @@ textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4
 <scr`+`ipt>
 (function(){
   var port=null, seq=0, pending={};
-  function invoke(op,input){return new Promise(function(res){var id="r"+(++seq);pending[id]={res:res,frames:[]};
-    port.postMessage({type:"probe.line.request/v1",id:id,op:op,input:input||{}});});}
+  function invoke(op,input,confirmed){return new Promise(function(res){var id="r"+(++seq);pending[id]={res:res,frames:[]};
+    port.postMessage({type:"probe.line.request/v1",id:id,op:op,input:input||{},confirmed:!!confirmed});});}
   function onPort(ev){var d=ev.data;if(!d||!d.id)return;var p=pending[d.id];if(!p)return;
     if(d.type==="probe.line.frame/v1"&&d.final){delete pending[d.id];p.res(p.frames);}
     else if(d.type==="probe.line.frame/v1"){p.frames.push(d);}
@@ -82,20 +82,24 @@ textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4
         "a query arrived ("+w.rawQueryBytes+" B, has: "+((w.params||[]).map(esc).join(", ")||"nothing recognized")+") but is missing: "+((w.missing||[]).map(esc).join(", "));
       $("view").innerHTML="<p class=empty>No poll loaded — open this page from a poll's QR code.</p>"+
         "<p class=fine>"+detail+"</p>";return;}
-    var opts=v.options.map(function(o){return "<a class=opt href='"+esc(o.issueUrl)+"' target=_blank rel='nofollow noopener'>"+esc(o.answer)+"</a>";}).join("");
+    var opts=v.options.map(function(o){return "<button class=opt data-a='"+esc(o.answer)+"'>"+esc(o.answer)+"</button>";}).join("");
     $("view").innerHTML="<h3>"+esc(v.question)+"</h3>"+
       (v.guidance?"<div class=guide>"+esc(v.guidance)+"</div>":"")+opts+
       "<div class=custom><label for=ans>"+(v.options.length?"Or answer in your own words:":"Your answer:")+"</label>"+
       "<textarea id=ans rows=3 placeholder='Type your reply…'></textarea><br>"+
-      "<button class=go id=go disabled>Compose reply</button>"+
+      "<button class=go id=go disabled>Send reply</button>"+
       "<div class=promise>✓ your answer is always custom — the options are only suggestions</div></div>"+
       "<div id=out></div>"+
-      "<div class=fine>Choosing or typing builds a pre-filled GitHub issue. Review it, then submit to reply. Nothing here phones home.</div>";
+      "<div class=fine>Your reply is signed on this device. It reaches the pile through a relay when one is set, or travels hand-to-hand otherwise. Nothing here opens a web page.</div>";
     var ta=$("ans"), go=$("go");
+    Array.prototype.forEach.call(document.querySelectorAll(".opt"),function(b){b.addEventListener("click",function(){ta.value=b.getAttribute("data-a");go.disabled=!ta.value.trim();$("out").innerHTML="";});});
     ta.addEventListener("input",function(){go.disabled=!ta.value.trim();$("out").innerHTML="";});
     go.addEventListener("click",async function(){
-      var c=(await invoke("poll.compose",{answer:ta.value}))[0];
-      $("out").innerHTML=c&&c.issueUrl?("<a class=reply href='"+esc(c.issueUrl)+"' target=_blank rel='nofollow noopener'>Review &amp; submit your reply →</a>"):"";
+      go.disabled=true;
+      var r=(await invoke("poll.submit",{answer:ta.value},true))[0]||{};  // the tap IS the confirmation (Rung 1)
+      if(r.submitted===true){$("out").innerHTML="<div class=promise>✓ reply sent.</div>";}
+      else if(r.held){$("out").innerHTML="<div class=fine>Held — your signed reply will travel to the pile when a route is available."+(r.error?" ("+esc(r.error)+")":"")+"</div>";go.disabled=false;}
+      else {$("out").innerHTML="<div class=fine>Nothing to send yet.</div>";go.disabled=false;}
     });
   }
   addEventListener("message",function(e){

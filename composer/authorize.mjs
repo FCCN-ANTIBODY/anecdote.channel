@@ -36,7 +36,7 @@ export const OP_CATALOG = {
   "viewer.atlasFeed":        { rung: 0, persists: false },  // the mixed Atlas feed (#90) — a fold, not new storage
   "poll.view":               { rung: 0, persists: false },  // the poll-answer view (anecdote shaped by a QR)
   "poll.compose":            { rung: 0, persists: false },  // build the reply link — the submit is the user's click
-  "poll.submit":             { rung: 1, persists: false },  // confirm-gated HTTP submit — network egress; falls back to the issueUrl link with no credential
+  "poll.submit":             { rung: 1, persists: false },  // confirm-gated submit — routes to the public backend, else HOLDS the answer for the mesh
   "poll.mint":               { rung: 1, persists: false },  // mint a poll's QR — a shareable authorization (secret stays Elevated)
   "poll.remember":           { rung: 1, persists: true  },  // remember a poll you answered (Elevated persistence)
   "poll.answered":           { rung: 0, persists: false },  // list the polls you've answered

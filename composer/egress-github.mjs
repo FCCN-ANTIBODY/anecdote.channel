@@ -24,7 +24,11 @@
 // fenced ```tell``` block: pile/poll/round/type/asker/shown_guidance/answer/ts/tok). We keep `answer`
 // the raw statement (a string) and ADD `nonce` (revocation linkage), `run`, and the full `anecdote`.
 
+import { submissionBlock as qrSubmissionBlock } from "./submission.mjs";
+
 export const SUBMISSION = "tell.submission/v1";
+// Re-exported for callers that address the canonical Tell mailbox through this adapter.
+export { CANONICAL_REPO } from "./submission.mjs";
 
 // Pull the poll/pile context the Tell handed us through the tunnel deliver artifact.
 function ctx(deliver, opts = {}) {
@@ -137,6 +141,45 @@ export function interpretStatus(obj, opts = {}) {
   if (rej) return { state: "rejected", reason: rej.includes(":") ? rej.slice(rej.indexOf(":") + 1) : null };
   if (labels.includes("ingested")) return { state: "accepted" };
   return { state: obj.state === "closed" ? "closed" : "pending" };
+}
+
+// ---- the poll-answer path: a QR answer → a comment on the poll's canonical issue --------------------
+// This is the GitHub adapter for composer/submission.mjs's neutral block. The core builds the block and
+// routes; here is the ONLY place that knows the block becomes a github comment on `canonical`. There is no
+// new-issue path (issue-per-response is retired) and no visitor-facing github.com link.
+
+// The comment body: the human line + the fenced neutral block. Byte-frozen alongside the block itself
+// (composer/submission.test.mjs) — the Tell's bin/collect-submissions reads the fenced ```tell block.
+export function commentBody(cfg, answer, { ts } = {}) {
+  const block = qrSubmissionBlock(cfg, answer, { ts });
+  return `Reply to **${cfg.pile}** / poll **${cfg.poll}** — option: **${answer}**\n\n` +
+         "```tell\n" + JSON.stringify(block) + "\n```\n";
+}
+
+// The submission as a GitHub API request — a comment on the poll's canonical issue. No network, no
+// credential (pure): the credential is handed to the transport at call time, header-only.
+export function commentRequest(cfg, answer, { ts } = {}) {
+  if (!cfg.canonical) throw new Error("egress: no canonical issue to comment on (the QR carried no canonical=)");
+  const [owner, name] = String(cfg.repo).split("/");
+  return { method: "POST", path: `/repos/${owner}/${name}/issues/${cfg.canonical}/comments`, payload: { body: commentBody(cfg, answer, { ts }) } };
+}
+
+// deliver — the backend seam the router calls: turn a chosen answer into a placement on the public backend.
+//   credential — a host-supplied post token; rides ONLY in the transport Authorization header.
+//   submitUrl  — the Tell's submit-gateway relay (`su=`): the client holds NO credential; the worker injects
+//                it server-side. Preferred over a QR-carried credential.
+// Comment-only, on the poll's canonical issue. Throws on a non-2xx so the router surfaces "not accepted".
+export async function deliver(cfg, answer, { api, credential, submitUrl, ts } = {}) {
+  const a = (answer || "").trim();
+  if (!a) throw new Error("egress: nothing to submit");
+  const relay = submitUrl || cfg.submitUrl;
+  if (!credential && !relay) throw new Error("egress: no public backend route (no credential, no relay)");
+  const req = commentRequest(cfg, a, { ts });
+  const call = api || (credential ? githubApi : relayApi(relay));
+  const res = await call({ method: req.method, path: req.path, body: req.payload, token: credential });
+  if (!res || res.status >= 300) throw new Error(`egress: github responded ${res ? res.status : "?"}${res && res.json && res.json.message ? " — " + res.json.message : ""}`);
+  const j = res.json || {};
+  return { placement: { repo: cfg.repo, url: j.html_url || null, id: j.id != null ? j.id : null, issue: Number(cfg.canonical) } };
 }
 
 // The Tell's submit-gateway transport: same {status, json} contract as githubApi, but the request goes to
