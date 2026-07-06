@@ -25,7 +25,7 @@ home. All ops are Rung&nbsp;0.</p>
 
 <script type="module">
 import { spawnChamber, serveProbeLine } from "./probe-line.mjs";
-import { pollAnswerOps } from "./poll-answer.mjs";
+import { pollAnswerOps } from "./submit-route.mjs";
 
 // The scanned QR. In the field this is location.search after a scan of the poll's QR code; the demo falls
 // back to a sample multichoice poll so the page stands alone.
@@ -54,12 +54,12 @@ textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4
     else if(d.type==="probe.line.error/v1"){delete pending[d.id];p.res([{error:d.reason}]);}}
   var $=function(id){return document.getElementById(id);};
   var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c];});};
-  function showComposed(url){$("link").innerHTML=url?("↪ reply link: <a href='"+esc(url)+"' target=_blank rel='nofollow noopener'>"+esc(url.slice(0,64))+"…</a>"):"";}
+  function showComposed(block){$("link").innerHTML=block?("<div class=fine>composed tell.submission/v1 (the neutral, signed reply block):</div><pre style='white-space:pre-wrap;font-size:.72rem'>"+esc(JSON.stringify(block,null,2))+"</pre>"):"";}
   async function render(){
     var v=(await invoke("poll.view"))[0].view;
     if(!v||!v.loaded){$("view").innerHTML="<p>No poll loaded — open from a poll's QR code.</p>";return;}
     cfgLoaded=true;
-    var opts=v.options.map(function(o,i){return "<a class=opt data-i='"+i+"' href='"+esc(o.issueUrl)+"' target=_blank rel='nofollow noopener'>"+esc(o.answer)+"</a>";}).join("");
+    var opts=v.options.map(function(o){return "<button class=opt data-a='"+esc(o.answer)+"'>"+esc(o.answer)+"</button>";}).join("");
     $("view").innerHTML="<h3>"+esc(v.question)+"</h3>"+
       (v.guidance?"<div class=guide>"+esc(v.guidance)+"</div>":"")+
       opts+
@@ -68,12 +68,13 @@ textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4
       "<button class=go id=go disabled>Compose reply</button>"+
       "<div class=promise>✓ your answer is always custom — the options are only suggestions</div></div>"+
       "<div class=link id=link></div>"+
-      "<div class=fine>Choosing or typing builds a pre-filled GitHub issue. Review it, then submit to reply. Nothing here phones home.</div>";
+      "<div class=fine>Choosing or typing composes the signed reply block — the neutral artifact a relay posts or the mesh carries. Nothing here opens a web page.</div>";
     var ta=$("ans"), go=$("go");
-    ta.addEventListener("input",function(){go.disabled=!ta.value.trim();showComposed("");});
+    Array.prototype.forEach.call(document.querySelectorAll(".opt"),function(b){b.addEventListener("click",function(){ta.value=b.getAttribute("data-a");go.disabled=!ta.value.trim();showComposed(null);});});
+    ta.addEventListener("input",function(){go.disabled=!ta.value.trim();showComposed(null);});
     go.addEventListener("click",async function(){
       var c=(await invoke("poll.compose",{answer:ta.value}))[0];
-      if(c&&c.issueUrl) showComposed(c.issueUrl);
+      if(c&&c.block) showComposed(c.block);
     });
   }
   addEventListener("message",function(e){

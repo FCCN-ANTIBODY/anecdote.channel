@@ -7,7 +7,7 @@
 // Same store contract as the trove/grants: an injected { get, set, delete } (async, domain-scoped). One
 // record per (pile, poll, round) — re-answering the same round updates it (you answered it once).
 
-import { parseQR, issueUrl, submissionBlock } from "./poll-answer.mjs";
+import { parseQR, submissionBlock } from "./submission.mjs";
 
 export const ANSWERED = "anecdote.answered/v1";
 const ANSWERED_KEY = "anecdote:answered";
@@ -21,7 +21,7 @@ export function answeredKey(cfg) { return `${cfg.pile}:${cfg.poll}:${cfg.round}`
 // The lean view of a record for the wire / a list widget (drops the full submission block).
 function summary(r) {
   return { key: r.key, pile: r.pile, poll: r.poll, round: r.round, type: r.type,
-           question: r.question, answer: r.answer, repo: r.repo, issueUrl: r.issueUrl,
+           question: r.question, answer: r.answer, repo: r.repo, canonical: r.canonical || null,
            receipt: r.receipt, answered_at: r.answered_at };
 }
 
@@ -39,7 +39,7 @@ export async function rememberAnswer(store, { qr, cfg, answer, receipt = null, t
     pile: c.pile, poll: c.poll, round: c.round, type: c.type,
     question: c.question, options: c.options, repo: c.repo,
     answer, tok: c.tok,
-    issueUrl: issueUrl(c, answer, { ts: at }),
+    canonical: c.canonical || null,   // the poll's one thread (github adapter's placement anchor), if the QR named it
     submission: submissionBlock(c, answer, { ts: at }),
     receipt,                    // the trove nonce this answer produced (the anecdote you made), or null
     answered_at: at,
@@ -87,7 +87,7 @@ export function answeredOps({ store, troveStore, canonicalRepo } = {}) {
       await api.tick();                                   // cancel lands BEFORE the write (commit atomicity)
       const rec = await rememberAnswer(store, { qr: input && input.qr, cfg: input && input.cfg,
         answer: input && input.answer, receipt: input && input.receipt, canonicalRepo });
-      api.emit({ remembered: summary(rec), issueUrl: rec.issueUrl });
+      api.emit({ remembered: summary(rec) });
     },
     "poll.answered": async (_input, api) => {
       const { get } = await import("./consent.mjs");     // resolve receipt → trove entry, lazily
