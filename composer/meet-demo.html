@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<!-- composer/meet-demo.html — THE MEET, MOUNTED: the meet-session driver (composer/meet-session.mjs,
+     openMeet) wired to a real screen and a real camera, so two people standing together trade their
+     pockets face-to-face with nothing between the phones but light.
+
+     ONE PAGE, BOTH ROLES AT ONCE. My screen is a looping QR billboard pouring MY frames
+     (openMeet.show → composer/qr-encode.mjs); my camera drinks the PEER's frames
+     (composer/qr-decode.mjs → openMeet.feed). The driver runs hello → trade → receipt underneath;
+     this file only moves photons and paints state. Use the FRONT camera on purpose: screen and
+     front lens face the same way, so two phones held facing each other each show to — and read —
+     the other. (Rear-camera duplex can't: the lens looks away from the screen.)
+
+     THE TUNING LINE, same as the transfer demos: a brief spoken-vocabulary status ("MEET · trade ·
+     caught 2/2") so two operators who can't see each other's screens can still negotiate across the
+     gap. The billboard never stops for a finished peer — the driver keeps bursting my trade after
+     I'm done so a peer who lands later still fills. You both close the camera when both read done. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — the meet</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<!-- Hold the shell so a meet works in a room with no connection (sw.js). -->
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{type:"module"}).then(function(){return navigator.serviceWorker.ready;}).then(function(){if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:"firmware-check"});}).catch(function(){});});</script>
+<style>
+  :root { --bg:#293033; --panel:#1f2528; --fg:#dfdfdf; --muted:#9aa4a6; --accent:#990049; --line:#3a4145; --ok:#7bc98a; --warn:#ffb02e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+  header a { color: var(--fg); text-decoration: none; font-weight: 700; }
+  header .tag { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-left: .6rem; }
+  main { max-width: 58rem; margin: 1.25rem auto; padding: 0 1.25rem; }
+  .lede { color: var(--muted); font-size: .92rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+  @media (max-width: 46rem) { .grid { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); padding: .8rem 1rem; }
+  .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  canvas { width: 100%; max-width: 22rem; image-rendering: pixelated; background: #fff; border-radius: .4rem; display: block; margin: .6rem auto; }
+  video { width: 100%; border-radius: .4rem; background: #000; }
+  .meta, .stat { font: .78rem/1.6 ui-monospace, Menlo, monospace; color: var(--muted); word-break: break-all; }
+  .tune { font: 700 1.3rem/1.4 ui-monospace, Menlo, monospace; letter-spacing: .02em; margin: .3rem 0; }
+  .tune .hot { color: var(--warn); }
+  .stat b { color: var(--fg); }
+  .bar { height: .55rem; background: #171b1d; border-radius: .3rem; overflow: hidden; margin: .4rem 0; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  .done .bar i { background: var(--ok); }
+  label { display: block; font-size: .8rem; color: var(--muted); margin-top: .55rem; }
+  input[type=text] { width: 100%; background: #171b1d; color: var(--fg); border: 1px solid var(--line); border-radius: .4rem; font: .85rem ui-monospace, Menlo, monospace; padding: .45rem .5rem; }
+  button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--fg); border-radius: .5rem; padding: .5rem 1rem; cursor: pointer; margin: .6rem .4rem 0 0; }
+  button.primary { background: var(--accent); font-weight: 700; }
+  button:disabled { opacity: .5; cursor: default; }
+  .verified { color: var(--ok); font-weight: 700; }
+  .note { color: var(--muted); font-size: .85rem; }
+  .phase { display: inline-block; font: 700 .72rem/1 ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; padding: .3rem .5rem; border-radius: .35rem; border: 1px solid var(--line); color: var(--warn); }
+  .phase.done { color: var(--ok); border-color: var(--ok); }
+  ul { margin: .3rem 0; padding-left: 1.1rem; }
+</style>
+<body>
+<header><a href="/">anecdote.channel</a><span class="tag">the meet</span></header>
+<main>
+  <p class="lede">Stand with someone. Both open this page, both press <strong>Begin the meet</strong>, and hold
+  your phones facing each other. Each screen pours <strong>your</strong> pocket as a looping QR; each front
+  camera drinks <strong>theirs</strong>. Greetings cross, then offers, then you each sign a receipt of the
+  moment — no server, no account, nothing but the light between you.</p>
+
+  <div class="card">
+    <div class="k">You, for this meet — a fresh device voice, your pins, a demo pocket</div>
+    <label>your pins (comma-separated — the questions you champion; your matching ballots push first):
+      <input type="text" id="pins" value="parks, budget"></label>
+    <div class="note" id="who">a fresh identity is minted when you begin (the keyring meet is its own door)</div>
+    <button class="primary" id="begin">Begin the meet</button>
+    <button id="stop" disabled>Stop</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="k">Your screen — pour this at your peer · read the big line aloud</div>
+      <div class="tune" id="tune">MEET —</div>
+      <canvas id="qr" width="10" height="10"></canvas>
+      <div class="meta" id="frameMeta">idle — press Begin the meet</div>
+    </div>
+    <div class="card">
+      <div class="k">Your camera — drinking your peer's pour</div>
+      <video id="cam" playsinline muted></video>
+      <div class="stat" id="rxStat">waiting for the camera…</div>
+      <div class="note" id="camNote"></div>
+    </div>
+  </div>
+
+  <div class="card" id="out">
+    <div class="k">The meet <span class="phase" id="phase">idle</span></div>
+    <div class="bar"><i id="prog"></i></div>
+    <div class="stat" id="outStat">no meet yet.</div>
+  </div>
+</main>
+
+<script type="module">
+import { openMeet } from "./meet-session.mjs";
+import { greeting } from "./meet.mjs";
+import { generateIdentity } from "./sign.mjs";
+import { buildBallot, signBallot } from "./ballot.mjs";
+import { addBallots } from "./satchel.mjs";
+import { encodeQR } from "./qr-encode.mjs";
+import { decodeImage } from "./qr-decode.mjs";
+import { parseFrame } from "./carrier.mjs";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// draw a QR matrix: 1 module → scale px, 4-module quiet zone (scanners need it)
+function drawQR(canvas, q, scale = 4) {
+  const quiet = 4, n = q.size, W = (n + 2 * quiet) * scale;
+  canvas.width = W; canvas.height = W;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, W);
+  ctx.fillStyle = "#000";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.modules[r][c]) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+}
+
+// A small demo pocket so a first meet actually has something to trade: two hand-signed ballots by a
+// stand-in voter, on the very questions the default pins champion. A real pocket is composer/satchel.mjs
+// filled by answering polls; here we seed it so the trade is visible.
+async function demoPocket() {
+  const voter = await generateIdentity();
+  const mint = (poll, answer, labels) =>
+    signBallot(buildBallot({ pile: "cd04", poll, answer, ts: "2026-07-01T00:00:00Z", labels }), voter);
+  const { satchel } = await addBallots([], [
+    await mint("parks", "More trees", ["parks"]),
+    await mint("budget", "Hold the line", ["budget"]),
+  ]);
+  return satchel;
+}
+
+let session = null, billboard = null, drawQueue = [], seed = 0, startPolls = [], finished = false;
+
+const pinsFrom = () => $("pins").value.split(",").map((s) => s.trim()).filter(Boolean);
+const pollsOf = (hold) => hold.satchel.map((e) => e.ballot.poll);
+
+function paintPhase() {
+  const st = session ? session.state() : { phase: "idle", done: false };
+  $("phase").textContent = st.phase;
+  $("phase").classList.toggle("done", !!st.done);
+  return st;
+}
+
+// THE BILLBOARD: pull a fresh burst of MY frames and paint one per beat. show() keeps pouring even after
+// I'm done (the driver's second async line) so a slower peer still lands — I keep looping until Stop.
+function pour() {
+  if (!session) return;
+  if (!drawQueue.length) drawQueue = session.show(8);
+  const frame = drawQueue.shift();
+  if (frame) {
+    const q = encodeQR(frame, { ecLevel: "M" });
+    drawQR($("qr"), q);
+    const st = paintPhase();
+    $("tune").innerHTML = `MEET · <span class="${st.done ? "" : "hot"}">${st.phase}</span> · pouring`;
+    $("frameMeta").textContent = `seed ${seed++} · ${frame.length} B · QR v${q.version} ${q.size}×${q.size}`;
+  }
+}
+
+// THE CATCH: one camera frame → our own lens → a parseable meet frame → the driver. New tiles only; the
+// same tile sits on screen across many camera frames.
+let lastText = null;
+async function drink(text) {
+  if (text === lastText) return;
+  lastText = text;
+  if (!parseFrame(text)) return;                 // not one of ours — ignore, keep the camera open
+  const res = await session.feed(text);
+  const st = paintPhase();
+  $("rxStat").innerHTML = `phase: <b>${esc(st.phase)}</b>` + (res && res.error ? " · (a non-trade tile, ignored)" : "");
+  $("prog").style.width = st.done ? "100%" : st.phase === "trade" ? "66%" : "33%";
+  if (st.done && !finished) { finished = true; landed(); }
+}
+
+// BOTH SIDES DONE lands here (on my side) the instant I've caught the peer's whole trade.
+function landed() {
+  const o = session.outcome();
+  $("out").classList.add("done");
+  const gained = pollsOf(o.hold).filter((p) => !startPolls.includes(p));
+  const peer = (o.peer || "").slice(0, 24);
+  const rcptPeer = (o.receipt && o.receipt.peer || "").slice(0, 24);
+  $("outStat").innerHTML =
+    `<span class="verified">✓ met ${esc(peer)}…</span><br>` +
+    `ballots gained: <b>${gained.length ? esc(gained.join(", ")) : "none (they pushed nothing you lacked)"}</b><br>` +
+    `your pocket now holds <b>${o.hold.satchel.length}</b> ballot(s), <b>${o.hold.quells.length}</b> quell(s)<br>` +
+    `receipt signed, naming <b>${esc(rcptPeer)}…</b> as your peer` +
+    `<br><span class="note">the loop keeps pouring — keep facing them until they read done too, then Stop.</span>`;
+}
+
+function frameTick(video, canvas, ctx) {
+  if (!session) return;
+  if (video.readyState >= 2) {
+    const W = 640, H = Math.round((video.videoHeight / video.videoWidth) * 640) || 480;
+    canvas.width = W; canvas.height = H;
+    ctx.drawImage(video, 0, 0, W, H);
+    const read = decodeImage(ctx.getImageData(0, 0, W, H));
+    if (read && read.text) drink(read.text);
+  }
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => frameTick(video, canvas, ctx));
+  else requestAnimationFrame(() => frameTick(video, canvas, ctx));
+}
+
+$("begin").addEventListener("click", async () => {
+  const identity = await generateIdentity();
+  $("who").textContent = "your voice this meet: " + identity.fingerprint.slice(0, 28) + "…";
+  const hold = { satchel: await demoPocket(), quells: [] };
+  startPolls = pollsOf(hold);
+  finished = false; drawQueue = []; seed = 0;
+  session = await openMeet({ hold, greeting: greeting({ pins: pinsFrom() }), identity });
+  paintPhase();
+
+  // the screen pours on a steady beat; the camera drinks on its own clock
+  billboard = setInterval(pour, 160);
+  const video = $("cam");
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 } }, audio: false });
+    video.srcObject = stream;
+    await video.play();
+    $("rxStat").textContent = "camera live — point it at your peer's screen";
+    const cv = document.createElement("canvas");
+    frameTick(video, cv, cv.getContext("2d", { willReadFrequently: true }));
+  } catch (e) {
+    $("camNote").textContent = "camera unavailable: " + e.message + " (needs HTTPS or localhost — the deployed page has it). You can still pour to a peer who catches you.";
+  }
+  $("begin").disabled = true; $("stop").disabled = false;
+});
+
+$("stop").addEventListener("click", () => {
+  clearInterval(billboard); billboard = null;
+  const v = $("cam"); if (v.srcObject) { v.srcObject.getTracks().forEach((t) => t.stop()); v.srcObject = null; }
+  $("begin").disabled = false; $("stop").disabled = true;
+  $("tune").innerHTML = "MEET — stopped";
+});
+
+// Headless hook — drive the wiring without a camera: two openMeet() sessions on ONE page, each show()
+// feeding the other's feed(), proving the page's driver mount lands a meet end to end. Returns the two
+// outcomes. (The camera path is the only part a headless run can't exercise; the trade logic is this.)
+window.__meet = {
+  get session() { return session; },
+  async selfLoop() {
+    const A = await openMeet({ hold: { satchel: await demoPocket(), quells: [] }, greeting: greeting({ pins: ["parks"] }), identity: await generateIdentity() });
+    const B = await openMeet({ hold: { satchel: await demoPocket(), quells: [] }, greeting: greeting({ pins: ["budget"] }), identity: await generateIdentity() });
+    let n = 0;
+    while (!(A.state().done && B.state().done) && n < 80) {
+      for (const f of A.show(24)) await B.feed(f);
+      for (const f of B.show(24)) await A.feed(f);
+      n++;
+    }
+    return { passes: n, a: A.outcome(), b: B.outcome() };
+  },
+};
+</script>
+</body>
+</html>
