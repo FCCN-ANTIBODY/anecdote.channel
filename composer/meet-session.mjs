@@ -22,10 +22,11 @@ import { carrierSession, fountainTransfer } from "./carrier.mjs";
 
 // Open a meet. `hold` = { satchel, quells }; `greeting` = { pins, scopes } (meet.greeting()); `identity`
 // signs my hello, trade, and receipt. `receiveOpts` is forwarded to receiveMeet (authorKidFor, cap,
-// staleAfterMs, screen, …); `pins` there defaults to my greeting's. `ts` stamps the receipt. Returns the
+// staleAfterMs, screen, …); `pins` there defaults to my greeting's. `ts` stamps the receipt — defaults to
+// now (a live meet records the present moment; pass a fixed ts for a deterministic test). Returns the
 // session driver — created async because my hello is packed + framed up front.
 export async function openMeet({ hold = { satchel: [], quells: [] }, greeting = makeGreeting(), identity,
-                                 receiveOpts = {}, ts, blockSize = 256 } = {}) {
+                                 receiveOpts = {}, ts = new Date().toISOString(), blockSize = 256 } = {}) {
   if (!identity) throw new Error("meet-session: an identity is required to sign the meet");
 
   const helloEnv = await packGreeting(greeting, identity);
