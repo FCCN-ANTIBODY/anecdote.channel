@@ -35,11 +35,27 @@ const TS = "2026-07-01T00:00:00.000Z";
   const cfg = parseQR("pile=cd04-q1&poll=budget&round=1&tok=abc123&type=multichoice&opts=Cut,%20Keep&guidance=One+of+the+listed+options.&asker=alice@example.com");
   ok(cfg.loaded, "a QR with pile/poll/round/tok is loaded");
   ok(cfg.options.length === 2 && cfg.options[1] === "Keep", "options split + trimmed");
-  ok(cfg.repo === CANONICAL_REPO, "no &repo → canonical Tell repo");
+  ok(cfg.backend.repo === CANONICAL_REPO, "no &repo → canonical Tell repo (backend namespace, #105)");
   ok(cfg.question.includes("Reply to"), "no &q → a default question");
   ok(!parseQR("poll=x").loaded, "missing tok → not loaded (the empty state)");
-  ok(parseQR("pile=p&poll=q&round=1&tok=t&repo=evil injection").repo === CANONICAL_REPO, "a malformed &repo falls back to canonical");
-  ok(parseQR("pile=p&poll=q&round=1&tok=t&repo=me/mine").repo === "me/mine", "a clean OWNER/NAME &repo is honored");
+  ok(parseQR("pile=p&poll=q&round=1&tok=t&repo=evil injection").backend.repo === CANONICAL_REPO, "a malformed &repo falls back to canonical");
+  ok(parseQR("pile=p&poll=q&round=1&tok=t&repo=me/mine").backend.repo === "me/mine", "a clean OWNER/NAME &repo is honored");
+}
+
+// 1b. THE ROUTING NAMESPACE LAW (#105): backend-owned fields live under cfg.backend, never at the top;
+// the core's own outputs (the neutral block, the view) surface none of them.
+{
+  const cfg = parseQR("pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&repo=me/mine&su=" + encodeURIComponent("https://x/submit") + "&post=ghs_tok");
+  ok(cfg.backend && cfg.backend.repo === "me/mine" && cfg.backend.canonical === "7"
+     && cfg.backend.submitUrl === "https://x/submit" && cfg.backend.cred === "ghs_tok",
+     "backend-owned fields are grouped under cfg.backend");
+  for (const k of ["repo", "canonical", "cred", "submitUrl", "post", "su"])
+    ok(!(k in cfg), "the top level (anecdote's namespace) carries no backend field: " + k);
+  const blockStr = JSON.stringify(submissionBlock(cfg, "Keep", { ts: TS }));
+  ok(!/me\/mine|ghs_tok|\/submit/.test(blockStr), "the neutral block carries nothing from the backend namespace");
+  const view = answerView(cfg);
+  for (const k of ["repo", "canonical", "cred", "submitUrl"])
+    ok(!(k in view), "the core view surfaces no backend field: " + k);
 }
 
 // 2. parseQR from a full URL + from the hash fallback.
@@ -126,8 +142,8 @@ const TS = "2026-07-01T00:00:00.000Z";
   const QR = "pile=cd04-q1&poll=budget&round=1&tok=abc123&type=multichoice&opts=Cut,Keep&guidance=Pick+one.&canonical=7";
   const cfg = parseQR(QR);
   const CRED = "ghs_semi_public_post_token";
-  ok(cfg.canonical === "7", "the QR's canonical= issue number is parsed into cfg.canonical");
-  ok(parseQR("pile=p&poll=q&round=1&tok=t&canonical=7x").canonical === null, "a non-numeric canonical is refused, not carried");
+  ok(cfg.backend.canonical === "7", "the QR's canonical= issue number is parsed into cfg.backend.canonical");
+  ok(parseQR("pile=p&poll=q&round=1&tok=t&canonical=7x").backend.canonical === null, "a non-numeric canonical is refused, not carried");
 
   const req = commentRequest(cfg, "Keep", { ts: TS });
   ok(req.method === "POST" && req.path === "/repos/FCCN-ANTIBODY/tell.anecdote.channel/issues/7/comments",
@@ -167,7 +183,7 @@ const TS = "2026-07-01T00:00:00.000Z";
 // holds; the adapter is never touched without a thread to comment on.
 {
   const cfg = parseQR("pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open");   // no canonical, no route
-  ok(cfg.canonical === null, "a QR with no canonical carries none");
+  ok(cfg.backend.canonical === null, "a QR with no canonical carries none");
   let called = false;
   const api = async () => { called = true; return { status: 201, json: {} }; };
 
@@ -193,7 +209,7 @@ const TS = "2026-07-01T00:00:00.000Z";
   const CRED = "ghs_public_qr_token";
   const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&sig=SIGBYTES&kid=SHA256%3Akkk&post=${CRED}`;
   const cfg = parseQR(QR);
-  ok(cfg.cred === CRED, "the QR's post= credential is parsed (decoded) into cfg.cred");
+  ok(cfg.backend.cred === CRED, "the QR's post= credential is parsed (decoded) into cfg.backend.cred");
   ok(!/post=/.test(cfg.rawQuery), "post= is STRIPPED from rawQuery — the provenance field never carries the credential");
   ok(/tok=abc123/.test(cfg.rawQuery) && /sig=SIGBYTES/.test(cfg.rawQuery), "the rest of the signed query survives byte-for-byte");
 
@@ -217,9 +233,9 @@ const TS = "2026-07-01T00:00:00.000Z";
   const SU = "https://tell.anecdote.channel/submit";
   const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&su=${encodeURIComponent(SU)}`;
   const cfg = parseQR(QR);
-  ok(cfg.submitUrl === SU, "the QR's su= relay address is parsed (decoded) into cfg.submitUrl");
+  ok(cfg.backend.submitUrl === SU, "the QR's su= relay address is parsed (decoded) into cfg.backend.submitUrl");
   ok(/su=/.test(cfg.rawQuery), "su stays in rawQuery — an address is not a credential, and the Tell's canon drops it");
-  ok(parseQR("pile=p&poll=q&round=1&tok=t&su=http%3A%2F%2Finsecure").submitUrl === null, "a non-https su is refused, not carried");
+  ok(parseQR("pile=p&poll=q&round=1&tok=t&su=http%3A%2F%2Finsecure").backend.submitUrl === null, "a non-https su is refused, not carried");
 
   const fetches = [];
   const realFetch = globalThis.fetch;
