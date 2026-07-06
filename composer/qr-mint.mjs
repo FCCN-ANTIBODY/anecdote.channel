@@ -42,10 +42,13 @@ export async function mintToken(secret, pile, poll, round) {
 // encode those too). Uppercase hex, space -> %20. This is how every value rides in the URL.
 const enc = (s) => encodeURIComponent(String(s)).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 
-// The canonical signing preimage (tl_qr_canon): drop sig/kid/post, then C-locale sort the whole "k=v"
-// lines. JS default sort is code-unit order, which equals C-locale byte order for the ASCII we emit.
+// The canonical signing preimage (tl_qr_canon): drop the provenance metadata (sig/kid) and the whole
+// backend credential/routing slot (post, submit, sealed) — none of those are anecdote's to sign, and the
+// relay address / sealed credential must rotate without re-minting a printed QR — then C-locale sort the
+// whole "k=v" lines. JS default sort is code-unit order, which equals C-locale byte order for the ASCII we
+// emit. This set is byte-identical to tell-lib.sh's tl_qr_canon; the two MUST move together.
 export function qrCanon(pairs) {
-  return pairs.filter((p) => !/^(sig|kid|post)=/.test(p)).slice().sort().join("\n");
+  return pairs.filter((p) => !/^(sig|kid|post|submit|sealed)=/.test(p)).slice().sort().join("\n");
 }
 
 // Assemble the QR URL from an anecdote.poll/v1 object, byte-compatible with bin/qr. Param order matches

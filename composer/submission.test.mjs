@@ -45,11 +45,11 @@ const TS = "2026-07-01T00:00:00.000Z";
 // 1b. THE ROUTING NAMESPACE LAW (#105): backend-owned fields live under cfg.backend, never at the top;
 // the core's own outputs (the neutral block, the view) surface none of them.
 {
-  const cfg = parseQR("pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&repo=me/mine&su=" + encodeURIComponent("https://x/submit") + "&post=ghs_tok");
+  const cfg = parseQR("pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&repo=me/mine&submit=" + encodeURIComponent("https://x/submit") + "&post=ghs_tok");
   ok(cfg.backend && cfg.backend.repo === "me/mine" && cfg.backend.canonical === "7"
      && cfg.backend.submitUrl === "https://x/submit" && cfg.backend.cred === "ghs_tok",
      "backend-owned fields are grouped under cfg.backend");
-  for (const k of ["repo", "canonical", "cred", "submitUrl", "post", "su"])
+  for (const k of ["repo", "canonical", "cred", "submitUrl", "post", "submit"])
     ok(!(k in cfg), "the top level (anecdote's namespace) carries no backend field: " + k);
   const blockStr = JSON.stringify(submissionBlock(cfg, "Keep", { ts: TS }));
   ok(!/me\/mine|ghs_tok|\/submit/.test(blockStr), "the neutral block carries nothing from the backend namespace");
@@ -228,21 +228,21 @@ const TS = "2026-07-01T00:00:00.000Z";
   ok(sent && sent.submitted === true && !JSON.stringify(sent).includes(CRED), "it sends, and the credential never enters the emitted frame");
 }
 
-// 9. the submit-gateway relay (`su=`) — the graduated route: a non-secret worker address, no client token.
+// 9. the submit-gateway relay (`submit=`) — the graduated route: a non-secret worker address, no client token.
 {
   const SU = "https://tell.anecdote.channel/submit";
-  const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&su=${encodeURIComponent(SU)}`;
+  const QR = `pile=cd04-q1&poll=budget&round=1&tok=abc123&type=open&canonical=7&submit=${encodeURIComponent(SU)}`;
   const cfg = parseQR(QR);
-  ok(cfg.backend.submitUrl === SU, "the QR's su= relay address is parsed (decoded) into cfg.backend.submitUrl");
-  ok(/su=/.test(cfg.rawQuery), "su stays in rawQuery — an address is not a credential, and the Tell's canon drops it");
-  ok(parseQR("pile=p&poll=q&round=1&tok=t&su=http%3A%2F%2Finsecure").backend.submitUrl === null, "a non-https su is refused, not carried");
+  ok(cfg.backend.submitUrl === SU, "the QR's submit= relay address is parsed (decoded) into cfg.backend.submitUrl");
+  ok(/submit=/.test(cfg.rawQuery), "submit stays in rawQuery — an address is not a credential, and the Tell's canon drops it");
+  ok(parseQR("pile=p&poll=q&round=1&tok=t&submit=http%3A%2F%2Finsecure").backend.submitUrl === null, "a non-https submit is refused, not carried");
 
   const fetches = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => { fetches.push({ url, init }); return { status: 201, json: async () => ({ id: 501, html_url: "https://github.com/o/r/issues/7#issuecomment-501" }) }; };
   try {
     const out = await deliver(cfg, "Keep", { ts: TS });                   // no api, no credential → relay
-    ok(fetches.length === 1 && fetches[0].url === SU, "the relay route POSTs to the su address, not api.github.com");
+    ok(fetches.length === 1 && fetches[0].url === SU, "the relay route POSTs to the submit address, not api.github.com");
     const relayed = JSON.parse(fetches[0].init.body);
     ok(relayed.path === "/repos/FCCN-ANTIBODY/tell.anecdote.channel/issues/7/comments" && relayed.body && !relayed.body.labels,
        "the relay carries the canonical issue's comments path — never a new-issue path");

@@ -1,7 +1,7 @@
 // composer/submit-route.mjs — the THIN ROUTER over the backend line (docs/backend-seam.md). The
 // backend-blind core (composer/submission.mjs) builds a neutral `tell.submission/v1` block; this decides
 // where it goes:
-//   - a PUBLIC backend is indicated (a credential is at hand, or the QR named a relay `su=`) AND the poll
+//   - a PUBLIC backend is indicated (a credential is at hand, or the QR named a relay `submit=`) AND the poll
 //     has a canonical thread → the github adapter's deliver() posts a comment and returns a placement.
 //   - otherwise → the PRESENCE route: nothing is sent; the answer is HELD (the caller carries it as a
 //     ballot through the mesh, composer/ballot.mjs). No URL, no github — a held answer is not a failure.

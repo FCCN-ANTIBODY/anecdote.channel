@@ -15,7 +15,7 @@ A poll's answer flows to one of **two peer backends**, not a path with a fallbac
   nothing about issues, comments, POSTs, or tokens. `submission.test.mjs` freezes the block and
   the comment body against a local oracle.
 - **`composer/submit-route.mjs`** — the router (`pollAnswerOps`). A chosen answer goes to the
-  public adapter when a route is at hand (a credential, or the QR's relay `su=`) *and* the poll has
+  public adapter when a route is at hand (a credential, or the QR's relay `submit=`) *and* the poll has
   a canonical thread; otherwise it is **held** (`{ held: true }`) for the mesh
   (`composer/ballot.mjs`). Held is not failure; a failed public send also holds.
 - **`composer/egress-github.mjs`** — the one GitHub-aware file. `deliver(cfg, answer, …)` posts a
@@ -29,7 +29,7 @@ touches GitHub — most piles are private repos where they couldn't anyway.
 
 ## The credential slot
 
-The QR reserves an **opaque, bounded, backend-only** credential slot — `post` / `su` / `canonical`
+The QR reserves an **opaque, bounded, backend-only** credential slot — `post` / `submit` / `canonical`
 / `repo` today. The core parses it and passes it through untouched; only the adapter reads it. It is
 **reserved-optional**: filled when a public backend will serve, empty when the exchange is
 presence-only. An empty-slot ("no-token") mint is valid and is **not** refused — refusing it would
@@ -43,7 +43,7 @@ only the top level, and only `egress-github.mjs` (the adapter) and `submit-route
 read `cfg.backend`. The **wire (query string) is unchanged** — this is a parsed-object partition, not
 a format change. Ownership is exclusive (whoever declares a field owns it); a top-level `auth` is
 reserved for anecdote's own credential someday, unspent. A backend may later collapse its whole
-namespace into one opaque blob (`sc` is the first).
+namespace into one opaque blob (`sealed` is the first — the tell submit-gateway's AEAD `sc1.` bundle).
 
 ## Deferred
 

@@ -5,7 +5,7 @@
 // composer/egress-github.mjs) and the presence one (the mesh — composer/ballot.mjs). The router
 // (composer/submit-route.mjs) picks which; NOTHING here knows about issues, comments, POSTs, or tokens.
 //
-// The QR also carries a CREDENTIAL SLOT — `post`/`su`/`canonical`: reserved, bounded, backend-only fields
+// The QR also carries a CREDENTIAL SLOT — `post`/`submit`/`canonical`: reserved, bounded, backend-only fields
 // this core parses and passes through OPAQUELY and never reads. Filled when a public backend will serve;
 // empty when the exchange is presence-only (a valid, "no-token" mint). `repo` is likewise an opaque
 // OWNER/NAME address the adapter interprets — the core never builds a URL or an API path from it.
@@ -70,7 +70,7 @@ function normalize(cfg, { canonicalRepo, rawQuery }) {
       repo,                         // OWNER/NAME address the adapter resolves (never a URL the core builds)
       canonical: /^[0-9]+$/.test(cfg.canonical || "") ? String(cfg.canonical) : null, // the poll's one thread
       cred: cfg.post || null,       // legacy semi-public post token (decoded), if any
-      submitUrl: /^https:\/\//.test(cfg.su || "") ? cfg.su : null,   // a relay address (`su=`), https-only
+      submitUrl: /^https:\/\//.test(cfg.submit || "") ? cfg.submit : null,   // a relay address (`submit=`), https-only
     },
   };
 }
