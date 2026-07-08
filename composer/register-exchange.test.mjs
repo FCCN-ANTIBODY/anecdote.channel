@@ -113,5 +113,24 @@ const PILE = { id: "cd04-q1", scope: "colorado", feed: "feed/colorado/cd04-q1",
   ok(Object.keys(REGISTRIES).length === 4, "the §B family is covered member by member");
 }
 
+// 8. the stamp: `at` rides INSIDE the signed payload (the freshness atlas bin/admit orders by).
+{
+  const T = "2026-07-08T00:00:00Z";
+  const stamped = await openRegistration("piles", PILE, PROPOSER, { at: T });
+  const r = await readRegistration(stamped, {});
+  ok(r.ok && r.at === T, "a stamped proposal reads back with its `at` — signed, never claimed at arrival");
+  const tampered = JSON.parse(JSON.stringify(stamped));
+  const payload = JSON.parse(td.decode(Uint8Array.from(atob(tampered.bytes), (c) => c.charCodeAt(0))));
+  payload.at = "2027-01-01T00:00:00Z";
+  tampered.bytes = btoa(JSON.stringify(payload));
+  ok(!(await readRegistration(tampered, {})).ok, "a re-stamped payload no longer verifies — the stamp lives inside the signature");
+  const plain = await openRegistration("piles", PILE, PROPOSER);
+  const r2 = await readRegistration(plain, {});
+  ok(r2.ok && r2.at === null, "omitting `at` keeps the payload byte-identical to before (existing receipts stay verifiable)");
+  let threw = false;
+  try { await openRegistration("piles", PILE, PROPOSER, { at: "not-a-date" }); } catch { threw = true; }
+  ok(threw, "a stamp that does not parse is refused at signing — never a fake freshness");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall register-exchange tests passed");
