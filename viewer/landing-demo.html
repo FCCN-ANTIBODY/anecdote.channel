@@ -32,6 +32,10 @@ import { spawnChamber, serveProbeLine } from "../composer/probe-line.mjs";
 import { viewerOps } from "./probe-ops.mjs";
 import { repoRegistry } from "./repos.mjs";
 import { repo } from "../git-enough/repo.mjs";
+import { generateIdentity, attest } from "../composer/sign.mjs";
+import { defaultHash } from "../composer/anecdote.mjs";
+import { packStack, receiveStack } from "../composer/sneakernet.mjs";
+import { landSnapshot } from "./atlas-offline.mjs";
 
 const author = { name: "you", email: "you@origin", epoch: Math.floor(Date.now() / 1000), tz: "+0000" };
 const registry = repoRegistry();
@@ -45,29 +49,33 @@ const keyring = repo();
 await keyring.commitFiles([{ path: "rotations.json", content: "[]\n" }], { author, message: "keyring init" });
 registry.register({ label: "keyring", kind: "keyring", repo: keyring });
 
-// Atlas snapshots — kept copies of Atlases this origin has seen, each its own git-enough repo() holding the
-// signed public listing at the time it was fetched (civic-node#71 "signed snapshot export"). Two different
-// Atlases here is the demo of "the list gets more diverse as we keep more copies": add a third snapshot and
-// the index grows by exactly one row, no schema change.
-//
-// Each listed item is its OWN file under listing/<slug>.json — a real git blob, so viewer/atlas-index.mjs's
-// merge can dedup by oid (git's own content addressing) rather than a hand-rolled hash. "park-budget" is
-// deliberately byte-identical in both snapshots below, to demo that dedup: the mixed feed shows it once,
-// with both Atlases listed as sources.
-async function atlasSnapshot(label, source, entries) {
-  const a = repo();
-  const files = entries.map(([slug, item]) => ({ path: `listing/${slug}.json`, content: JSON.stringify(item) + "\n" }));
-  await a.commitFiles(files, { author, message: `atlas snapshot: ${label}` });
-  registry.register({ label, kind: "atlas.snapshot", repo: a, source });
+// Atlas snapshots — no longer mocked: this is the REAL pipeline end to end (civic-node #71 -> #72 ->
+// #73). Each Atlas SIGNS its record (atlas.snapshot/v1, content inline under per-file content-ids); a
+// CARRIER packs the layout-attested stack (composer/sneakernet.mjs) and this origin receives it —
+// verify-from-anyone, newest-per-canon, provenance riding — then landSnapshot commits the carried
+// files plus the derived listing/<slug>.json rows the mixed feed reads. "park-budget" is
+// byte-identical in both Atlases' registries, so the feed shows it ONCE with both sources: git's own
+// content addressing is the dedup, exercised through the same code a thumb-drive delivery would run.
+const teS = new TextEncoder();
+async function signedSnapshot(atlasId, identity, files) {
+  const out = [];
+  for (const [path, content] of files) out.push({ path, id: await defaultHash(teS.encode(content)), content });
+  return attest({ schema: "atlas.snapshot/v1", atlas: atlasId, url: `https://${atlasId}.atlas.example`,
+    at: "2026-07-08T00:00:00Z", files: out, absent: [] }, identity);
 }
-await atlasSnapshot("cd04-atlas", "https://cd04.atlas.example", [
-  ["council-agenda", { title: "council agenda, March", kind: "document" }],
-  ["park-budget", { title: "park budget poll", kind: "poll" }],
+const SHARED_PILE = `- id: park-budget\n  name: "park budget poll"\n  scope: colorado\n`;
+const cd04 = await signedSnapshot("cd04", await generateIdentity(), [
+  ["_data/piles.yml", SHARED_PILE],
+  ["_data/needs.yml", `- id: council-agenda\n  name: "council agenda, March"\n  scope: colorado\n  asker_repo: acme/civic\n  topic: agenda\n`],
 ]);
-await atlasSnapshot("neighbor-atlas", "https://oldtown.atlas.example", [
-  ["park-budget", { title: "park budget poll", kind: "poll" }],
-  ["zoning-notice", { title: "zoning notice", kind: "document" }],
+const oldtown = await signedSnapshot("oldtown", await generateIdentity(), [
+  ["_data/piles.yml", SHARED_PILE],
+  ["_data/tells.yml", `- id: zoning\n  name: "zoning notice desk"\n  scope: colorado\n  url: "https://tell.oldtown.example"\n`],
 ]);
+const courier = await generateIdentity();
+const stack = await packStack([cd04, oldtown], courier);           // the stack, offered as one gesture
+const { kept } = await receiveStack(stack, [], { now: new Date().toISOString() }); // the drop-off
+for (const k of kept) await landSnapshot(k, { registry });          // land: repos the whole viewer reads
 
 const CHAMBER = `<!doctype html><meta charset=utf-8><title>landing index</title>
 <style>body{font:14px/1.45 system-ui,sans-serif;margin:.6rem;color:#1a1a1a}
