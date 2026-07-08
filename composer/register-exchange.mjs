@@ -53,10 +53,17 @@ export function validateEntry(registry, entry) {
 
 // Propose a registration: the entry, named to its registry, signed into a transfer envelope. This is
 // the offline propose-a-registration moment — nothing is registered yet; the envelope is the ask.
+// `opts.at` stamps a date INSIDE the signed payload — the freshness an Atlas's registration door
+// (atlas bin/admit, civic-node#85) orders words by: an unstamped proposal still lands on first
+// contact there, but only a stamped one can ever supersede (never a freshness nobody stamped).
+// Omitting `at` keeps the payload byte-identical to before, so existing receipts stay verifiable.
 export async function openRegistration(registry, entry, identity, opts = {}) {
   const v = validateEntry(registry, entry);
   if (!v.ok) throw new Error("register-exchange: " + v.errors.join("; "));
-  return packTransfer(KIND_OPEN, canonicalize({ schema: REGISTER, registry, entry }), identity, opts);
+  const { at, ...packOpts } = opts;
+  if (at !== undefined && Number.isNaN(Date.parse(at)))
+    throw new Error("register-exchange: `at` must be a parseable date — a stamp that does not parse is no stamp");
+  return packTransfer(KIND_OPEN, canonicalize({ schema: REGISTER, registry, entry, ...(at ? { at } : {}) }), identity, packOpts);
 }
 
 // Read a scanned proposal. `ok` is verify-from-anyone (signature + payload + shape); `trusted` is the
@@ -72,7 +79,8 @@ export async function readRegistration(envelope, { friends = [] } = {}) {
   if (!inner || inner.schema !== REGISTER) return { ok: false, by: t.by, trusted: false, registry: null, entry: null, errors: ["payload is not " + REGISTER] };
   const v = validateEntry(inner.registry, inner.entry);
   if (!v.ok) return { ok: false, by: t.by, trusted: false, registry: inner.registry, entry: null, errors: v.errors };
-  return { ok: true, by: t.by, trusted: t.trusted, registry: inner.registry, entry: inner.entry, errors: [] };
+  return { ok: true, by: t.by, trusted: t.trusted, registry: inner.registry, entry: inner.entry,
+           at: inner.at || null, errors: [] };
 }
 
 // ---- MERGE — the acceptor's half -----------------------------------------------------------------------
