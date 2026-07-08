@@ -11,8 +11,9 @@ import { parseAnecdoteUrl } from "./anecdote-url.mjs";
 import { enumerateAll } from "./enumerators.mjs";
 import { pollView } from "./poll.mjs";
 import { mergeAtlasIndex } from "./atlas-index.mjs";
+import { atlasView, matchOffline } from "./atlas-offline.mjs";
 
-export function viewerOps({ registry, storage } = {}) {
+export function viewerOps({ registry, storage, judge } = {}) {
   if (!registry) throw new Error("viewer ops: need a repoRegistry");
   const resolve = (idOrLabel) => {
     const p = parseAnecdoteUrl(idOrLabel);
@@ -60,6 +61,26 @@ export function viewerOps({ registry, storage } = {}) {
       const f = readFile(entry.repo, input.ref, input.path);
       api.emit(f ? { repo: input.id, path: input.path, content: new TextDecoder().decode(f.content), size: f.size }
                  : { error: "no such file", path: input.path });
+    },
+
+    // Rung 0 — the offline Atlas (civic-node#73): everything public on that Atlas, on your copy of it —
+    // both dates riding so staleness stays honest. No fetch, no keys, no reach into piles.
+    "atlas.view": async (input, api) => {
+      const entry = resolve(input.id);
+      if (!entry || entry.kind !== "atlas.snapshot") return api.emit({ error: "no such atlas copy", repo: input.id });
+      const view = atlasView(entry);
+      api.emit(view ? { repo: input.id, view } : { error: "empty atlas copy", repo: input.id });
+    },
+
+    // Rung 0 read over the local slice + the SAME matcher contract working for you offline
+    // ({need, candidate} -> {verdict, reason}). The judge comes from deps — the §A seam — and the
+    // honest default (none) matches nothing; input.needs lets your own needs ride alongside carried ones.
+    "atlas.match": async (input, api) => {
+      const entry = resolve(input.id);
+      if (!entry || entry.kind !== "atlas.snapshot") return api.emit({ error: "no such atlas copy", repo: input.id });
+      const view = atlasView(entry);
+      if (!view) return api.emit({ error: "empty atlas copy", repo: input.id });
+      api.emit({ repo: input.id, result: await matchOffline(view, { judge: judge || null, needs: input.needs || [] }) });
     },
   };
 }
