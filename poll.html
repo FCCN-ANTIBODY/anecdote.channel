@@ -84,7 +84,8 @@ textarea{width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:.4
         "<p class=fine>"+detail+"</p>";return;}
     var opts=v.options.map(function(o){return "<button class=opt data-a='"+esc(o.answer)+"'>"+esc(o.answer)+"</button>";}).join("");
     $("view").innerHTML="<h3>"+esc(v.question)+"</h3>"+
-      (v.guidance?"<div class=guide>"+esc(v.guidance)+"</div>":"")+opts+
+      (v.guidance?"<div class=guide>"+esc(v.guidance)+"</div>":"")+
+      (v.constitution?"<div class=fine>⚖ answers to this poll wear these terms, inside your signature: <code>"+esc(v.constitution.slice(0,23))+"…</code></div>":"")+opts+
       "<div class=custom><label for=ans>"+(v.options.length?"Or answer in your own words:":"Your answer:")+"</label>"+
       "<textarea id=ans rows=3 placeholder='Type your reply…'></textarea><br>"+
       "<button class=go id=go disabled>Send reply</button>"+

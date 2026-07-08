@@ -30,17 +30,22 @@ export const SUBMISSION_SCHEMA = "tell.submission/v1";
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
 // Assemble the unsigned ballot. pile/poll/answer/ts required; everything else rides if present.
-export function buildBallot({ pile, poll, round, tok, answer, ts, labels, scope } = {}) {
+export function buildBallot({ pile, poll, round, tok, answer, ts, labels, scope, constitution } = {}) {
   if (!pile || !SLUG.test(pile)) throw new Error("ballot: pile slug required");
   if (!poll || !SLUG.test(poll)) throw new Error("ballot: poll slug required");
   if (typeof answer !== "string" || !answer) throw new Error("ballot: an answer is required");
   if (!ts) throw new Error("ballot: ts (the age stamp) is required");
+  if (constitution !== undefined && constitution !== null && constitution !== "" &&
+      !/^sha256:[0-9a-f]{64}$/.test(constitution)) throw new Error("ballot: a constitution must be a sha256: content hash — a malformed pointer is no terms at all");
   const b = { schema: BALLOT_SCHEMA, pile, poll, answer, ts };
   if (round !== undefined && round !== null) b.round = String(round);
   if (tok) b.tok = tok;
   const l = (labels || []).map((s) => String(s).trim()).filter(Boolean);
   if (l.length) b.labels = l;
   if (scope) b.scope = scope;
+  // the terms pointer, INSIDE the signature: the answer wears its law wherever it travels —
+  // it is what an archive's door reads as "worn" (antidote intake), never strippable in transit.
+  if (constitution) b.constitution = constitution;
   return b;
 }
 
@@ -78,6 +83,7 @@ export function turnInSubmission(signed) {
   if (!isBallot(signed)) throw new Error("ballot: not a ballot");
   const block = { schema: SUBMISSION_SCHEMA, pile: signed.pile, poll: signed.poll };
   if (signed.round !== undefined) block.round = signed.round;
+  if (signed.constitution) block.constitution = signed.constitution; // the worn terms ride the turn-in too
   if (signed.tok) block.tok = signed.tok;
   block.answer = signed.answer;
   block.ts = signed.ts;

@@ -265,5 +265,23 @@ const TS = "2026-07-01T00:00:00.000Z";
   ok(seen && seen.token === "ghs_host", "an explicitly host-injected credential still wins over the relay");
 }
 
+// 9. the terms pointer (antidote docs/faces.md): rides the namespace, lands in the block ONLY when
+// present (absent = byte-identical to the oracle era), malformed = no pointer at all.
+{
+  const C = "sha256:" + "a".repeat(64);
+  const withC = parseQR(`pile=cd04-q1&poll=budget&round=1&tok=t1&constitution=${C}`);
+  ok(withC.constitution === C, "a well-formed constitution rides anecdote's namespace");
+  const block = submissionBlock(withC, "Keep", { ts: "2026-07-08T00:00:00Z" });
+  ok(block.constitution === C &&
+     JSON.stringify(Object.keys(block)) === JSON.stringify(["schema", "pile", "poll", "round", "type", "asker", "shown_guidance", "constitution", "tok", "answer", "ts"]),
+    "the block wears the terms at a fixed position in the contract order");
+  const without = parseQR("pile=cd04-q1&poll=budget&round=1&tok=t1");
+  ok(!("constitution" in submissionBlock(without, "Keep", { ts: "2026-07-08T00:00:00Z" })),
+    "absent terms are absent BYTES — every prior block stays byte-identical");
+  ok(parseQR("pile=a&poll=b&round=1&tok=t&constitution=sha256:nope").constitution === "",
+    "a malformed pointer is dropped — no fake law rides");
+  ok(answerView(withC).constitution === C, "the respondent SEES the law their answer wears");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall submission/adapter/router tests passed");
