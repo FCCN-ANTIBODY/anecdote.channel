@@ -57,6 +57,11 @@ function normalize(cfg, { canonicalRepo, rawQuery }) {
     // ---- anecdote's namespace: self-describing, promised, read by the core -----------------------
     pile: cfg.pile, poll: cfg.poll, round: cfg.round, tok: cfg.tok,
     type: cfg.type || "open", asker: cfg.asker || "", guidance: cfg.guidance || "",
+    // the TERMS pointer (antidote docs/faces.md — "the constitution of the question"): the content
+    // hash of the terms governing answers to this poll. Minted into a QR it rides INSIDE the signed
+    // canon (tl_qr_canon sorts every pair, dropping only credentials), and the core carries it into
+    // the submission block and the ballot so every answer WEARS its terms. Malformed = no pointer.
+    constitution: /^sha256:[0-9a-f]{64}$/.test(cfg.constitution || "") ? cfg.constitution : "",
     question: cfg.q || (cfg.pile && cfg.poll ? `Reply to ${cfg.pile} / ${cfg.poll}` : ""),
     options, sig: cfg.sig || null,  // SUGGESTED answers (may be empty); sig is anecdote's provenance
     rawQuery: stripCred(rawQuery),  // the credential NEVER rides in the provenance field or the submission body
@@ -90,8 +95,11 @@ export function submissionBlock(cfg, answer, { ts } = {}) {
     pile: cfg.pile, poll: cfg.poll, round: cfg.round,
     type: cfg.type || "open", asker: cfg.asker || "",
     shown_guidance: cfg.guidance || "",
-    tok: cfg.tok, answer, ts: ts || new Date().toISOString(),
   };
+  // the terms pointer rides only when the poll carries one, so every prior block stays
+  // byte-identical (key order is the contract; an absent key is absent bytes).
+  if (cfg.constitution) block.constitution = cfg.constitution;
+  block.tok = cfg.tok; block.answer = answer; block.ts = ts || new Date().toISOString();
   if (cfg.sig) block.qr = cfg.rawQuery;   // carry the signed QR verbatim for the Tell to verify provenance
   return block;
 }
@@ -114,6 +122,7 @@ export function answerView(cfg) {
     loaded: true,
     pile: cfg.pile, poll: cfg.poll, round: cfg.round, type: cfg.type,
     question: cfg.question, guidance: cfg.guidance, signed: !!cfg.sig,   // repo is the backend's namespace — not surfaced here
+    constitution: cfg.constitution || "",  // the terms pointer, surfaced so the respondent SEES the law their answer wears
     alwaysCustom: true,                                             // anecdote's invariant
     options: cfg.options.map((o) => ({ answer: o })),              // suggestions only, no destinations
   };

@@ -40,4 +40,20 @@ ok(JSON.stringify(Object.keys(block)) === JSON.stringify(["schema", "pile", "pol
   "key order is the contract: " + Object.keys(block).join(","));
 ok(block.ballot.sig && (await verifyBallot(block.ballot)).ok, "the attached ballot re-verifies at the door");
 
+// 5. the terms pointer rides INSIDE the signature — the answer wears its law wherever it travels.
+{
+  const C = "sha256:" + "b".repeat(64);
+  const worn = await signBallot(buildBallot({ pile: "cd04-q1", poll: "budget", answer: "Keep",
+    ts: "2026-07-08T00:00:00Z", constitution: C }), me);
+  ok(worn.constitution === C && (await verifyBallot(worn)).ok, "a ballot wears its constitution, signed");
+  const stripped = { ...worn }; delete stripped.constitution;
+  ok(!(await verifyBallot(stripped)).ok, "stripping the terms in transit breaks the signature — never strippable");
+  const turned = turnInSubmission(worn);
+  ok(turned.constitution === C && turned.ballot.constitution === C, "the worn terms ride the turn-in block too");
+  let threw = false;
+  try { buildBallot({ pile: "a", poll: "b", answer: "x", ts: "2026-07-08T00:00:00Z", constitution: "sha256:short" }); }
+  catch { threw = true; }
+  ok(threw, "a malformed pointer is refused at build — no fake law is ever signed");
+}
+
 process.exit(fails ? 1 : 0);
