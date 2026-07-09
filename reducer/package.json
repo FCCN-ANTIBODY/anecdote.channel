@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "node test.mjs",
+    "test:pos": "node pos-reduce.test.mjs",
     "test:minilm": "node minilm.test.mjs",
     "test:namer": "node namer.test.mjs",
     "record": "node weights.mjs record",
@@ -18,7 +19,8 @@
     "weights:fetch": "node weights.mjs fetch"
   },
   "optionalDependencies": {
-    "@huggingface/transformers": "4.2.0"
+    "@huggingface/transformers": "4.2.0",
+    "compromise": "^14.15.1"
   },
   "devDependencies": {
     "esbuild": "^0.28.1"
