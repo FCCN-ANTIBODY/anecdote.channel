@@ -29,11 +29,19 @@ import { spawnChamber, serveProbeLine } from "./probe-line.mjs";
 import { composerOps } from "./probe-ops.mjs";
 import { idbStore } from "../reducer/store.mjs";
 import { generateIdentity } from "./sign.mjs";
+// The REAL reducer, live: the POS schedule over the vendored, servable compromise bundle (a data:
+// chamber has no LM, so it summons `label` from here — this Elevated page holds the reducer). This is
+// the fewest-verbs kernel MiniLM would then embed; the `name` seam takes any (text)->label, so this
+// stage is swappable without forking the reducer. Falls back to the v0 heuristic if the bundle is absent.
+import { fewestVerbs } from "../reducer/embedders.mjs";
+import { reduceWithNlp } from "../reducer/pos-schedule.mjs";
+let name = fewestVerbs;
+try { const nlp = (await import("../runtime/compromise.bundle.mjs")).default; name = (t) => reduceWithNlp(nlp, t); } catch {}
 
 const store = idbStore();
 const identity = await generateIdentity();
 const agent = { instrument: "minilm:sha256:deadbeef", constitution: "anecdote:sha256:cafe" };
-const ops = composerOps({ identity, store, agent });
+const ops = composerOps({ identity, store, agent, name });
 const context = () => ({ recordingOn: true, grants: [] });
 
 // The chamber: a compose UI with no powers of its own. It labels as you type (Rung 0) and signs on Send

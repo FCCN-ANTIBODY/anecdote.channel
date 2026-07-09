@@ -13,11 +13,21 @@
 // module worker can't resolve those) and never weights.mjs (which uses node: builtins).
 
 import { toyEmbed, fewestVerbs } from "../reducer/embedders.mjs";
+import { reduceWithNlp } from "../reducer/pos-schedule.mjs";
 
 const REAL = new URLSearchParams(self.location.search).get("real") === "1";
 
 let embedImpl = (text) => Array.from(toyEmbed(text));   // default backend
 let backend = "toy";
+
+// The `name` seam: POS-guided fewest-verbs reduction over the vendored compromise bundle (servable,
+// no bare specifier). Falls back to the v0 heuristic if the bundle can't load, so naming never breaks.
+let nameImpl = (text) => fewestVerbs(text || "");
+async function tryPosReduce() {
+  const nlp = (await import("../runtime/compromise.bundle.mjs")).default;
+  nlp("smoke test");                                    // surface a load failure here, not on first RPC
+  return (text) => reduceWithNlp(nlp, text || "");
+}
 
 async function tryMiniLm() {
   // VENDORED browser runtime — committed under /runtime/, no node_modules, no CDN (see DELIVERY.md).
@@ -39,6 +49,8 @@ async function tryMiniLm() {
 }
 
 (async () => {
+  try { nameImpl = await tryPosReduce(); }             // the reducer's real `name`, independent of the embed backend
+  catch (e) { self.postMessage({ type: "progress", status: "name-fallback", message: String(e?.message || e) }); }
   if (REAL) {
     try { embedImpl = await tryMiniLm(); backend = "minilm"; }
     catch (e) { self.postMessage({ type: "progress", status: "fallback", message: String(e?.message || e) }); }
@@ -56,7 +68,7 @@ self.addEventListener("message", (ev) => {
   queue = queue.then(async () => {
     try {
       if (cmd === "embed") self.postMessage({ id, result: await embedImpl(text || "") });
-      else if (cmd === "name") self.postMessage({ id, result: fewestVerbs(text || "") });
+      else if (cmd === "name") self.postMessage({ id, result: nameImpl(text || "") });
       else self.postMessage({ id, error: `unknown cmd: ${cmd}` });
     } catch (e) {
       self.postMessage({ id, error: String(e?.message || e) });
