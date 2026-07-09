@@ -48,6 +48,31 @@ An organ of perception has to be **trustable on sight**, not on faith:
   keyed to the weights' hash; see [`reducer/README.md`](../reducer/README.md) and
   [`docs/DELIVERY.md`](DELIVERY.md)). A perception you can reproduce is one you can hold to account.
 
+## How it reduces — POS first, model second
+
+The reduction itself is a **fixed schedule over a parts-of-speech parse**, not a generative rewrite
+(`reducer/pos-reduce.mjs`, `makePosNamer()`). It drops the interrogative frame, scaffolding
+(determiners, pronouns, prepositions, conjunctions), modifiers, and light/auxiliary verbs;
+lemmatizes verbs and singularizes nouns; and keeps only the content skeleton — the **fewest-verbs
+caveman kernel**. *"Should we authorize a military strike against Iran?"* → `military strike iran`.
+
+Two properties follow, and they are the point:
+
+- **The small model never reads the document.** MiniLM only *embeds the kernels* afterward, so
+  paraphrases **collapse** — *"support military action iran"*, *"military strike iran"*, and *"favor
+  bombing iran"* land on one label though they barely share words. Asking an LLM to compile raw text
+  into fewest-verbs would be a translation task harder than what LLMs were built for; we don't.
+- **It reproduces exactly.** A fixed schedule is deterministic — the *auditable perceiver* above —
+  where a greedy-decode generative namer is only approximately so. The POS reducer is therefore the
+  more honest realization of this doc's own non-negotiables. `reducer/pos-reduce.test.mjs` proves it:
+  reduction quality (incl. slang) and family-collapse through the real MiniLM.
+
+Slang is tagged imperfectly, and that is tolerated: the structure survives mis-tags, and the
+embed-and-ratchet step mops up the residue (a rant of threats collapses to one node *downstream*,
+not here). It is **text-only** — sniffing files and distrusting misrepresented payload metadata is a
+different organ, upstream; a supplied title or region rides only as an optional prior, never
+authority.
+
 ## In one line
 
 The Judge decides; the Label-Reducer only *sees* — clearly, cheaply, and the same way for everyone

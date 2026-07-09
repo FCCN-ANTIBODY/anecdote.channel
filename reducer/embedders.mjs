@@ -141,3 +141,21 @@ export async function makeNamer(model = "Xenova/flan-t5-small",
   name.namerVersion = w.namerVersion();
   return name;
 }
+
+// POS-guided fewest-verbs namer — the DEFAULT `name` for real reduction (pos-reduce.mjs; #79/#80).
+// Deterministic and offline (compromise, pure-JS), so unlike the generative namer it needs no model
+// and reproduces exactly — the CONSTITUTION's "auditable perceiver". Lazy-imported so embedders.mjs
+// stays loadable without the optional dep; falls back to the v0 heuristic `fewestVerbs` whenever
+// compromise is absent, so naming never breaks (perception degrades, it does not fail).
+//
+//   const name = await makePosNamer();
+//   new Reducer({ embed, name, reducerVersion: embed.reducerVersion })
+export async function makePosNamer() {
+  try {
+    const { posReduce } = await import("./pos-reduce.mjs");
+    if (typeof posReduce("smoke test") !== "string") throw new Error("posReduce unavailable");
+    return posReduce;
+  } catch {
+    return fewestVerbs;   // graceful degrade: the v0 heuristic still reduces, just without POS structure
+  }
+}

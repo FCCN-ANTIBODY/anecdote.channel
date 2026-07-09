@@ -123,10 +123,33 @@ back to `main` (`[skip ci]`, idempotent, so steady-state runs are no-ops). Until
 SHAs/thresholds, `weights.mjs`/`calibrate.mjs`/`minilm.test.mjs` **skip cleanly** and the
 dependency-free `test.mjs`/`demo.mjs` keep passing.
 
+## POS-guided naming — the proven reducer
+
+The `name` seam's real upgrade from the v0 `fewestVerbs` stopword-strip is **`makePosNamer()`**
+(`pos-reduce.mjs`), a **deterministic, offline** reducer: it runs a parts-of-speech parse
+(`compromise` — pure-JS, an `optionalDependency`) and applies a fixed schedule — drop the
+interrogative frame + scaffolding + light verbs, lemmatize verbs, singularize nouns, keep the
+content skeleton — to turn an utterance into its **fewest-verbs caveman kernel**. The small model
+never reads the document; MiniLM only embeds these kernels so paraphrases **collapse**. Because it is
+a fixed schedule, not a generation, it reproduces exactly (the CONSTITUTION's *auditable perceiver*)
+— which the greedy-decode generative path below cannot fully promise.
+
+`pos-reduce.test.mjs` is the proof that was missing: real, messy utterances (incl. slang) reduce to
+stable kernels, and paraphrase families collapse to one label each through the real MiniLM while
+distinct topics stay apart (e.g. *"support military action iran"* / *"military strike iran"* /
+*"favor bombing iran"* → one label). It falls back to `fewestVerbs` when `compromise` is absent, so
+reduction degrades but never breaks; the test **skips cleanly** in that case.
+
+```js
+import { makeMiniLmEmbed, makePosNamer } from "./embedders.mjs";
+const [embed, name] = [await makeMiniLmEmbed(), await makePosNamer()];
+const r = new Reducer({ embed, name, reducerVersion: embed.reducerVersion, assignT, mergeT });
+```
+
 ## Generative naming (v1) — plumbed, model deferred
 
-The `name` seam is anchored to the heuristic `fewestVerbs` by default. v1 upgrades it to a small
-**generative** namer (`makeNamer()`, default `Xenova/flan-t5-small`) that rewrites an utterance to
+The `name` seam can instead be upgraded to a small **generative** namer (`makeNamer()`, default
+`Xenova/flan-t5-small`) that rewrites an utterance to
 its atomic fewest-verbs concept — the lever for synonymy the embedder can't resolve on raw text
 (e.g. "Dewey decimal" ≈ "library catalog"). It's distributed exactly like the embedder (in-repo,
 hash-pinned in the lock's optional `namer` block, cold-loaded) and decodes **greedily** for
