@@ -44,6 +44,15 @@
   textarea { width: 100%; box-sizing: border-box; height: 6rem; background: #0a0d10; color: #e8ecef;
              border: 1px solid #232b31; border-radius: .4rem; padding: .5rem; font: 12px ui-monospace, monospace; }
   a { color: #7fd4a8; }
+  .tokenrow { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+  .tokenrow input { flex: 1 1 22rem; background: #0a0d10; color: #e8ecef; border: 1px solid #232b31;
+                    border-radius: .4rem; padding: .45rem .5rem; font: 12px ui-monospace, monospace; }
+  .tokstat { font-size: .8rem; color: #9aa7b0; font-family: ui-monospace, monospace; }
+  .tokstat.held { color: #7fd4a8; }
+  .push { border-color: #62b6ff; color: #62b6ff; }
+  .pushout { margin-top: .35rem; font-size: .78rem; font-family: ui-monospace, monospace; word-break: break-all; }
+  .pushout.refused { color: #e0a37f; }
+  .pushout.ready { color: #62b6ff; }
 </style>
 </head>
 <body>
@@ -55,6 +64,19 @@ a focused, <b>foreground-only</b> mode you take up on purpose and put down when 
 <div class="crownbar" id="crownbar">
   <button class="crownbtn" id="crown">👑 Take up the crown</button>
   <span class="banner" id="banner"></span>
+</div>
+
+<div class="group" id="tokenpanel">
+  <h2>the held token</h2>
+  <p class="muted">The one credential the device can't mint itself — a GitHub fine-grained PAT (Contents R/W)
+  you provision <b>out of band</b> and hold here. It stays in memory only: never a repo file, never a
+  workflow secret, never <code>localStorage</code>. A push needs it AND the crown up.</p>
+  <div class="tokenrow">
+    <input id="tok" type="password" autocomplete="off" spellcheck="false" placeholder="paste a GitHub PAT to hold it (github_pat_… / ghp_…)">
+    <button id="hold">hold</button>
+    <button id="release" disabled>release</button>
+    <span class="tokstat" id="tokstat">no token held</span>
+  </div>
 </div>
 
 <div id="mount"></div>
@@ -121,6 +143,7 @@ jobs:
 
 <script type="module">
 import { crownList } from "./workflow.mjs";
+import { makeHeldToken, pushReadiness } from "./held-token.mjs";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -139,6 +162,9 @@ const SAY = {
 };
 
 let held = false;                       // is the crown up?
+const heldToken = makeHeldToken();      // the imported PAT — RAM only, never persisted
+const crown = { isUp: () => held };     // the gate pushReadiness reads (mirrors the boolean above)
+const DEMO_URL = "https://github.com/fccn-antibody/anecdote.channel";  // illustrative push target for the readout
 const sources = [                       // the embedded samples; paste appends
   { id: "heartbeat", yaml: $("s-heartbeat").textContent },
   { id: "match", yaml: $("s-match").textContent },
@@ -150,15 +176,17 @@ function render() {
   $("mount").innerHTML = groups.map((g) => `<div class="group"><h2>${esc(g.group)}</h2>` +
     g.list.map((wf) => {
       const runnable = wf.steps.filter((s) => SAY[s.kind] && SAY[s.kind][0] !== "gap").length;
+      const pushes = wf.steps.some((s) => s.kind === "publish");
       return `<div class="wf" data-id="${esc(wf.id)}">
         <div class="top">
-          <span><span class="name">${esc(wf.name)}</span> <span class="n">· ${wf.steps.length} step(s), ${runnable} on-device</span></span>
-          <span><button class="reveal">step map</button> <button class="run" ${held ? "" : "disabled"} title="${held ? "" : "take up the crown to run"}">run on device ▸</button></span>
+          <span><span class="name">${esc(wf.name)}</span> <span class="n">· ${wf.steps.length} step(s), ${runnable} on-device${pushes ? ", pushes down" : ""}</span></span>
+          <span><button class="reveal">step map</button> <button class="run" ${held ? "" : "disabled"} title="${held ? "" : "take up the crown to run"}">run on device ▸</button>${pushes ? ` <button class="push">push down ▸</button>` : ""}</span>
         </div>
         <div class="steps">${wf.steps.map((s) => {
           const [cls, say] = SAY[s.kind] || ["gap", s.kind];
           return `<div class="step"><span class="badge ${cls}">${esc(s.kind)}</span>${s.label ? `<span class="label">${esc(s.label)}</span>` : ""}<span class="say">${esc(say)}</span></div>`;
         }).join("")}</div>
+        ${pushes ? `<div class="pushout" hidden></div>` : ""}
       </div>`;
     }).join("") + `</div>`).join("");
 
@@ -166,6 +194,17 @@ function render() {
     const steps = wf.querySelector(".steps");
     wf.querySelector(".reveal").onclick = () => steps.classList.toggle("open");
     wf.querySelector(".run").onclick = () => { if (held) steps.classList.add("open"); };   // in the crown, "run" reveals the plan the device would execute
+    const pushBtn = wf.querySelector(".push");
+    if (pushBtn) pushBtn.onclick = () => {
+      // Read the gate — no network. Either name why it's refused, or how the direct push would go.
+      const out = wf.querySelector(".pushout");
+      const r = pushReadiness({ crown, held: heldToken, url: DEMO_URL, ref: "refs/heads/main" });
+      out.hidden = false;
+      out.className = "pushout " + (r.ready ? "ready" : "refused");
+      out.textContent = r.ready
+        ? `ready ▸ POST ${r.target} as ${r.as} (token ${r.token}) → fast-forward ${r.ref}`
+        : `refused — ${r.reason}`;
+    };
   }
 }
 
@@ -175,8 +214,26 @@ $("crown").onclick = () => {
   $("crown").classList.toggle("up", held);
   $("crownbar").classList.toggle("up", held);
   $("banner").textContent = held ? "the crown is up — foreground only, and only while you hold it" : "";
-  render();
+  render();   // re-render clears stale push readouts: a readiness read is only true at the moment you ask
 };
+
+// the held token panel — hold moves the pasted PAT into RAM (redacted on display); release clears it.
+function paintToken() {
+  const d = heldToken.describe();
+  $("tokstat").textContent = d ? `held: ${d.username} (token ${d.token})` : "no token held";
+  $("tokstat").classList.toggle("held", !!d);
+  $("release").disabled = !d;
+  $("hold").disabled = !!d;
+}
+$("hold").onclick = () => {
+  const t = $("tok").value.trim();
+  if (!t) return;
+  heldToken.hold(t);
+  $("tok").value = "";                 // don't leave the secret sitting in the input
+  paintToken();
+};
+$("release").onclick = () => { heldToken.release(); paintToken(); };
+paintToken();
 $("add").onclick = () => {
   const y = $("paste").value.trim();
   if (!y) return;
