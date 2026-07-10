@@ -83,11 +83,15 @@ export function buildSite(tree) {
   const site = { ...config, data: {}, time: config.time || null };
   const pretty = config.permalink === "pretty";
 
-  // _data/*.yml|json (top-level files) -> site.data[basename]
+  // _data/**.yml|json -> site.data, nesting by directory: _data/git/blame.json -> site.data.git.blame
+  // (the journal's stat writers file under _data/git/; Jekyll's DataReader nests the same way).
   for (const path of Object.keys(tree)) {
-    const m = /^_data\/([^/]+)\.(ya?ml|json)$/.exec(path);
+    const m = /^_data\/(.+)\.(ya?ml|json)$/.exec(path);
     if (!m) continue;
-    site.data[m[1]] = m[2] === "json" ? JSON.parse(tree[path]) : parse(tree[path]);
+    const segs = m[1].split("/");
+    let node = site.data;
+    for (const s of segs.slice(0, -1)) node = node[s] ?? (node[s] = {});
+    node[segs[segs.length - 1]] = m[2] === "json" ? JSON.parse(tree[path]) : parse(tree[path]);
   }
 
   const out = {};

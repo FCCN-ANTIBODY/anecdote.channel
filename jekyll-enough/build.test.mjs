@@ -84,5 +84,17 @@ const site = buildSite(tree);
   ok(s["_site/notes/x.md"] === "# raw\n\n{{ nope }}\n", "a front-matter-less .md is copied verbatim (NOT markdown-converted)");
 }
 
+// 7. _data nests by directory (the journal's _data/git/<kind> stat files) and renders via bracket lookup.
+{
+  const s = buildSite({
+    "_config.yml": "title: J\n",
+    "_data/git/blame.json": JSON.stringify({ journalfooindex: [{ w: 3 }] }),
+    "_data/tells.yml": "- id: t1\n",
+    "p.html": '---\nkind: blame\nkey: journalfooindex\n---\n<script type="application/json">{{ site.data.git[page.kind][page.key] | jsonify }}</script>',
+  });
+  ok(s["_site/p.html"].includes('[{"w":3}]'), "_data/git/blame.json lands at site.data.git.blame and bracket lookup reaches it");
+  ok(s["_site/p.html"].startsWith("<script"), "top-level _data files still load beside nested ones");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall jekyll-enough build tests passed");
