@@ -1,0 +1,13 @@
+{
+  "schema": "anecdote.origin/v1",
+  "repo": "fccn-antibody/anecdote.channel",
+  "ref": "refs/heads/origin-held",
+  "held_since": "2026-07-10T00:00:00Z",
+  "origin": "key:sha256:8a30f38af3b7d88bbe2b672e5a6a3e0eab26375c302126dcd9e0dcc7850b513c",
+  "sig": {
+    "alg": "ed25519",
+    "by": "key:sha256:8a30f38af3b7d88bbe2b672e5a6a3e0eab26375c302126dcd9e0dcc7850b513c",
+    "key": "wCDkUDC3lDOp7a/dLzbqN0LWMtlFlAkBWohKJtdyOKs=",
+    "signature": "HVoJlg0tc14vX1xJU3VI/NyjTrkp5hwLMiog6q3iB4YzdBMFO0pt5C62UPwUeRF+i9XgzPeP55OcxwxGRwleDg=="
+  }
+}
