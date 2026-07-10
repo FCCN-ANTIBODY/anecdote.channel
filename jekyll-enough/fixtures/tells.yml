@@ -1,0 +1,42 @@
+# Registry of Tells this Atlas lists — the directory.
+#
+# A Tell is a jurisdiction's hub: it fronts data-piles, collects their responses,
+# digests them, and publishes each pile's encrypted feed for pickup (see
+# tell.anecdote.channel). Atlas is a DIRECTORY of Tells: it lists them (and, through
+# them, the piles that group up behind them) so the public can find them. Atlas does
+# NOT register data-piles directly and never fronts pile data — a pile is reached
+# THROUGH its Tell.
+#
+# A Tell is listed here by opening a PR that appends its entry. The PR is opened on a
+# `tell/<scope>/<id>` branch and its commit is SIGNED with the Tell's delivery-signer
+# key (keys/tell.fpr): the branch name claims the Tell's identity, the signature proves
+# ownership of it, and the `signer` field below anchors that claim in the open. Accepting
+# the PR is, for now, the whole of "attestation" — no formal attestation layer yet.
+# (See CONTRACT.md -> "Registering a Tell". The canonical PR-opener lives in the Tell
+# repo as bin/register.)
+#
+# To be listed is to accept (see CONSTITUTION.md): addressability at a stable url;
+# describing the transparency reports it publishes in the shape Atlas aggregates;
+# Atlas's affirmative escalation of those reports into ALL constituency aggregations;
+# and the open line (no strictness gate — a constituency's reports gain weight and
+# credibility as they accumulate).
+#
+# At build time this renders tells.json (the public directory manifest) and the /tells
+# page (tells.md). No data is fetched at build.
+#
+# Each entry needs:
+#   id:      stable slug for the Tell (also its branch segment: tell/<scope>/<id>)
+#   name:    human-readable label
+#   url:     the Tell's own domain (where it fronts its piles)
+#   scope:   the jurisdiction / namespace the Tell speaks for
+#   signer:  the Tell's delivery-signer fingerprint (its keys/tell.fpr) — the OWNERSHIP
+#            ANCHOR the registration branch/commit is signed under. Lets anyone confirm
+#            the Tell that registered is the Tell that signs the digests it delivers.
+#   reports: where the Tell publishes the transparency reports Atlas aggregates
+#            (e.g. reports/govern-*), in the shape its own CONSTITUTION describes.
+- id: tell
+  name: "Tell (reference hub)"
+  url: "https://tell.anecdote.channel"
+  scope: "colorado"
+  signer: "SHA256:PLACEHOLDER-tell-delivery-signer-fingerprint"
+  reports: "reports/govern-*"

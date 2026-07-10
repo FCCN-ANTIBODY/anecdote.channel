@@ -1,0 +1,28 @@
+title: Atlas
+description: >-
+  A directory of Tells — the hubs that front anecdote.channel data-piles — and a
+  reflecting gateway for the coarse maps the piles behind them place here.
+url: "https://atlas.anecdote.channel"
+baseurl: ""
+
+# Custom build: we run `jekyll build` ourselves in Actions, so we are free to
+# enable any plugins (the reflection generator in _plugins/ loads automatically).
+plugins: []
+
+# Docs are notes, not site pages. The seed maps under piles/ ARE served so the
+# runtime client renders each slice offline / before the gateway places live data.
+exclude:
+  - AGENTS.md
+  - CONTRACT.md
+  - DNS.md
+  - README.md
+  - ROADMAP.md
+  - Gemfile
+  - Gemfile.lock
+  - bin/
+  - test/
+  - vendor/
+  - workers/
+
+# Pretty URLs (/foo/ instead of /foo.html).
+permalink: pretty

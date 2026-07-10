@@ -1,0 +1,30 @@
+# Registry of "needs" (requests-for-pile) this Atlas carries.
+#
+# A need is a question with NO pile yet to catch it. An asker (a data-pile repo, even one
+# missing an actual pile for the topic) lists it here by an accepted PR — the same consent
+# gesture as Tells/piles. Atlas then carries it on its public "what's hanging" list
+# (/needs.json, a tip line for journalists / a board for networking) and matches it, by
+# constitution, against the piles/Tells it indexes (bin/match -> /matches.json). Atlas
+# never writes into the asker — the asker pulls its match and re-issues, with consent.
+#
+# Each entry:
+#   id:         need slug
+#   asker_repo: owner/name that raised it (the "address", though it has no pile yet)
+#   scope:      region/namespace, for filtering + matching
+#   topic:      coarse category (slash-delimited)
+#   terms:      pre-authorization; EMPTY => a match needs the asker's consent (re-issue),
+#               non-empty => the asker pre-authorized that use as-is
+#   need_url:   link to the asker's needs/<id>.json
+#   constitution: URL to the asker's LIVE CONSTITUTION.md. The judge that decides a need's
+#               constitutional fit reads it — so it must travel WITH the need when the need is
+#               carried off-node (e.g. onto a peer Atlas's bill; see CONTRACT.md -> "Requested
+#               search from a peer"). A judge over a remote bill cannot fetch what the bill does
+#               not name. Optional for purely local matching (the asker is reachable anyway), but
+#               always set it for a need you expect a friend to find.
+- id: boardgame-80525
+  asker_repo: acme/civic-node
+  scope: "colorado"
+  topic: "social/boardgames"
+  terms: ""
+  need_url: https://github.com/acme/civic-node/blob/main/needs/boardgame-80525.json
+  constitution: https://github.com/acme/civic-node/blob/main/CONSTITUTION.md
