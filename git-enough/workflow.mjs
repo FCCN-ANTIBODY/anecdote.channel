@@ -118,6 +118,30 @@ async function runSteps(planned, caps, log, depth = 0) {
   return wantsPublish;
 }
 
+// A short display label for a classified step (the crown's rows).
+export function stepLabel(p) {
+  if (p.kind === "run-node") return p.script || "";
+  if (p.kind === "action") return p.action || "";
+  if (p.kind === "run-shell") return (p.cmd || "").split("\n").find((l) => l.trim()) || "";
+  if (p.kind === "publish") return (p.step && p.step.uses) || "git push";
+  if (p.kind === "setup") return (p.step && p.step.uses) || "";
+  return "";
+}
+
+// The crown's index: parse every workflow, classify its steps, and group by the `name:` prefix, sorted
+// as GitHub sorts (by the name). sources: [{ id, yaml }]. Pure + browser-safe — the crown page renders it.
+export function crownList(sources = []) {
+  const items = sources.map((s) => {
+    const wf = parseWorkflowSteps(s.yaml || "");
+    const name = wf.name || s.id || "(unnamed)";
+    const group = (name.includes("·") ? name.split("·")[0] : "other").trim() || "other";
+    return { id: s.id, name, group, steps: planSteps(wf.steps).map((p) => ({ kind: p.kind, label: stepLabel(p) })) };
+  }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const groups = new Map();
+  for (const it of items) { if (!groups.has(it.group)) groups.set(it.group, []); groups.get(it.group).push(it); }
+  return [...groups.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([group, list]) => ({ group, list }));
+}
+
 export async function runWorkflow(planned, { runNode, push, openAction, resolveBin, ctx = {}, inputs = {} } = {}) {
   const log = [];
   const wantsPublish = await runSteps(planned, { runNode, openAction, resolveBin, ctx, inputs }, log);

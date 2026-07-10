@@ -1,0 +1,191 @@
+<!doctype html>
+<!-- git-enough/crown.html — THE CROWN (docs/actions-enough.md): the offline origin's workflow bench.
+     It surfaces every workflow the way GitHub enumerates them — by their `name:` label, grouped by the
+     `·` prefix — and shows, for each, exactly how the DEVICE would run it (the interpreter's step map:
+     checkout held, node steps run on the held tree, composites opened, bash/jekyll named as gaps,
+     publish -> a git-enough push DOWN to GitHub). Running is gated behind a held CROWN: a focused,
+     foreground-only mode you take up deliberately and put down when done — the baton/single-focus
+     gesture. Pure client: it parses workflow YAML with git-enough/workflow.mjs; nothing is fetched. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the crown — run the origin's workflows</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0 auto; max-width: 48rem; padding: 1rem; background: #0e1216; color: #e8ecef;
+         font: 15px/1.5 system-ui, sans-serif; }
+  h1 { font-size: 1.25rem; margin: .3rem 0; }
+  .muted { color: #9aa7b0; font-size: .85rem; }
+  .crownbar { position: sticky; top: 0; background: #0e1216; padding: .6rem 0; border-bottom: 1px solid #232b31;
+              display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; z-index: 5; }
+  button { background: #18222b; color: #e8ecef; border: 1px solid #33404a; border-radius: .4rem;
+           padding: .4rem .8rem; font: inherit; cursor: pointer; }
+  button:hover { border-color: #7fd4a8; }
+  button[disabled] { opacity: .45; cursor: default; border-color: #33404a; }
+  .crownbar.up { background: #14100a; }
+  .crownbtn.up { background: #3a2f12; border-color: #e0c07f; color: #f3e2b8; }
+  .banner { color: #e0c07f; font-size: .82rem; }
+  .group { margin-top: 1.3rem; }
+  .group h2 { font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: #7fd4a8; margin: 0 0 .3rem; }
+  .wf { border: 1px solid #232b31; border-radius: .5rem; margin: .4rem 0; padding: .5rem .7rem; }
+  .wf .top { display: flex; align-items: center; gap: .6rem; justify-content: space-between; }
+  .wf .name { font-weight: 600; }
+  .wf .n { color: #6a7a86; font-size: .75rem; }
+  .steps { margin: .5rem 0 0; border-top: 1px solid #232b31; padding-top: .4rem; display: none; }
+  .steps.open { display: block; }
+  .step { display: flex; gap: .5rem; align-items: baseline; font-size: .82rem; padding: .12rem 0; }
+  .badge { font-size: .66rem; border-radius: 1rem; padding: .02rem .45rem; border: 1px solid; white-space: nowrap; }
+  .run  { border-color: #7fd4a8; color: #7fd4a8; }   /* runs on the device */
+  .push { border-color: #62b6ff; color: #62b6ff; }   /* -> git-enough push down */
+  .gap  { border-color: #e0a06a; color: #e0a06a; }   /* a named gap */
+  .step .label { color: #c7d1d9; font-family: ui-monospace, monospace; font-size: .76rem; word-break: break-all; }
+  .step .say { color: #9aa7b0; }
+  textarea { width: 100%; box-sizing: border-box; height: 6rem; background: #0a0d10; color: #e8ecef;
+             border: 1px solid #232b31; border-radius: .4rem; padding: .5rem; font: 12px ui-monospace, monospace; }
+  a { color: #7fd4a8; }
+</style>
+</head>
+<body>
+<h1>The crown</h1>
+<p class="muted">Every workflow the origin knows, the way GitHub lists them — by <code>name:</code>, grouped by
+the <code>·</code> prefix — and how the <b>device</b> would run each one. Running is gated behind the crown:
+a focused, <b>foreground-only</b> mode you take up on purpose and put down when done. Nothing here is fetched.</p>
+
+<div class="crownbar" id="crownbar">
+  <button class="crownbtn" id="crown">👑 Take up the crown</button>
+  <span class="banner" id="banner"></span>
+</div>
+
+<div id="mount"></div>
+
+<div class="group">
+  <h2>add a workflow</h2>
+  <p class="muted">Paste any workflow YAML (from any repo or engine submodule) to see how the device would run it.</p>
+  <textarea id="paste" placeholder="name: &quot;Federate · deliver&quot;&#10;on: [workflow_dispatch]&#10;jobs:&#10;  ..."></textarea>
+  <div style="margin-top:.4rem"><button id="add">add to the bench</button></div>
+</div>
+
+<!-- Real workflows, embedded verbatim (a text/yaml block needs no ${{ }} escaping). -->
+<script type="text/yaml" id="s-heartbeat">
+name: "Antidote · heartbeat"
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 1 * *"
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/heartbeat
+        with:
+          ledger-key: ${{ secrets.ANTIDOTE_LEDGER_KEY }}
+</script>
+<script type="text/yaml" id="s-match">
+name: "Federate · match"
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+jobs:
+  match:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/match
+</script>
+<script type="text/yaml" id="s-deploy">
+name: "Publish · site"
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - name: Build site
+        run: bin/jekyll build --trace
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/deploy-pages@v4
+</script>
+
+<script type="module">
+import { crownList } from "./workflow.mjs";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// how each classified kind reads as "what the device would do", + a badge class
+const SAY = {
+  checkout: ["run", "held — the device already holds the tree"],
+  setup:    ["run", "runtime — we are the runtime"],
+  "run-node": ["run", "run on the held tree"],
+  action:   ["run", "open the composite and recurse"],
+  publish:  ["push", "→ a git-enough push, DOWN to GitHub"],
+  jekyll:   ["gap", "gap — jekyll-enough (not built yet)"],
+  "run-shell": ["gap", "gap — a bash step (a JS battery, or stays on cron)"],
+  "uses-other": ["gap", "gap — a marketplace action"],
+  unknown:  ["gap", "gap — unrecognized"],
+};
+
+let held = false;                       // is the crown up?
+const sources = [                       // the embedded samples; paste appends
+  { id: "heartbeat", yaml: $("s-heartbeat").textContent },
+  { id: "match", yaml: $("s-match").textContent },
+  { id: "deploy", yaml: $("s-deploy").textContent },
+];
+
+function render() {
+  const groups = crownList(sources);
+  $("mount").innerHTML = groups.map((g) => `<div class="group"><h2>${esc(g.group)}</h2>` +
+    g.list.map((wf) => {
+      const runnable = wf.steps.filter((s) => SAY[s.kind] && SAY[s.kind][0] !== "gap").length;
+      return `<div class="wf" data-id="${esc(wf.id)}">
+        <div class="top">
+          <span><span class="name">${esc(wf.name)}</span> <span class="n">· ${wf.steps.length} step(s), ${runnable} on-device</span></span>
+          <span><button class="reveal">step map</button> <button class="run" ${held ? "" : "disabled"} title="${held ? "" : "take up the crown to run"}">run on device ▸</button></span>
+        </div>
+        <div class="steps">${wf.steps.map((s) => {
+          const [cls, say] = SAY[s.kind] || ["gap", s.kind];
+          return `<div class="step"><span class="badge ${cls}">${esc(s.kind)}</span>${s.label ? `<span class="label">${esc(s.label)}</span>` : ""}<span class="say">${esc(say)}</span></div>`;
+        }).join("")}</div>
+      </div>`;
+    }).join("") + `</div>`).join("");
+
+  for (const wf of document.querySelectorAll(".wf")) {
+    const steps = wf.querySelector(".steps");
+    wf.querySelector(".reveal").onclick = () => steps.classList.toggle("open");
+    wf.querySelector(".run").onclick = () => { if (held) steps.classList.add("open"); };   // in the crown, "run" reveals the plan the device would execute
+  }
+}
+
+$("crown").onclick = () => {
+  held = !held;
+  $("crown").textContent = held ? "👑 Put down the crown" : "👑 Take up the crown";
+  $("crown").classList.toggle("up", held);
+  $("crownbar").classList.toggle("up", held);
+  $("banner").textContent = held ? "the crown is up — foreground only, and only while you hold it" : "";
+  render();
+};
+$("add").onclick = () => {
+  const y = $("paste").value.trim();
+  if (!y) return;
+  sources.push({ id: "pasted-" + (sources.length + 1), yaml: y });
+  $("paste").value = "";
+  render();
+};
+
+render();
+</script>
+</body>
+</html>

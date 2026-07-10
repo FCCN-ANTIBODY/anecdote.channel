@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { parseWorkflowSteps, planSteps, classifyStep, runWorkflow } from "./workflow.mjs";
+import { parseWorkflowSteps, planSteps, classifyStep, runWorkflow, crownList } from "./workflow.mjs";
 import { virtualFs } from "./node-compat.mjs";
 import { buildRepo } from "./publish-cli.mjs";
 import { packRepo } from "./pack.mjs";
@@ -106,6 +106,18 @@ jobs:
   const plan = [classifyStep({ run: "node bin/x.mjs" }), classifyStep({ uses: "./.e/.github/actions/y" })];
   const { log } = await runWorkflow(plan, {});
   ok(/gap/.test(log[0].outcome) && /named gap/.test(log[1].outcome), "missing capabilities are named gaps, not silent no-ops");
+}
+
+// 5. crownList: the crown's index — grouped by the name prefix, sorted as GitHub sorts (by name).
+{
+  const groups = crownList([
+    { id: "a", yaml: 'name: "Publish · site"\njobs:\n  b:\n    steps:\n      - uses: actions/checkout@v4\n' },
+    { id: "b", yaml: 'name: "Antidote · heartbeat"\njobs:\n  h:\n    steps:\n      - uses: actions/checkout@v4\n      - uses: ./.github/actions/heartbeat\n' },
+    { id: "c", yaml: 'name: "Antidote · intake"\njobs:\n  i:\n    steps:\n      - uses: actions/checkout@v4\n' },
+  ]);
+  ok(JSON.stringify(groups.map((g) => g.group)) === JSON.stringify(["Antidote", "Publish"]), "grouped by the name prefix, groups sorted: " + groups.map((g) => g.group));
+  ok(groups[0].list.map((w) => w.name).join(",") === "Antidote · heartbeat,Antidote · intake", "within a group, sorted by name (GitHub's sort)");
+  ok(groups[0].list[0].steps.some((s) => s.kind === "action"), "each workflow carries its classified step map");
 }
 
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
