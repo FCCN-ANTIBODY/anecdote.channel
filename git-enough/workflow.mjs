@@ -64,23 +64,43 @@ export function classifyStep(step) {
 export function planSteps(steps) { return steps.map(classifyStep); }
 
 // Drive the classified steps against the held tree, ending in a git-enough push. Capabilities are injected:
-//   runNode(script, ctx) — run one `node <script>` against the ambient virtual fs (bundle-action.mjs).
-//   push(ctx)            — a git-enough push of the resulting tree (send-pack.mjs); dry-run first.
-// checkout/setup are no-ops (the device holds the tree and IS the runtime). action/jekyll/shell/unknown
-// are recorded as NAMED GAPS, not silently run. Returns { log, pushed }.
-export async function runWorkflow(planned, { runNode, push, ctx = {} } = {}) {
-  const log = [];
+//   runNode(script, ctx)     — run one `node <script>` against the ambient virtual fs (bundle-action.mjs).
+//   push(ctx)                — a git-enough push of the resulting tree (send-pack.mjs); dry-run first.
+//   openAction(path, ctx)    — resolve a composite action to its inner steps (composite.mjs); optional.
+//   resolveBin(runStr, ctx)  — if a `run:` invokes a bin that is an `exec node X.mjs` SHIM, return X.mjs;
+//                              null for a bash/ruby program (composite.mjs); optional.
+// checkout/setup are no-ops (the device holds the tree and IS the runtime). Anything not runnable yet —
+// a bash bin, jekyll, raw shell, an unresolved composite — is a NAMED GAP, never a silent skip. The gaps
+// ARE the reproducibility map: they name exactly which bins still need a JS battery. Returns { log, pushed }.
+async function runSteps(planned, caps, log, depth = 0) {
+  const { runNode, openAction, resolveBin, ctx } = caps;
   let wantsPublish = false;
+  const pad = "  ".repeat(depth);
   for (const p of planned) {
-    if (p.kind === "checkout") log.push({ kind: p.kind, outcome: "held — the device already holds the tree" });
-    else if (p.kind === "setup") log.push({ kind: p.kind, outcome: "runtime — we are the runtime" });
+    if (p.kind === "checkout") log.push({ kind: p.kind, outcome: pad + "held — the device already holds the tree" });
+    else if (p.kind === "setup") log.push({ kind: p.kind, outcome: pad + "runtime — we are the runtime" });
     else if (p.kind === "run-node") {
-      if (!runNode) { log.push({ kind: p.kind, script: p.script, outcome: "gap — no runNode capability supplied" }); continue; }
+      if (!runNode) { log.push({ kind: p.kind, script: p.script, outcome: pad + "gap — no runNode capability" }); continue; }
       await runNode(p.script, ctx);
-      log.push({ kind: p.kind, script: p.script, outcome: "ran on the virtual tree" });
-    } else if (p.kind === "publish") { wantsPublish = true; log.push({ kind: p.kind, outcome: "queued for a git-enough push" }); }
-    else log.push({ kind: p.kind, outcome: `deferred — a named gap (${p.kind}${p.action ? ": " + p.action : ""})` });
+      log.push({ kind: p.kind, script: p.script, outcome: pad + "ran on the virtual tree" });
+    } else if (p.kind === "run-shell") {
+      const node = resolveBin ? await resolveBin(p.cmd, ctx) : null;   // a bin that is `exec node X.mjs`?
+      if (node && runNode) { await runNode(node, ctx); log.push({ kind: "run-node", script: node, outcome: pad + "resolved a bin-shim to node, ran on the virtual tree" }); }
+      else log.push({ kind: p.kind, outcome: pad + "named gap — a bash/program step (needs a JS battery or stays on GitHub)" });
+    } else if (p.kind === "action") {
+      const inner = openAction ? await openAction(p.action, ctx) : null;
+      if (!inner) { log.push({ kind: p.kind, outcome: pad + `named gap — composite ${p.action} not resolved` }); continue; }
+      log.push({ kind: p.kind, outcome: pad + `opened composite ${p.action} (${inner.length} step(s))` });
+      if (await runSteps(planSteps(inner), caps, log, depth + 1)) wantsPublish = true;
+    } else if (p.kind === "publish") { wantsPublish = true; log.push({ kind: p.kind, outcome: pad + "queued for a git-enough push" }); }
+    else log.push({ kind: p.kind, outcome: pad + `deferred — a named gap (${p.kind})` });
   }
+  return wantsPublish;
+}
+
+export async function runWorkflow(planned, { runNode, push, openAction, resolveBin, ctx = {} } = {}) {
+  const log = [];
+  const wantsPublish = await runSteps(planned, { runNode, openAction, resolveBin, ctx }, log);
   let pushed = null;
   if (wantsPublish && push) pushed = await push(ctx);
   return { log, pushed };
