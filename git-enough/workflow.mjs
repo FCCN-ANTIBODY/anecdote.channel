@@ -22,12 +22,15 @@ export function parseWorkflowSteps(yaml) {
     const sm = lines[i].match(/^(\s*)steps:\s*$/);
     if (!sm) continue;
     const base = sm[1].length;
-    let cur = null, block = null, blockIndent = 0, withIndent = -1;
+    let cur = null, block = null, blockKeyIndent = 0, blockBase = -1, withIndent = -1;
     for (let j = i + 1; j < lines.length; j++) {
       const raw = lines[j];
       const indent = raw.length - raw.trimStart().length;
-      if (block && (/^\s*$/.test(raw) || indent > blockIndent)) { cur[block] += (cur[block] ? "\n" : "") + raw.slice(blockIndent); continue; }
-      block = null;
+      if (block) {                                                 // inside a `|`/`>` block scalar
+        if (/^\s*$/.test(raw)) { cur[block] += "\n"; continue; }
+        if (indent > blockKeyIndent) { if (blockBase < 0) blockBase = indent; cur[block] += (cur[block] ? "\n" : "") + raw.slice(blockBase); continue; }
+        block = null;                                              // dedent to/under the key -> block ends
+      }
       if (/^\s*$/.test(raw) || /^\s*#/.test(raw)) continue;      // blank / comment
       if (indent <= base) break;                                  // dedent -> this steps: block is done
       const content = raw.trim();
@@ -40,7 +43,7 @@ export function parseWorkflowSteps(yaml) {
       const key = kv[1], val = kv[2];
       if (withIndent >= 0 && indent > withIndent && key !== "with") { cur.with[key] = unquote(val); continue; }
       if (key === "with") { cur.with = {}; withIndent = indent; }
-      else if (val === "|" || val === ">") { block = key; blockIndent = indent + 2; cur[key] = ""; }
+      else if (val === "|" || val === ">") { block = key; blockKeyIndent = indent; blockBase = -1; cur[key] = ""; }
       else { cur[key] = unquote(val); withIndent = -1; }
     }
   }
@@ -58,10 +61,23 @@ export function classifyStep(step) {
   const node = run.match(/(?:^|[\s;&|])node\s+(\S+)/);
   if (node) return { kind: "run-node", step, script: node[1].replace(/["']/g, "") };
   if (/(?:^|[\s;&|/])(?:bin\/)?jekyll\b|jekyll build/.test(run)) return { kind: "jekyll", step };
+  if (/\bgit\s+(?:push|commit)\b/.test(run)) return { kind: "publish", step, via: "git" };   // a git commit+push step IS the publish
   if (run) return { kind: "run-shell", step, cmd: run };
   return { kind: "unknown", step };
 }
 export function planSteps(steps) { return steps.map(classifyStep); }
+
+// Evaluate a step's `if:` — enough of the expression language for our conditions: `inputs.KEY == 'v'`
+// / `!= 'v'`. Unset inputs read as '' (GitHub's rule), so `inputs.ledger-key != ''` is false on the
+// device (the key is HELD, not passed in). Returns true / false, or null when we can't decide (run it,
+// GitHub's default, but the caller notes it).
+export function evalIf(expr, inputs = {}) {
+  if (!expr) return true;
+  const e = String(expr).replace(/^\$\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
+  const m = e.match(/^inputs\.([\w-]+)\s*(==|!=)\s*'([^']*)'$/);
+  if (m) { const v = inputs[m[1]] == null ? "" : String(inputs[m[1]]); return m[2] === "==" ? v === m[3] : v !== m[3]; }
+  return null;
+}
 
 // Drive the classified steps against the held tree, ending in a git-enough push. Capabilities are injected:
 //   runNode(script, ctx)     — run one `node <script>` against the ambient virtual fs (bundle-action.mjs).
@@ -73,10 +89,14 @@ export function planSteps(steps) { return steps.map(classifyStep); }
 // a bash bin, jekyll, raw shell, an unresolved composite — is a NAMED GAP, never a silent skip. The gaps
 // ARE the reproducibility map: they name exactly which bins still need a JS battery. Returns { log, pushed }.
 async function runSteps(planned, caps, log, depth = 0) {
-  const { runNode, openAction, resolveBin, ctx } = caps;
+  const { runNode, openAction, resolveBin, ctx, inputs = {} } = caps;
   let wantsPublish = false;
   const pad = "  ".repeat(depth);
   for (const p of planned) {
+    if (p.step && p.step.if && evalIf(p.step.if, inputs) === false) {
+      log.push({ kind: p.kind, outcome: pad + `skipped — if: ${p.step.if.trim()} is false (the device holds what a secret would seat)` });
+      continue;
+    }
     if (p.kind === "checkout") log.push({ kind: p.kind, outcome: pad + "held — the device already holds the tree" });
     else if (p.kind === "setup") log.push({ kind: p.kind, outcome: pad + "runtime — we are the runtime" });
     else if (p.kind === "run-node") {
@@ -98,9 +118,9 @@ async function runSteps(planned, caps, log, depth = 0) {
   return wantsPublish;
 }
 
-export async function runWorkflow(planned, { runNode, push, openAction, resolveBin, ctx = {} } = {}) {
+export async function runWorkflow(planned, { runNode, push, openAction, resolveBin, ctx = {}, inputs = {} } = {}) {
   const log = [];
-  const wantsPublish = await runSteps(planned, { runNode, openAction, resolveBin, ctx }, log);
+  const wantsPublish = await runSteps(planned, { runNode, openAction, resolveBin, ctx, inputs }, log);
   let pushed = null;
   if (wantsPublish && push) pushed = await push(ctx);
   return { log, pushed };
