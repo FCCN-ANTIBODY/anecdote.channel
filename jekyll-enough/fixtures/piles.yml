@@ -1,0 +1,42 @@
+# Registry of data-piles that GROUP BEHIND a Tell this Atlas lists — and the trust
+# anchor for the coarse public map each one may place.
+#
+# Atlas does NOT register data-piles directly. A pile is reached THROUGH the Tell it
+# registered with (see _data/tells.yml); it appears here only because it groups up
+# behind a listed Tell and chooses to place a coarse public map. The `tell:` field
+# names that Tell. (Inbound responses -> encrypted digests -> the pile is the Tell's
+# job, never Atlas's.)
+#
+# At build time this becomes piles.json (the manifest the runtime client + the gateway
+# Worker read). No data is fetched at build time, so updating a pile's data never
+# rebuilds the site.
+#
+# A pile that places a map owns a self-named, prefixed BRANCH in this repo (a
+# non-merging parallel namespace) and places its map by pushing SIGNED commits to that
+# branch only — see CONTRACT.md -> "Piles group behind a Tell". This registry declares
+# which Tell it groups behind, and which branch + signer is legitimate for the slice.
+#
+# Each entry needs:
+#   id:     stable slug, also the served path segment
+#   name:   human-readable label
+#   level:  region tier (district | city | county | … ) — carried for aggregators
+#   scope:  region/namespace tier; the <scope> segment of the branch ref
+#   tell:   the id (in _data/tells.yml) of the Tell this pile is reached through
+#   map:    the stable Atlas-hosted path the gateway serves this slice at. A committed
+#           seed lives here so the slice renders before first placement.
+#   branch: the pile's own ref the gateway reads live map data from
+#           (convention pile/<scope>/<id>); the pile pushes signed commits here.
+#   signer: the key fingerprint Atlas expects to have signed this branch's commits —
+#           the documented/audit anchor for map custody.
+#
+# NOTE: cd04-q1 below is a fixture — it shows how a pile would group behind the `tell`
+# hub and place a coarse map. It is illustrative of the shape, not live data; don't let
+# it drive the design.
+- id: cd04-q1
+  name: "Colorado House District 4 — Question 1"
+  level: district
+  scope: "colorado"
+  tell: tell
+  map: "/piles/cd04-q1/map.xml"
+  branch: "pile/colorado/cd04-q1"
+  signer: "SHA256:PLACEHOLDER-cd04-q1-ssh-key-fingerprint"
