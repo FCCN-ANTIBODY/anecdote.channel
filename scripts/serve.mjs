@@ -1,7 +1,7 @@
-// Tiny dependency-free static server for the worker-bus proof.
+// Tiny dependency-free static server for the demo shelf (AGENTS.md carries the index).
 //   node scripts/serve.mjs            # serves the repo root on http://localhost:8000
 //   PORT=8080 node scripts/serve.mjs
-// Then open http://localhost:8000/composer/crunch.html
+// Then open any demo, e.g. http://localhost:8000/composer/composer-chamber-demo.html
 //
 // Serves the whole repo so /composer/, /reducer/ (incl. node_modules for the optional MiniLM
 // path), and /models/ all resolve from one origin with no CDN. Correct MIME for ES modules, wasm,
