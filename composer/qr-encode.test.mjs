@@ -4,7 +4,7 @@
 // round-trip through inverse placement + unmask + de-interleave (the DATA path); (3) an RS SYNDROME check
 // (the EC path — self-decode trusts EC, so only this catches a bad generator/divisor, which a scanner would
 // reject as "data irrecoverable"); (4) computed BCH/GF, no hand-typed magic. Run: node composer/qr-encode.test.mjs
-import { encodeQR, decodeSelf, dataCodewords, chooseVersion, rsEncode, _gf } from "./qr-encode.mjs";
+import { encodeQR, decodeSelf, encodeBytes, decodeBytesSelf, dataCodewords, chooseVersion, rsEncode, rsGen, _gf } from "./qr-encode.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -74,6 +74,32 @@ const TOTAL_CW = [0, 26, 44, 70, 100, 134, 172, 196, 242, 292, 346, 404, 466, 53
   ok(chooseVersion(800, "M") >= 18 && chooseVersion(800, "M") <= 25, "800 bytes (a signed poll URL) picks a mid version");
   let threw = false; try { chooseVersion(4000, "M"); } catch { threw = true; }
   ok(threw, "beyond version-40 capacity throws (use a shorter URL / chunked carrier)");
+}
+
+// 4. BYTE path: arbitrary octets (a deflated / signed blob is not valid UTF-8) round-trip exactly.
+{
+  const bin = Uint8Array.from({ length: 400 }, (_, i) => (i * 173 + 61) & 0xff);   // incompressible-ish binary
+  const q = encodeBytes(bin, { ecLevel: "Q" });
+  const back = decodeBytesSelf(q.modules, q.version, q.ecLevel, q.mask);
+  ok(back.length === bin.length && back.every((b, i) => b === bin[i]), "raw bytes round-trip through encodeBytes/decodeBytesSelf (the deflated-carrier path)");
+  ok(q.modules.some((row) => row.some((v) => v)) && q.version >= 1, "the byte carrier produced a real matrix");
+}
+
+// 5. EXTERNAL ORACLE — the RS generator polynomial matches the QR spec's published α-exponents (degree 10).
+{
+  const { LOG } = _gf;
+  // rsGen stores coefficients constant-first (rsEncode reverses them); the spec lists them highest-first.
+  ok(rsGen(10).map((c) => LOG[c]).reverse().join(",") === "0,251,67,46,61,118,70,64,94,32,45",
+    "RS generator (deg 10) matches the QR spec's published α-exponents — RS is spec-correct, not just self-consistent");
+}
+
+// 6. EXTERNAL ORACLE — byte capacities match the published ISO/IEC 18004 table across all of v1..v40.
+{
+  const L = [0,17,32,53,78,106,134,154,192,230,271,321,367,425,458,520,586,644,718,792,858,929,1003,1091,1171,1273,1367,1465,1528,1628,1732,1840,1952,2068,2188,2303,2431,2563,2699,2809,2953];
+  const byteCap = (v, lvl) => dataCodewords(v, lvl).data - 2 - (v >= 10 ? 1 : 0);
+  let bad = 0; for (let v = 1; v <= 40; v++) if (byteCap(v, "L") !== L[v]) bad++;
+  ok(bad === 0, "v1..v40 level-L byte capacities all match the published spec table (validates the block tables vs spec)");
+  ok(byteCap(40, "M") === 2331 && byteCap(40, "Q") === 1663 && byteCap(40, "H") === 1273, "v40 M/Q/H capacities match the famous spec numbers");
 }
 
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
