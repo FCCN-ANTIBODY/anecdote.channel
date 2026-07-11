@@ -17,7 +17,7 @@ const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
 const gfMul = (a, b) => (a === 0 || b === 0 ? 0 : EXP[LOG[a] + LOG[b]]);
 export const _gf = { EXP, LOG, gfMul };   // exposed for the RS syndrome check in the test
 
-function rsGen(ec) { let g = [1]; for (let i = 0; i < ec; i++) { const ng = new Array(g.length + 1).fill(0); for (let j = 0; j < g.length; j++) { ng[j] ^= gfMul(g[j], EXP[i]); ng[j + 1] ^= g[j]; } g = ng; } return g; }
+export function rsGen(ec) { let g = [1]; for (let i = 0; i < ec; i++) { const ng = new Array(g.length + 1).fill(0); for (let j = 0; j < g.length; j++) { ng[j] ^= gfMul(g[j], EXP[i]); ng[j + 1] ^= g[j]; } g = ng; } return g; }
 export function rsEncode(data, ec) {
   // rsGen returns the generator constant-first (g[ec] = leading monic term). The LFSR remainder wants the
   // non-leading coefficients highest-power-first, so drop the leading term and reverse.
@@ -213,8 +213,10 @@ export function chooseVersion(len, level = "M") {
 // Encode text into a QR. Returns { version, size, ecLevel, mask, modules } where modules[r][c] is 0/1.
 // `version` and `mask` are optional overrides (mask is normally chosen by penalty scoring; forcing it is for
 // reference comparison / tests).
-export function encodeQR(text, { ecLevel = "M", version, mask } = {}) {
-  const bytes = new TextEncoder().encode(text);
+// Encode RAW BYTES — the real carrier (deflated bytes / a key / a signed token), which is not valid UTF-8
+// and so cannot go through encodeQR's text path. Byte mode carries any octet stream unchanged.
+export function encodeBytes(bytes, { ecLevel = "M", version, mask } = {}) {
+  bytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const v = version || chooseVersion(bytes.length, ecLevel);
   const cw = interleave(byteData(bytes, v, ecLevel), v, ecLevel);
   const size = 17 + 4 * v;
@@ -226,11 +228,16 @@ export function encodeQR(text, { ecLevel = "M", version, mask } = {}) {
   for (const mk of candidates) { const masked = applyMask(x, MASKS[mk]); writeFormat(masked, x, ecLevel, mk); writeVersion(masked, x, v); const pen = penalty(masked); if (!best || pen < best.pen) best = { mask: mk, masked, pen }; }
   return { version: v, size, ecLevel, mask: best.mask, modules: best.masked };
 }
+// Text is just a UTF-8 byte payload — the string path is a thin wrapper over the byte path.
+export function encodeQR(text, opts = {}) { return encodeBytes(new TextEncoder().encode(text), opts); }
 
 // SELF-DECODE (verification tool, not a general QR reader): reverse our own placement to recover the text —
 // unmask, read codewords in the same zigzag, de-interleave the data blocks, parse byte mode. It trusts the
 // EC codewords (a real scanner does Reed–Solomon); it proves the DATA path (placement/mask/interleave/mode).
-export function decodeSelf(modules, version, ecLevel, mask) {
+// self-decode to raw BYTES (the byte-carrier round-trip): reverse our own placement — unmask, read
+// codewords in the same zigzag, de-interleave, parse byte mode. Trusts the EC codewords (a real scanner
+// runs Reed–Solomon); proves the DATA path (placement / mask / interleave / mode).
+export function decodeBytesSelf(modules, version, ecLevel, mask) {
   const size = modules.length, x = newMatrix(size); functionPatterns(x, version);
   const maskFn = MASKS[mask], bits = [];
   let up = true;
@@ -253,5 +260,7 @@ export function decodeSelf(modules, version, ecLevel, mask) {
   if (take(4) !== 0b0100) throw new Error("decodeSelf: not byte mode");
   const len = take(version <= 9 ? 8 : 16), out = new Uint8Array(len);
   for (let i = 0; i < len; i++) out[i] = take(8);
-  return new TextDecoder().decode(out);
+  return out;
 }
+// the text path: decode the bytes as UTF-8 (what the URL/poll demo uses).
+export function decodeSelf(modules, version, ecLevel, mask) { return new TextDecoder().decode(decodeBytesSelf(modules, version, ecLevel, mask)); }

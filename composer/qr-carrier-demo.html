@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>carry a signed blob as a QR — the byte carrier</title>
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<style>
+  body { font: 15px/1.6 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; } .lede { color: #555; }
+  .card { border: 1px solid #ddd; border-radius: .6rem; padding: .8rem 1rem; margin-top: 1rem; }
+  .k { font-size: .75rem; color: #777; text-transform: uppercase; letter-spacing: .04em; }
+  code, pre { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; word-break: break-all; white-space: pre-wrap; }
+  pre { background: #f4f4f4; padding: .6rem; border-radius: .4rem; max-height: 9rem; overflow: auto; }
+  .note { color: #777; font-size: .85rem; } .ok { color: #1a7f37; } .bad { color: #b3261e; }
+  textarea { width: 100%; box-sizing: border-box; height: 6rem; font: 12px ui-monospace, monospace; padding: .5rem; border: 1px solid #ccc; border-radius: .4rem; }
+  label { font-size: .85rem; margin-right: 1rem; } button { font: inherit; padding: .35rem .8rem; border-radius: .4rem; border: 1px solid #990049; background: #990049; color: #fff; cursor: pointer; }
+  #qr { width: min(360px, 100%); height: auto; display: block; margin: .5rem 0; image-rendering: pixelated; }
+  .row { display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
+</style>
+<body>
+<h1>Carry a signed blob as a QR</h1>
+<p class="lede">The 99% carrier isn't a URL — it's <strong>deflated bytes with a signature inside</strong>. This
+signs a payload with your device's Ed25519 key, compresses it, and renders the raw octets as a
+<strong>byte-mode QR of whatever size the data needs</strong> (version auto-picks up to 40). Everything is
+on-device: WebCrypto signs, <code>qr-encode.mjs</code> draws, and a self-decode reads it back to prove the
+bytes survive.</p>
+
+<div class="card">
+  <div class="k">This device's signer</div>
+  <div id="signer" class="note">minting…</div>
+</div>
+
+<div class="card">
+  <div class="k">Payload to sign + carry</div>
+  <textarea id="payload">{"pile":"cd04-q1","poll":"budget","round":1,"answer":"Cut","at":"2026-07-11T00:00:00Z"}</textarea>
+  <div class="row">
+    <label>ECC <select id="ec"><option>L</option><option selected>M</option><option>Q</option><option>H</option></select></label>
+    <label><input type="checkbox" id="deflate" checked> deflate (deflate-raw)</label>
+    <button id="go">sign → carry</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="k">Minted byte-carrier QR</div>
+  <svg id="qr" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="meta" class="note">…</div>
+  <div id="verify" class="note"></div>
+  <details><summary class="note">the signed object</summary><pre id="signed"></pre></details>
+</div>
+
+<script type="module">
+import { generateIdentity, attest, verifyAttestation, fingerprint } from "./sign.mjs";
+import { encodeBytes, decodeBytesSelf } from "./qr-encode.mjs";
+
+const $ = (id) => document.getElementById(id);
+const identity = await generateIdentity();
+$("signer").innerHTML = `<code>${await fingerprint(identity.raw)}</code> — a fresh Ed25519 key (a real operator holds theirs).`;
+
+const deflateRaw = (u8) => new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer().then((b) => new Uint8Array(b));
+const inflateRaw = (u8) => new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer().then((b) => new Uint8Array(b));
+
+function drawSVG(q, quiet = 4) {
+  const n = q.size, dim = n + quiet * 2, svg = $("qr");
+  svg.setAttribute("viewBox", `0 0 ${dim} ${dim}`); svg.setAttribute("shape-rendering", "crispEdges");
+  let rects = `<rect width="${dim}" height="${dim}" fill="#fff"/><g fill="#000">`;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.modules[r][c]) rects += `<rect x="${c + quiet}" y="${r + quiet}" width="1" height="1"/>`;
+  svg.innerHTML = rects + "</g>";
+}
+
+async function run() {
+  try {
+    const obj = JSON.parse($("payload").value);
+    const signed = await attest(obj, identity);                 // Ed25519 attestation (rides a .sig)
+    $("signed").textContent = JSON.stringify(signed, null, 2);
+    let bytes = new TextEncoder().encode(JSON.stringify(signed));
+    const rawLen = bytes.length;
+    if ($("deflate").checked) bytes = await deflateRaw(bytes);
+    const q = encodeBytes(bytes, { ecLevel: $("ec").value });   // BYTE mode — raw octets, not text
+    drawSVG(q);
+    $("meta").innerHTML = `signed JSON ${rawLen} B ${$("deflate").checked ? `→ deflated ${bytes.length} B ` : ""}→ ` +
+      `<strong>version ${q.version}-${q.ecLevel}</strong> · ${q.size}×${q.size} modules · mask ${q.mask}`;
+    // self-decode: read the QR back to bytes, inflate, verify the signature survived
+    let back = decodeBytesSelf(q.modules, q.version, q.ecLevel, q.mask);
+    const exact = back.length === bytes.length && back.every((b, i) => b === bytes[i]);
+    if ($("deflate").checked) back = await inflateRaw(back);
+    const rt = JSON.parse(new TextDecoder().decode(back));
+    const v = await verifyAttestation(rt);
+    $("verify").innerHTML = exact && v.ok
+      ? `<span class="ok">✓ scanned back byte-for-byte, re-inflated, and the signature verifies (by ${v.by.slice(0, 22)}…)</span>`
+      : `<span class="bad">✗ round-trip mismatch</span>`;
+  } catch (e) { $("meta").innerHTML = `<span class="bad">${e.message}</span>`; }
+}
+$("go").onclick = run;
+run();
+</script>
+</body>
+</html>
