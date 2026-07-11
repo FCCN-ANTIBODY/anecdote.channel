@@ -55,6 +55,13 @@ diagnostics — those are not the demo surface; the table above is.
 3. **`docs/` is the design corpus** — `origin.md` (the offline-first thesis), `probe-line-v1.md`
    (normative; supersedes the older `probe-line.md` shaping note), `git-enough.md`,
    `consent-surface.md`, `offline-transfer.md`. `CONSTITUTION.md` is the binding law.
+4. **What a poll *is* — and Anecdote's place in it** — is framed in
+   [`tell.anecdote.channel/docs/solicitation.md`](https://github.com/FCCN-ANTIBODY/tell.anecdote.channel/blob/main/docs/solicitation.md).
+   A poll solicits feedback (its signal is a **prefab answer**); Anecdote is the **unsolicited
+   half** — the same building gesture with *no* prefab answers, where a statement (text or an
+   object, often the constitution field) just stands. Prefab answers live only where solicitation
+   is the point; keeping them off statements is what stops "poll" from splitting into a real one
+   and a fake one.
 
 ## You are the second factor
 
