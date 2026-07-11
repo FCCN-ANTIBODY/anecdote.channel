@@ -84,5 +84,66 @@ const site = buildSite(tree);
   ok(s["_site/notes/x.md"] === "# raw\n\n{{ nope }}\n", "a front-matter-less .md is copied verbatim (NOT markdown-converted)");
 }
 
+// 7. SWITCHABILITY: the seams are injectable plugs; a swapped one takes effect, defaults unchanged.
+{
+  const t = {
+    "_config.yml": "title: T",
+    "post.md": "---\nlayout: null\n---\n# Hi\n",
+    "_data/things.json": '[{"n":1}]',
+  };
+  ok(buildSite(t)["_site/post.html"].includes("<h1>Hi</h1>"), "default doc-render plug: markdown-enough runs");
+  const shout = buildSite(t, { renderMarkdown: (s) => "<!K>" + s.toUpperCase() });
+  ok(shout["_site/post.html"] === "<!K># HI\n", "a swapped doc-render plug replaces markdown-enough (build unchanged)");
+  const tpl = buildSite({ "p.html": "---\nlayout: null\n---\nX" }, { renderTemplate: () => "TPL" });
+  ok(tpl["_site/p.html"] === "TPL", "a swapped template plug is the one the builder renders through");
+  const jsonData = buildSite({ "d.html": "---\nlayout: null\n---\n{{ site.data.things.first.n }}", "_data/things.json": '[{"n":42}]' });
+  ok(jsonData["_site/d.html"] === "42", "_data/*.json is read as JSON (the identity data plug)");
+}
+
+// 8. the Jekyll page/site model: page.url / page.path, and site.pages populated before render (nav-usable).
+{
+  const t = {
+    "_config.yml": "permalink: pretty",
+    "index.md": "---\ntitle: Home\n---\n[me]({{ page.url }}) at {{ page.path }}",
+    "about.md": "---\ntitle: About\npermalink: /about/\n---\nabout",
+    "nav.html": "---\nlayout: null\n---\n{% for p in site.pages %}<a href=\"{{ p.url }}\">{{ p.title }}</a>{% endfor %}",
+  };
+  const s = buildSite(t);
+  ok(s["_site/index.html"].includes('href="/"') && s["_site/index.html"].includes("at index.md"), "page.url (/) and page.path (index.md) exposed to the page");
+  const nav = s["_site/nav/index.html"];   // permalink: pretty -> nav.html builds to nav/index.html
+  ok(nav.includes('href="/">Home') && nav.includes('href="/about/">About'), "site.pages iterates all pages with their url + front matter (real-Jekyll nav works)");
+}
+
+// 9. _data nests by directory (the journal's _data/git/<kind> stat files) and renders via bracket lookup.
+{
+  const s = buildSite({
+    "_config.yml": "title: J\n",
+    "_data/git/blame.json": JSON.stringify({ journalfooindex: [{ w: 3 }] }),
+    "_data/tells.yml": "- id: t1\n",
+    "p.html": '---\nkind: blame\nkey: journalfooindex\n---\n<script type="application/json">{{ site.data.git[page.kind][page.key] | jsonify }}</script>',
+  });
+  ok(s["_site/p.html"].includes('[{"w":3}]'), "_data/git/blame.json lands at site.data.git.blame and bracket lookup reaches it");
+  ok(s["_site/p.html"].startsWith("<script"), "top-level _data files still load beside nested ones");
+}
+
+// 10. the template seams COMPOSE: build threads filters + lenient/gaps down to the template plug.
+{
+  // a personality filter registered at the build boundary reaches a page's Liquid
+  const withFilter = buildSite(
+    { "p.html": "---\nlayout: null\n---\n{{ 'x' | antibody_shout }}" },
+    { filters: { antibody_shout: (v) => String(v).toUpperCase() + "!" } });
+  ok(withFilter["_site/p.html"] === "X!", "opts.filters reaches the page's template (personality seam composes)");
+  // lenient: a missing include is a named gap in the build, not a crash; the gap is collected
+  const gaps = [];
+  const lenient = buildSite(
+    { "p.html": "---\nlayout: null\n---\na{% include nope.html %}b" },
+    { lenient: true, gaps });
+  ok(lenient["_site/p.html"].includes("a<!-- jekyll-enough gap: missing _includes/nope.html -->b"), "lenient: a missing include renders a visible gap, page still builds");
+  ok(gaps.some((g) => g.includes("nope.html")), "the gap is collected (the compatibility report)");
+  let threw = false;
+  try { buildSite({ "p.html": "---\nlayout: null\n---\n{% include nope.html %}" }); } catch { threw = true; }
+  ok(threw, "strict (default): a missing include throws - a build wants the failure");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall jekyll-enough build tests passed");
