@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the consent chamber — open & merge a registration by trading QR scans</title>
+<meta name="theme-color" content="#990049">
+<link rel="icon" href="/icon.svg">
+<style>
+  body { font: 15px/1.6 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.3rem; } .lede { color: #555; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+  @media (max-width: 44rem) { .grid { grid-template-columns: 1fr; } }
+  .card { border: 1px solid #ddd; border-radius: .6rem; padding: .8rem 1rem; }
+  .card.a { border-top: 3px solid #990049; } .card.b { border-top: 3px solid #0058a3; }
+  .k { font-size: .75rem; color: #777; text-transform: uppercase; letter-spacing: .04em; }
+  code, pre { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; word-break: break-all; white-space: pre-wrap; }
+  pre { background: #f4f4f4; padding: .6rem; border-radius: .4rem; max-height: 12rem; overflow: auto; }
+  .note { color: #777; font-size: .85rem; } .ok { color: #1a7f37; } .bad { color: #b3261e; } .wait { color: #9a6700; }
+  label { font-size: .82rem; display: block; margin: .4rem 0 .1rem; color: #444; }
+  input[type=text] { width: 100%; box-sizing: border-box; font: 12px ui-monospace, monospace; padding: .35rem .5rem; border: 1px solid #ccc; border-radius: .35rem; }
+  button { font: inherit; padding: .35rem .8rem; border-radius: .4rem; border: 1px solid #990049; background: #990049; color: #fff; cursor: pointer; margin-top: .6rem; }
+  button.b { border-color: #0058a3; background: #0058a3; }
+  button.ghost { background: #fff; color: #333; border-color: #bbb; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .wire { border: 1px dashed #bbb; border-radius: .6rem; padding: .8rem 1rem; margin: 1rem 0; text-align: center; background: #fafafa; }
+  #qr { width: min(300px, 80%); height: auto; display: inline-block; margin: .4rem auto; image-rendering: pixelated; }
+  table { border-collapse: collapse; font-size: .82rem; margin-top: .4rem; } td { padding: .1rem .5rem .1rem 0; vertical-align: top; }
+  td.f { color: #777; } .chk { font-size: .85rem; color: #444; } .chk input { vertical-align: middle; }
+  .step { font-size: .78rem; color: #990049; font-weight: 600; }
+</style>
+<body>
+<h1>The consent chamber</h1>
+<p class="lede">GitHub's <em>propose-then-a-human-merges</em>, represented between two offline phones as an
+<strong>exchange of QR scans</strong>. Device A opens a registration; the ask travels as a
+<strong>byte-mode QR</strong> (deflated signed envelope, <em>not</em> a URL); Device B reads it off the code,
+decides, and sends a <strong>signed consent receipt</strong> back the same way. No network, no GitHub in the
+loop — and the verified pair replays onto the mirror as the ordinary <code>_data/*.yml</code> entry.
+Everything is <code>composer/register-exchange.mjs</code> over the repo's own QR carrier; each hand-off decodes
+the <em>actual</em> QR modules, so the bytes really make the trip.</p>
+
+<div class="grid">
+  <div class="card a">
+    <div class="k">Device A — the proposer</div>
+    <div id="signerA" class="note">minting…</div>
+    <label>registry
+      <select id="registry">
+        <option value="piles">piles</option><option value="tells">tells</option>
+        <option value="atlases">atlases</option><option value="needs">needs</option>
+      </select>
+    </label>
+    <div id="fields"></div>
+    <button id="open">1 · open registration →</button>
+    <div id="openMeta" class="note"></div>
+  </div>
+
+  <div class="card b">
+    <div class="k">Device B — the acceptor</div>
+    <div id="signerB" class="note">minting…</div>
+    <div id="proposal" class="note">waiting for a scan…</div>
+    <label class="chk" style="display:none" id="trustWrap"><input type="checkbox" id="trust"> A is on my friend list (trust decides <em>whether</em> to act, never <em>whether</em> to verify)</label>
+    <div id="decide" style="display:none">
+      <button id="merge" class="b">3 · confirm & sign receipt</button>
+      <button id="decline" class="ghost">decline</button>
+    </div>
+    <div id="mergeMeta" class="note"></div>
+  </div>
+</div>
+
+<div class="wire">
+  <div id="wireLabel" class="step">the wire — nothing in flight yet</div>
+  <svg id="qr" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="qrMeta" class="note"></div>
+  <div id="scanRow"></div>
+</div>
+
+<div class="card" id="verdictCard" style="display:none">
+  <div class="k">Device A — consent, re-verified from the two halves</div>
+  <div id="verdict" class="note"></div>
+  <details><summary class="note">the mirror replay — the ordinary registry idiom this pair becomes</summary>
+    <div class="note" id="replayPath"></div><pre id="replay"></pre>
+  </details>
+</div>
+
+<script type="module">
+import { generateIdentity, fingerprint, canonicalize } from "./sign.mjs";
+import { openRegistration, readRegistration, mergeRegistration, receiptEnvelope, openReceipt,
+         verifyConsent, registryYaml, branchFor, registryPath } from "./register-exchange.mjs";
+import { encodeBytes, decodeBytesSelf } from "./qr-encode.mjs";
+
+const $ = (id) => document.getElementById(id);
+const te = new TextEncoder(), td = new TextDecoder();
+
+// two devices, two independent keys — each holds its own, as real operators do.
+const A = await generateIdentity(), B = await generateIdentity();
+$("signerA").innerHTML = `<code>${(await fingerprint(A.raw)).slice(0, 26)}…</code>`;
+$("signerB").innerHTML = `<code>${(await fingerprint(B.raw)).slice(0, 26)}…</code>`;
+
+const deflateRaw = (u8) => new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer().then((b) => new Uint8Array(b));
+const inflateRaw = (u8) => new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer().then((b) => new Uint8Array(b));
+
+// carry an object as ONE byte-mode QR: canonical bytes → deflate → encodeBytes. Returns the matrix + stats.
+async function carry(obj) {
+  const raw = te.encode(canonicalize(obj));
+  const def = await deflateRaw(raw);
+  const q = encodeBytes(def, { ecLevel: "M" });
+  return { q, rawLen: raw.length, defLen: def.length };
+}
+// read an object back OFF the QR modules (the real scan): decode bytes → inflate → parse.
+async function scan(q) {
+  const def = decodeBytesSelf(q.modules, q.version, q.ecLevel, q.mask);
+  const raw = await inflateRaw(def);
+  return JSON.parse(td.decode(raw));
+}
+
+function drawSVG(q, quiet = 4) {
+  const n = q.size, dim = n + quiet * 2, svg = $("qr");
+  svg.setAttribute("viewBox", `0 0 ${dim} ${dim}`); svg.setAttribute("shape-rendering", "crispEdges");
+  let rects = `<rect width="${dim}" height="${dim}" fill="#fff"/><g fill="#000">`;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.modules[r][c]) rects += `<rect x="${c + quiet}" y="${r + quiet}" width="1" height="1"/>`;
+  svg.innerHTML = rects + "</g>";
+}
+function showQR(carried, label) {
+  drawSVG(carried.q);
+  $("wireLabel").textContent = label;
+  $("qrMeta").innerHTML = `signed envelope ${carried.rawLen} B → deflated ${carried.defLen} B → ` +
+    `<strong>version ${carried.q.version}-${carried.q.ecLevel}</strong> · ${carried.q.size}×${carried.q.size} byte-mode`;
+}
+
+// demo entry defaults per §B registry (required fields + the optionals that make the replay meaningful).
+const DEFAULTS = {
+  piles:   { id: "cd04-q1", scope: "cascadia", feed: "https://raw.githubusercontent.com/cascadia/data-pile/main/feed.json", age_recipient: "age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p", repo_url: "https://github.com/cascadia/data-pile" },
+  tells:   { id: "cascadia-tell", name: "Cascadia Tell", url: "https://cascadia.example/tell", scope: "cascadia", signer: "SHA256:kZ9…" },
+  atlases: { id: "cascadia", url: "https://cascadia.example/atlas", scope: "cascadia", signer: "SHA256:kZ9…" },
+  needs:   { id: "budget-2026", asker_repo: "cascadia/civic-node", scope: "cascadia", topic: "municipal budget priorities" },
+};
+const FIELDS = {
+  piles: ["id", "scope", "feed", "age_recipient", "repo_url"],
+  tells: ["id", "name", "url", "scope", "signer"],
+  atlases: ["id", "url", "scope", "signer"],
+  needs: ["id", "asker_repo", "scope", "topic"],
+};
+
+let flight = null;   // the OPEN carrier currently on the wire
+let scanned = null;  // { envelope, decision }
+
+function renderFields() {
+  const reg = $("registry").value, d = DEFAULTS[reg];
+  $("fields").innerHTML = FIELDS[reg].map((f) =>
+    `<label>${f}<input type="text" id="fld-${f}" value="${d[f] ?? ""}"></label>`).join("");
+  resetFlow();
+}
+function entryFromFields() {
+  const reg = $("registry").value, entry = {};
+  for (const f of FIELDS[reg]) { const v = $(`fld-${f}`).value.trim(); if (v) entry[f] = v; }
+  return entry;
+}
+function resetFlow() {
+  flight = null; scanned = null;
+  $("qr").innerHTML = ""; $("qrMeta").textContent = ""; $("scanRow").innerHTML = "";
+  $("wireLabel").textContent = "the wire — nothing in flight yet";
+  $("proposal").textContent = "waiting for a scan…"; $("proposal").className = "note";
+  $("trustWrap").style.display = "none"; $("decide").style.display = "none";
+  $("mergeMeta").textContent = ""; $("openMeta").textContent = ""; $("verdictCard").style.display = "none";
+  $("trust").checked = false;
+}
+
+// 1. A opens the registration and lays it on the wire as an OPEN QR.
+$("open").onclick = async () => {
+  resetFlow();
+  try {
+    const entry = entryFromFields();
+    const envelope = await openRegistration($("registry").value, entry, A, { at: "2026-07-11T00:00:00Z" });
+    flight = { envelope, carried: await carry(envelope) };
+    showQR(flight.carried, "▶ OPEN — A's signed registration, in flight to B");
+    $("openMeta").innerHTML = `<span class="ok">opened.</span> signed by A; the entry is the ask, nothing is registered yet.`;
+    $("scanRow").innerHTML = `<button id="scanB" class="b">2 · B scans this code ▶</button>`;
+    $("scanB").onclick = scanIntoB;
+  } catch (e) { $("openMeta").innerHTML = `<span class="bad">${e.message}</span>`; }
+};
+
+// 2. B reads the envelope OFF the QR and inspects the proposal (verify-from-anyone; trust is separate).
+async function scanIntoB() {
+  try {
+    const envelope = await scan(flight.carried.q);   // ← the real hand-off: bytes come off the modules
+    const friends = $("trust").checked ? [await fingerprint(A.raw)] : [];
+    const r = await readRegistration(envelope, { friends });
+    scanned = { envelope };
+    if (!r.ok) { $("proposal").innerHTML = `<span class="bad">refused: ${r.errors.join("; ")}</span>`; return; }
+    const rows = Object.entries(r.entry).map(([k, v]) => `<tr><td class="f">${k}</td><td>${v}</td></tr>`).join("");
+    $("proposal").className = "";
+    $("proposal").innerHTML =
+      `<span class="ok">✓ verified</span> — a <strong>${r.registry}</strong> entry, signed by ` +
+      `<code>${r.by.slice(0, 22)}…</code>. ${r.trusted ? `<span class="ok">on my friend list</span>` : `<span class="wait">not yet trusted</span>`}` +
+      `<table>${rows}</table>`;
+    $("trustWrap").style.display = "block";
+    $("decide").style.display = "block";
+  } catch (e) { $("proposal").innerHTML = `<span class="bad">scan failed: ${e.message}</span>`; }
+}
+// re-scan when the friend toggle flips, so `trusted` reflects the current friend list.
+$("trust").onchange = () => { if (scanned) scanIntoB(); };
+
+// 3. B decides and signs a receipt bound to this exact envelope; it flies back as a RECEIPT QR.
+async function decide(verdict) {
+  try {
+    const friends = $("trust").checked ? [await fingerprint(A.raw)] : [];
+    const m = await mergeRegistration(scanned.envelope, B, { friends, verdict, at: "2026-07-11T00:01:00Z" });
+    const carried = await carry(await receiptEnvelope(m.receipt, B));
+    scanned.decision = verdict;
+    showQR(carried, `◀ RECEIPT — B's signed ${verdict} receipt, in flight back to A`);
+    $("mergeMeta").innerHTML = `<span class="ok">signed a <strong>${verdict}</strong> receipt</span> binding A's exact envelope.`;
+    $("scanRow").innerHTML = `<button id="scanA" class="ghost">4 · A scans the receipt ◀</button>`;
+    $("scanA").onclick = () => scanIntoA(carried.q);
+  } catch (e) { $("mergeMeta").innerHTML = `<span class="bad">${e.message}</span>`; }
+}
+$("merge").onclick = () => decide("merged");
+$("decline").onclick = () => decide("declined");
+
+// 4. A reads the receipt back off ITS QR and verifies the pair together — consent, re-derived from nothing but the two signed halves.
+async function scanIntoA(receiptQ) {
+  try {
+    const rEnv = await scan(receiptQ);                 // ← the receipt comes off ITS OWN QR modules
+    const o = await openReceipt(rEnv, {});             // unwrap the receipt from its transfer envelope
+    if (!o.ok) throw new Error(o.errors.join("; "));
+    // verify the two halves together; A trusts B locally (B on A's friend list) — but consent verifies from anyone.
+    const c = await verifyConsent(scanned.envelope, o.receipt, { friends: [await fingerprint(B.raw)] });
+    $("verdictCard").style.display = "block";
+    $("verdict").innerHTML = c.ok
+      ? `<span class="ok">✓ consent stands.</span> proposal signed by <code>${c.proposer.slice(0, 20)}…</code>, ` +
+        `receipt <strong>merged</strong> by <code>${c.acceptor.slice(0, 20)}…</code>, and the receipt binds this exact envelope. ` +
+        `Re-verifiable by anyone, zero secrets.`
+      : c.verdict === "declined"
+        ? `<span class="wait">the pair is coherent but the verdict is <strong>declined</strong>.</span> A real, signed “no” — not noise.`
+        : `<span class="bad">consent does not stand: ${c.errors.join("; ")}</span>`;
+    if (c.ok) {
+      const reg = c.registry, entry = c.entry;
+      $("replayPath").innerHTML = `appended to <code>${registryPath(reg)}</code> on branch <code>${branchFor(reg, entry)}</code>:`;
+      $("replay").textContent = registryYaml(reg, entry);
+    }
+  } catch (e) { $("verdictCard").style.display = "block"; $("verdict").innerHTML = `<span class="bad">receipt scan failed: ${e.message}</span>`; }
+}
+
+$("registry").onchange = renderFields;
+renderFields();
+</script>
+</body>
+</html>

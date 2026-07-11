@@ -25,6 +25,7 @@ plain `node`. The camera demos want a real device.
 | `composer/composer-chamber-demo.html` | The compose UI running in a powerless `data:` chamber, summoning label/sign capabilities from the Elevated page over the probe line — the app's two load-bearing ideas in one page |
 | `composer/qr-mint-demo.html` | Elevated operator tool: mints a signed poll QR — token authorizes replies, on-device Ed25519 signature proves origin, emits the `keys/tell.signers` enrollment line |
 | `composer/poll-answer-demo.html` | The respondent's view of a poll QR: question + options in a chamber, answer always custom, builds the pre-filled issue link — nothing phones home |
+| `composer/qr-carrier-demo.html` | The 99% carrier: a signed payload deflated to raw octets and drawn as a **byte-mode** QR of whatever size it needs (auto up to v40), then self-decoded to prove the bytes — and the signature inside — survive the trip. Not a URL |
 | `composer/answered-demo.html` | "Polls you've answered": chamber lists remembered answers joined to trove receipts; memory lives Elevated, never in the chamber |
 | `composer/gesture-demo.html` | The two-factor consent surface: a WebAuthn/passkey gesture gates use of the signing key, and proof-of-presence is folded into the signed bytes |
 | `composer/grants-panel-demo.html` | "Running on your behalf": mint/touch/revoke standing consent grants, each row showing the artifact that proves it |
@@ -32,6 +33,7 @@ plain `node`. The camera demos want a real device.
 | `composer/carrier-loop-demo.html` | A payload as an endless rateless QR-droplet billboard, healing through deliberate frame damage — the optical transfer substrate |
 | `composer/carrier-catch-demo.html` | The receiving end: this device's camera drinks another device's billboard through the repo's own QR lens |
 | `composer/meet-demo.html` | Two phones trading pockets face-to-face over light — one page playing both roles, hello→trade→receipt |
+| `composer/register-chamber-demo.html` | GitHub's propose-then-merge, represented offline: A opens a registration, it flies to B as a byte-mode QR, B signs a consent receipt that flies back — one page playing both roles. The verified pair replays onto the mirror as the ordinary `_data/*.yml` entry (`register-exchange.mjs`) |
 | `composer/host-demo.html` | The runtime tunnel: a stand-in Tell poll sheet iframes the guest, which does data-assisted intake + egress without ever exposing key or trove |
 | `git-enough/git-chamber-demo.html` | The offline origin's own git, driven from a powerless chamber over the probe line — commits happen Elevated, the chamber only asks |
 | `viewer/viewer-demo.html` | The "your repositories" account page: every locally hosted repo with its `anecdote://` id and trust grade, opened on-ice |
