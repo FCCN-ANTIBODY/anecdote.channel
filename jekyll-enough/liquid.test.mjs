@@ -88,5 +88,113 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else co
   ok(render("x {{- 'y' -}} z", {}) === "xyz", "{{- -}} trims around an output");
 }
 
+// ---- the journal's measured surface (docs/origin.md study, re-run against the engine repo) ----------
+
+// 8. assign inside a for-loop SURVIVES the loop (template scope), and the caller's ctx stays clean.
+{
+  const ctx = { list: [1, 2, 3] };
+  const out = render("{% assign hit = false %}{% for n in list %}{% if n == 2 %}{% assign hit = true %}{% endif %}{% endfor %}{% if hit %}FOUND{% endif %}", ctx);
+  ok(out === "FOUND", "an assign inside a for-loop body is visible after the loop");
+  ok(!("hit" in ctx), "assigns land on the template scope, not the caller's ctx");
+}
+
+// 9. capture: render-now, bind to a name, reuse — including the journal's nested-capture contact pattern.
+{
+  const out = render("{% capture greet %}hi {{ name | upcase }}{% endcapture %}[{{ greet }}][{{ greet }}]", { name: "jo" });
+  ok(out === "[hi JO][hi JO]", "capture renders a fragment once and the handle is reusable");
+  // _layouts/journal.html: capture contact_template -> include {{ contact_template }} subject=... mailto=...
+  const tpl = "{%- capture contact_template -%}\ncontact/{{ page.author | slugify }}.md\n{%- endcapture -%}" +
+              "{%- include {{ contact_template }} subject=page.title mailto=page.contact_email -%}";
+  const got = [];
+  const out2 = render(tpl, { page: { author: "Autumn Ryan", title: "T", contact_email: "a@x" } },
+    { include: (name, c) => { got.push([name, c.include.subject, c.include.mailto]); return "OK"; } });
+  ok(out2 === "OK" && got[0][0] === "contact/autumn-ryan.md", "a dynamic {% include {{ EXPR }} %} resolves the captured name");
+  ok(got[0][1] === "T" && got[0][2] === "a@x", "include params evaluate in the caller's scope and land on include.*");
+  const inner = render("{% include a.html x='1' %}", {},
+    { include: (n, c) => n === "a.html" ? render("{% include b.html %}", c, { include: (n2, c2) => "[" + render("{{ include.x }}", c2) + "]" }) : "?" });
+  ok(inner === "[]", "an inner include never sees an outer include's params (fresh include.* per tag)");
+}
+
+// 10. unless + continue (skel/index.md gates authors; _includes/piece.html continues past stubs).
+{
+  ok(render("{% unless page.author %}STUB{% endunless %}", { page: {} }) === "STUB", "unless: falsy renders the body");
+  ok(render("{% unless page.author %}STUB{% else %}FULL{% endunless %}", { page: { author: "a" } }) === "FULL", "unless: truthy takes the else");
+  const out = render("{% for n in list %}{% if n == 2 %}{% continue %}{% endif %}{{ n }}{% endfor %}", { list: [1, 2, 3] });
+  ok(out === "13", "continue skips the rest of one iteration");
+  const brk = render("{% for n in list %}{% if n == 2 %}{% break %}{% endif %}{{ n }}{% endfor %}", { list: [1, 2, 3] });
+  ok(brk === "1", "break exits the loop");
+  const part = render("{% for n in list %}<{{ n }}{% continue %}>{% endfor %}", { list: [1, 2] });
+  ok(part === "<1<2", "output produced before a continue is kept");
+}
+
+// 11. where_exp — the exact shapes skel/index.md and the sitemaps use.
+{
+  const pages = [
+    { author: "ann", index: true, noting: null },
+    { author: null, index: true },
+    { author: "bob", index: false },
+    { author: "ann", noting: "x" },
+  ];
+  const ctx = { site: { pages }, author: "ann" };
+  ok(render('{{ site.pages | where_exp:"p","p.author" | size }}', ctx) === "3", "where_exp: bare truthiness");
+  ok(render('{{ site.pages | where_exp:"p","p.index != false" | size }}', ctx) === "3", "where_exp: != false keeps nil (Liquid: nil != false)");
+  ok(render('{{ site.pages | where_exp:"p","p.author == author" | size }}', ctx) === "2", "where_exp: compares against the outer scope");
+  ok(render('{{ site.pages | where_exp:"p","p.noting == null" | size }}', ctx) === "3", "where_exp: == null matches absent and explicit nil");
+}
+
+// 12. bracket lookup — the journal's site.data.git[kind][data_key] double-dynamic access.
+{
+  const ctx = { site: { data: { git: { blame: { k1: [7] } } } }, kind: "blame", data_key: "k1" };
+  ok(render("{{ site.data.git[kind][data_key] | jsonify }}", ctx) === "[7]", "a[b][c] with variable keys");
+  ok(render('{{ site.data.git["blame"].k1.first }}', ctx) === "7", "a quoted bracket key mixes with dots and pseudo-props");
+  ok(render("{{ list[0] }}{{ list[1] }}", { list: ["a", "b"] }) === "ab", "numeric index brackets");
+}
+
+// 13. the filter tail, measured lines quoted from the journal.
+{
+  // _includes/duration.html: words | strip_html | number_of_words, then | divided_by:200 | ceil
+  const content = "<h2>title</h2>\n<script>var xx = 1;</script>\n<p>one two three</p>";
+  ok(render("{{ c | strip_html | number_of_words }}", { c: content }) === "4", "strip_html drops tags AND script bodies; number_of_words counts");
+  ok(render("{{ n | divided_by:200 | ceil }}", { n: 450 }) === "2", "divided_by floors int/int (Ruby), ceil is then honest");
+  ok(render("{{ n | divided_by: 2 }}", { n: 4.5 }) === "2.25", "divided_by stays float when either side is (a 2.0 literal reads as int in JS — named divergence)");
+  ok(render("{{ page.author | slugify }}", { page: { author: "Autumn Ryan" } }) === "autumn-ryan", "slugify: the contact-include path segment");
+  ok(render("{{ x | append: '.md' | replace: '.md', '.html' }}", { x: "a" }) === "a.html", "append + replace");
+  ok(render("{{ s | split: ',' | join: '|' }}", { s: "a,b" }) === "a|b", "split + join round-trip");
+  ok(render('{{ ps | map: "author" | uniq | sort | join }}', { ps: [{ author: "b" }, { author: "a" }, { author: "b" }] }) === "a b", "map + uniq + sort (skel/index.md author roll-up)");
+  ok(render("{{ ns | reverse | first | plus: 1 }}", { ns: [1, 2, 3] }) === "4", "reverse + first + plus");
+}
+
+// 14. dates — %G-W%V is the journal's headline format; UTC, deterministic.
+{
+  const ctx = { page: { date: "2026-07-10" }, site: { time: "2026-07-10T12:30:00Z" } };
+  ok(render("{{ page.date | date: '%G' }}", ctx) === "2026", "date %G (ISO week-year)");
+  ok(render('{{ page.date | date: "%G-W%V: %B %-d" }}', ctx) === "2026-W28: July 10", "the journal's by-line format, byte-for-byte");
+  ok(render("{{ d | date: '%G-W%V' }}", { d: "2027-01-01" }) === "2026-W53", "an early-January date belongs to the PRIOR ISO year");
+  ok(render("{{ site.time | date_to_xmlschema }}", ctx) === "2026-07-10T12:30:00+00:00", "date_to_xmlschema (sitemap lastmod)");
+  ok(render("{{ bad | date: '%Y' }}", { bad: "not a date" }) === "not a date", "an unparseable date passes through, Liquid-style");
+}
+
+// 15. the personality seam: site-specific filters register via opts.filters, never in the library.
+{
+  const antibody = { antibody_unscheme: (v, [mode]) => String(v ?? "").replace(/^https?:/, mode === "label" ? ":" : "") };
+  const out = render("{{ u | antibody_unscheme }} {{ u | antibody_unscheme: 'label' }}", { u: "https://x.org/a" }, { filters: antibody });
+  ok(out === "//x.org/a :" + "//x.org/a", "opts.filters resolves a personality's own filter");
+  ok(render("{{ 'x' | upcase }}", {}, { filters: { upcase: () => "!" } }) === "!", "opts.filters may override a library filter");
+}
+
+// 16. failure posture: strict throws; lenient downgrades to a NAMED gap, never a silent skip.
+{
+  let threw = false;
+  try { render("{% highlight ruby %}x{% endhighlight %}", {}); } catch { threw = true; }
+  ok(threw, "strict: an unknown tag throws (a build wants the failure)");
+  const gaps = [];
+  const out = render("a {% highlight ruby %} b {{ x | rouge }} c", { x: "v" }, { lenient: true, gaps });
+  ok(out.includes("<!-- liquid-enough gap: tag {% highlight %} -->"), "lenient: an unknown tag renders as a visible comment");
+  ok(out.includes(" b ") && out.includes(" c"), "lenient: everything around the gap still renders");
+  ok(gaps.length === 2 && gaps[1] === "filter rouge", "gaps are collected by name (the compatibility report)");
+  const noLoader = render("x{% include a.html %}y", {}, { lenient: true, gaps: [] });
+  ok(noLoader === "x<!-- liquid-enough gap: include -->y", "lenient: a missing include loader is a gap, not a crash");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall liquid-enough tests passed");
