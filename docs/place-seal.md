@@ -88,13 +88,26 @@ what exists:
   convergent presence on demand," tuned by *how fresh* and *how often*. A spoof is a bet against every future
   demand; the judge weighs the standing ability, not the instant.
 
-## Membership cost — the real blast-radius lever
+## Membership cost — the real blast-radius lever (built: `composer/enroll.mjs`)
 
-Confidentiality against members is only as strong as membership is expensive. Today an age recipient is just
-a public key: anyone added is in. The next step (design, not in this module) is to **gate recipient
-enrollment into an atlas on a witnessed presence claim** — you cannot become a recipient of constituency C's
-live feed without having produced a witnessed in-place proof for C. That converts "cheap to join → the key is
-de-facto public" into "joining costs a body in the shape," which buys more real safety than any cipher choice.
+Confidentiality against members is only as strong as membership is expensive. An age recipient is just a
+public key: if anyone added is in, the key is de-facto public and one rogue joiner's blast radius is the
+whole constituency. `composer/enroll.mjs` makes **joining cost a body in the shape**:
+
+- A would-be member proves presence in C — ideally **witnessed** (`presence.mjs`: a co-present body
+  countersigns), so it costs a *second* person, not a spoofable self-GPS — and **binds their age recipient**
+  to that proof in a signed enroll request.
+- The binding is enforced at verify: the request must be signed by the **same identity the presence proof
+  places in the shape**, so a recipient can only be enrolled by the body that actually stood there.
+- The atlas grants a **membership that decays** (the lease idiom: a dated, atlas-signed "still a member as
+  of `at`, window W"). Non-renewal is the revoke; renewal costs another fresh proof.
+- `freshRecipients` folds a bag of memberships into exactly the currently-fresh recipients — the
+  presence-gated, self-expiring seal list you hand `age-seal.encrypt` / `toSnapshot`.
+
+`meetsPolicy` is the judge's enrollment-time face: it defaults to STRICT (witnessed + co-present + fresh) and
+an atlas loosens it deliberately, never by accident. This gates the **recipient set** (who may hold snapshots
+/ dumps); the beacon above gates **live** (who may open the live frame, in-place, right now). Two
+complementary gates: enrollment is the standing "you belong here," the beacon is the momentary "you are here."
 
 ## Where the code sits
 
@@ -105,10 +118,13 @@ de-facto public" into "joining costs a body in the shape," which buys more real 
 
 ## Next, in order
 
-1. **The judge** — the predicate evaluator over presence + lease histories; the table above is its spec.
-2. **Presence-gated enrollment** — tie an atlas's recipient set to witnessed presence, per "membership cost."
-3. **Probe-line capabilities** — expose `place.seal` / `place.open` on the consent ladder (Rung 1; the secret
-   stays Elevated, the chamber hands only the payload + caught beacon), mirroring `qr-mint`'s `poll.mint`.
+1. ✅ **Presence-gated enrollment** — `composer/enroll.mjs` ties an atlas's recipient set to witnessed
+   presence, per "membership cost" above.
+2. **The judge** — the predicate evaluator over presence + lease histories; the table above is its spec.
+   `enroll.meetsPolicy` is its enrollment-time face; the standing-history evaluator is still to build.
+3. **Probe-line capabilities** — expose `place.seal` / `place.open` and `enroll.*` on the consent ladder
+   (Rung 1; the secret stays Elevated, the chamber hands only the payload + caught beacon / presence proof),
+   mirroring `qr-mint`'s `poll.mint`.
 4. **WebAuthn-PRF at-rest binding** — already flagged in `gesture.mjs` as the "stronger follow-on": derive the
    snapshot wrap key from the passkey so on-device keys are cryptographically unusable without the live
    gesture — the best in-browser answer to impossibility #3.
