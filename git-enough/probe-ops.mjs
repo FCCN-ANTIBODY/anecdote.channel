@@ -10,6 +10,9 @@
 //   git.clone            — Rung 1, imports a downstream's history into our origin (the Castle).
 //   git.fast-forward     — Rung 1, advances a ref to a known DESCENDANT (never a force) — the submodule
 //                          -graduation gesture: "ask the git bottle to fast-forward."
+//   git.init             — Rung 1, make a newborn repo from a file-set and RETURN its bytes; the data pile
+//                          persists them (the adapter computes, the floor retains).
+//   git.load             — Rung 1, rehydrate a repo from the persisted bytes (the pile feeds them back).
 // The staging beat is the Rung-2 STANDING behavior "git-enough:staging-beat": a grant over git.commit
 // that the scheduler runs on your behalf (its cadence is Origin's open "privileged budget" question).
 //
@@ -19,6 +22,12 @@
 import { publish } from "./send-pack.mjs";
 import { clone } from "./fetch-pack.mjs";
 import { parseCommit, filesAt } from "./read.mjs";
+import { packRepo } from "./pack.mjs";
+import { readPack } from "./unpack.mjs";
+
+// Binary base64 for the repository bytes that cross the probe (a packfile is bytes, not a UTF-8 string).
+const b64bin = (u8) => (typeof Buffer !== "undefined" ? Buffer.from(u8).toString("base64") : btoa(String.fromCharCode(...u8)));
+const unb64bin = (s) => (typeof Buffer !== "undefined" ? new Uint8Array(Buffer.from(s, "base64")) : Uint8Array.from(atob(s), (c) => c.charCodeAt(0)));
 
 export function gitOps(deps = {}) {
   if (!deps.repo) throw new Error("git probe-ops: need the origin's repo");
@@ -106,6 +115,33 @@ export function gitOps(deps = {}) {
       if (!isFF) throw new Error("git.fast-forward: " + String(to).slice(0, 8) + " is not a descendant of " + String(from).slice(0, 8) + " (not a fast-forward)");
       repo.updateRef(ref, to);
       api.emit({ ref, from, to, advanced: true });
+    },
+
+    // Rung 1 — INIT a newborn repository from a file-set (a King's Leap root commit) and hand back its BYTES:
+    // the pack of all objects plus the ref map and head. The data pile persists these and feeds them back with
+    // git.load on later loads — the adapter computes, the floor retains. A complete round-trip, not a
+    // dangling call.
+    "git.init": async (input, api) => {
+      await api.tick();
+      const author = input.author || deps.author;
+      if (!author) throw new Error("git.init: an author is required");
+      const ref = input.ref || "refs/heads/main";
+      const tip = await repo.commitFiles(input.files || [], { author, message: input.message || "init\n", ref, root: true });
+      const pack = await packRepo(repo);
+      api.emit({ init: true, tip, ref, head: repo.head(), refs: Object.fromEntries(repo.refs), bytes: b64bin(pack), objects: repo.objects.size });
+    },
+
+    // Rung 1 — LOAD a repository from the bytes the data pile persisted (git.init's output): unpack the
+    // objects into our store and restore the refs + head. The inverse of init; afterward the read/commit ops
+    // operate on the rehydrated repo. This is how "the pile retains it between loads and feeds it back" works.
+    "git.load": async (input, api) => {
+      await api.tick();
+      if (!input.bytes) throw new Error("git.load: repository bytes are required");
+      const { objects } = await readPack(unb64bin(input.bytes), deps.inflate ? { inflate: deps.inflate } : {});
+      for (const [id, o] of objects) repo.objects.set(id, o);
+      for (const [name, oid] of Object.entries(input.refs || {})) repo.updateRef(name, oid);
+      if (input.head) repo.setHead(input.head);
+      api.emit({ loaded: objects.size, refs: Object.keys(input.refs || {}), head: repo.head() });
     },
   };
 }
