@@ -12,6 +12,7 @@ import { grantLive } from "./consent.mjs";
 // declared by the tool that exposes an op; this is the built-in starting set so a caller has sane
 // descriptors. Unknown ops are treated as consequential+persisting (fail safe, not open).
 export const OP_CATALOG = {
+  "install":                 { rung: 0, persists: false },  // every storage engine's install: hand back its pre-minted, platform-signed client blobs (read-only)
   "label":                   { rung: 0, persists: false },  // the "reading glasses" — perception, not persistence
   "trove.read":              { rung: 0, persists: false },
   "digest":                  { rung: 0, persists: false },
