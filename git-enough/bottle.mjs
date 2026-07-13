@@ -8,6 +8,7 @@
 // only the op it wants — the probe-line's "the powerful side holds the power" rule. A git bottle vends git,
 // and ONLY git: compose nothing else here.
 import { elevatedSession, serveProbeLine, connectProbeLine, READY, INIT } from "../composer/probe-line.mjs";
+import { verifyBottleAttestation, bottleHost } from "../composer/bottle-attest.mjs";
 import { gitOps } from "./probe-ops.mjs";
 
 // The headless session — drive it with probe-line REQUEST/CANCEL messages; frames go to `emit`. Pure, so a
@@ -35,9 +36,23 @@ export function serveGitBottle(port, { repo, credential, fetch, inflate, author,
 // bottle is the capable CHILD (its own signed origin, iframed by URL) and the tool is the PARENT client. The
 // port is still the capability; WHAT runs is gated by the user's operate-grant carried in each request. ------
 
-// BOTTLE side: announce readiness to whoever iframed us, and on the INIT hello serve git over the transferred
-// port. One port; later inits are ignored. Returns { stop } (removes the listener and stops the session).
-export function serveOnHello({ repo, credential, fetch, inflate, author, context, self: win = globalThis } = {}) {
+// Our running domain anchor from where this code actually loaded (or null if it isn't a bottle host).
+function runningHost(win) {
+  try { return bottleHost("https://" + win.location.host + "/"); } catch { return null; }
+}
+
+// BOTTLE side: THE BOOT GATE, then the hello. First prove ourselves — an API is signed to run for its own
+// bottle or not at all: verify our OWN domain-anchored attestation against the host we are actually on, under
+// the pinned platform key. This check runs in the pinned runtime (this code), in the bottle's origin, so it
+// reads the real host for itself — not a per-call credential, not a session. If the attestation is missing or
+// wrong for this domain we OFFER NOTHING: no readiness is announced and no port is ever served. On success we
+// announce READY and, on the INIT hello, serve git over the transferred port (one port; later inits ignored).
+// Async (the verify is async). Returns { ok, stop } on success, or { ok:false, reason } when the gate refuses.
+export async function serveOnHello({ repo, credential, fetch, inflate, author, context, attestation, platformKey, host, self: win = globalThis } = {}) {
+  const anchor = host || runningHost(win);
+  const gate = await verifyBottleAttestation(attestation, { host: anchor, platformKey });
+  if (!gate.ok) return { ok: false, reason: gate.reason }; // the API crashes its own surface — offers nothing
+
   let served = null;
   const onMessage = (event) => {
     const d = event.data;
@@ -46,7 +61,7 @@ export function serveOnHello({ repo, credential, fetch, inflate, author, context
   };
   win.addEventListener("message", onMessage);
   (win.parent || win).postMessage({ type: READY }, "*"); // the inverted hello — we don't know the parent's origin
-  return { stop: () => { win.removeEventListener("message", onMessage); if (served) served.stop(); } };
+  return { ok: true, stop: () => { win.removeEventListener("message", onMessage); if (served) served.stop(); } };
 }
 
 // PARENT (client) side: iframe a bottle by URL, wait for its READY, hand it a private MessagePort, and return

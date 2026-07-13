@@ -2,9 +2,12 @@
 // ladder. Rung-0 reads flow with no prompt; a Rung-1 commit needs a fresh confirmation, persists, and the
 // log/files read it back; an unconfirmed Rung-1 op and an unknown op are refused (and write nothing).
 // Run: node git-enough/bottle.test.mjs
-import { gitBottleSession } from "./bottle.mjs";
+import { gitBottleSession, serveOnHello } from "./bottle.mjs";
 import { repo } from "./repo.mjs";
 import { request } from "../composer/probe-line.mjs";
+import { mintBottleAttestation } from "../composer/bottle-attest.mjs";
+import { bottleUrl } from "../composer/bottle-uri.mjs";
+import { generateIdentity } from "../composer/sign.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -46,7 +49,42 @@ async function run() {
   out = await drive(request({ id: "u1", op: "git.nope", confirmed: true }));
   ok(out.some((f) => f.reason && /no such op/.test(f.reason)), "unknown op refused: " + JSON.stringify(out.map((f) => f.reason).filter(Boolean)));
 
-  console.log(fails ? `\nFAILED (${fails})` : "\nok: git bottle — git-enough vended over the probe, consent-gated, headless");
+  // 6. THE BOOT GATE — serveOnHello proves the bottle's own domain-anchored attestation before it offers
+  //    anything. Valid for its own host + the pinned key → READY announced; wrong host / wrong key / no
+  //    attestation → it offers nothing (no READY ever posted).
+  const READY = "probe.line.ready/v1";
+  const fakeWin = (hostFull) => {
+    const win = { location: { host: hostFull }, posted: [], _l: [] };
+    win.parent = { postMessage: (m) => win.posted.push(m) };
+    win.addEventListener = (t, fn) => { if (t === "message") win._l.push(fn); };
+    win.removeEventListener = () => {};
+    return win;
+  };
+  const readyPosted = (win) => win.posted.some((m) => m && m.type === READY);
+  {
+    const platform = await generateIdentity();
+    const B = bottleUrl({ label: "cd04-q1", storage: "tell" }); // → host "cd04-q1.tell.anecdote.channel"
+    const att = await mintBottleAttestation(B, platform, { now: "2026-01-01T00:00:00Z" });
+
+    let win = fakeWin("cd04-q1.tell.anecdote.channel");
+    let res = await serveOnHello({ repo: repo(), author: AUTHOR, attestation: att, platformKey: platform.fingerprint, self: win });
+    ok(res.ok && readyPosted(win), "boot gate opens for a valid attestation on its own host — READY announced");
+
+    win = fakeWin("scratch7.bottles.anecdote.channel");
+    res = await serveOnHello({ repo: repo(), author: AUTHOR, attestation: att, platformKey: platform.fingerprint, self: win });
+    ok(!res.ok && /domain anchor/.test(res.reason) && !readyPosted(win), "served on the wrong host → offers nothing (no READY)");
+
+    const impostor = await generateIdentity();
+    win = fakeWin("cd04-q1.tell.anecdote.channel");
+    res = await serveOnHello({ repo: repo(), author: AUTHOR, attestation: att, platformKey: impostor.fingerprint, self: win });
+    ok(!res.ok && !readyPosted(win), "attestation not under the pinned platform key → offers nothing");
+
+    win = fakeWin("cd04-q1.tell.anecdote.channel");
+    res = await serveOnHello({ repo: repo(), author: AUTHOR, attestation: null, platformKey: platform.fingerprint, self: win });
+    ok(!res.ok && !readyPosted(win), "unprovisioned (no attestation) → offers nothing");
+  }
+
+  console.log(fails ? `\nFAILED (${fails})` : "\nok: git bottle — git-enough vended over the probe, consent-gated, boot-gated, headless");
   process.exit(fails ? 1 : 0);
 }
 run();
