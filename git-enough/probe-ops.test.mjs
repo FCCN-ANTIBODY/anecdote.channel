@@ -130,6 +130,28 @@ try {
     await s.handle(request({ id: "FF4", op: "git.fast-forward", confirmed: true, input: { ref: "refs/heads/feature", to: "0".repeat(40) } }));
     ok(frames.find((f) => f.type === ERROR && f.id === "FF4" && /not present/.test(f.reason)), "ff to an absent target is refused");
   }
+  // 7. init -> bytes -> load: a newborn repo round-trips through the bytes the data pile persists. One
+  //    adapter INITs and hands back bytes; a FRESH adapter LOADs them and answers reads — "the pile retains
+  //    it between loads and feeds it back," a complete round-trip.
+  {
+    const maker = repo();
+    const { s, frames } = session(maker, {}, immediate);
+    await s.handle(request({ id: "I", op: "git.init", confirmed: true,
+      input: { files: [{ path: "pile.yml", content: 'id: "cd04-q1"\n' }, { path: "README.md", content: "# pile\n" }], message: "init\n" } }));
+    const init = frames.find((f) => f.type === FRAME && f.id === "I" && f.init);
+    ok(init && /^[0-9a-f]{40}$/.test(init.tip) && init.bytes && init.refs["refs/heads/main"] === init.tip, "git.init returns tip + bytes + ref map");
+
+    const loaded = repo();
+    const l = session(loaded, {}, immediate);
+    await l.s.handle(request({ id: "L", op: "git.load", confirmed: true, input: { bytes: init.bytes, refs: init.refs, head: init.head } }));
+    const ld = l.frames.find((f) => f.type === FRAME && f.id === "L" && f.loaded !== undefined);
+    ok(ld && ld.loaded >= 3 && loaded.readRef("refs/heads/main") === init.tip, "git.load rehydrates objects + refs from the bytes (fresh adapter)");
+
+    l.frames.length = 0;
+    await l.s.handle(request({ id: "F", op: "git.files", input: {} }));
+    const files = l.frames.find((f) => f.type === FRAME && f.id === "F" && f.files);
+    ok(files && files.files.some((x) => x.path === "pile.yml") && files.files.some((x) => x.path === "README.md"), "the rehydrated pile answers git.files with its file-set");
+  }
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 }
