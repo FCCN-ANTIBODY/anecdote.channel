@@ -2,32 +2,35 @@
 //
 // The judge (FCCN-ANTIBODY/judgement, a composite GitHub Action — `uses: FCCN-ANTIBODY/judgement@main`)
 // renders one of three verdicts over a request — accept / reject / needs-judgment. It is a JUNCTION, not a
-// gate: online it summons a pluggable LLM agent (judgement/bin/judge-agent, Claude Opus 4.8) to decide
-// whether a subject, as clarified by its guidance, is permitted by BOTH constitutions; when no agent is
-// available (no credentials, rate-limited, out of budget, off, or unsure) it returns `needs-judgment`, the
-// honest default that ROUTES TO A HUMAN — always technically possible.
+// gate: online it summons a pluggable LLM agent (Opus 4.8) to rule whether a subject, as clarified by its
+// guidance, is permitted by BOTH constitutions; when it cannot, it returns `needs-judgment`, the honest
+// default that ROUTES TO A HUMAN. This module is the OFFLINE emulation of that seam, where the human is the
+// user's own privileged GESTURE (docs/consent-surface.md, the cracked judge).
 //
-// This module is the OFFLINE emulation of that same seam. Offline there is no agent and no API key, so we
-// ARE the no-agent branch: a cheap lattice fast-path decides the pairs that need no intelligence
-// (identical / known-permitted / known-refused), and everything else is `needs-judgment` → the human. And
-// offline the human is the user's own privileged GESTURE (docs/consent-surface.md, the cracked judge — "you
-// are the judge of your own stuff"). "Filing a judgment to summon the judge" is the slow-motion incantation;
-// the gesture is the compressed PR-open + PR-close of the online consent-gate, in a single signed act.
+// THE COMMON CONSTITUTION SEAM. The judge does not itself compare A against B — it needs the COMMON
+// CONSTITUTION that shakes out of the two, and only an Antidote can compute that (antidote/docs/common-
+// cause.md, the assay/meet). So `assemble` takes {constitution_a, constitution_b, subject, guidance} and
+// resolves the common through an INJECTED seam, `resolveCommon(a, b)`, with three outcomes:
+//   - known   — an Antidote you're registered to has this meet already (its lattice is the table of known
+//               common constitutions); a `permits` entry IS a discovered clean meet. The FAST WIN — no async
+//               wait — so the ruling can happen locally, now.
+//   - none    — a definitive no shared floor (a `refuses`): the subject can't be permitted by both → reject.
+//   - pending — nobody has computed it; lodged with an Antidote, which works on it (human-paced) and posts
+//               the answer later. The judge TABLES it: `needs-judgment`, retry when the common lands.
+// The default seam is the lattice fast-path (`defaultResolveCommon`); the PLURAL-Antidote progression and any
+// batch cadence live INSIDE an injected seam a caller supplies (offline: a local table / an iframe-probe;
+// online: the registered Antidotes tried in a stateful progression, first hit wins) — deliberately NOT in
+// this core, because that strategy is still being shaped.
 //
-// The shape has three moves, and the order is load-bearing (derive everything BEFORE anyone resolves, so a
-// human — or an agent operating the plug-in point — only RENDERS a decision, never re-derives the facts;
-// and a hasty resolution stays checkable after the fact):
-//   1. assemble(manifest) — PURE. Runs the fast-path verdict, verifies each metadata PREDICATE
-//      (proven-not-disclosed, guard #16) into held / unseen / unmet, and files a self-contained case record.
-//   2. needsHuman(case)   — a known-lattice accept/reject with nothing unseen is decisive on its own
-//      (autoResolution). A `needs-judgment`, or anything the manifest could not let it SEE, holds for a human.
-//   3. resolveByGesture(…) — the offline run: a gesture-signed resolution whose signature CONTAINS
-//      proof-of-presence for that exact case (gesture.mjs). Online this is a PR merge instead; same record.
+// TABLED vs RULE-NOW. Both are `needs-judgment` (the judge never invents a fourth verdict). A `pending`
+// common is TABLED — deferrable ("I'll approve later") — UNLESS the exchange is `live`: a face-to-face
+// handshake needs the receipt now, so it can't table (the human renders on the spot). A `known` common whose
+// subject still needs a human is RULE-NOW: nothing external is pending, so it is not deferrable either.
 //
-// It NEVER accepts on its own for a novel pair — doubt never resolves toward accept; it becomes
-// `needs-judgment` and waits for the human (judgement/CONSTITUTION.md; guard #9). The predicate layer here
-// is an offline EXTENSION over the canonical {A, B, subject, guidance} contract — the material for a signed
-// authorization envelope (judgement/OPEN-QUESTIONS.md #1), not part of the core verdict.
+// Derive everything BEFORE anyone resolves, so a human (or an agent operating the plug-in point) only RENDERS
+// a decision, never re-derives the facts, and a hasty resolution stays checkable after the fact. The
+// presence/enroll PREDICATES are the offline authorization layer (proven-not-disclosed, guard #16) — the
+// material for the signed request envelope judgement/OPEN-QUESTIONS #1 wants.
 
 import { attest, verifyAttestation, canonicalize } from "./sign.mjs";
 import { defaultHash } from "./anecdote.mjs";
@@ -40,13 +43,10 @@ export const RESOLUTION = "anecdote.judgment-resolution/v1";
 export const VERDICTS = ["accept", "reject", "needs-judgment"];
 const te = new TextEncoder();
 
-// ---- the fast-path verdict — the no-agent branch of judgement/bin/judge --------------------------------
-// accept: the arrival's constitution is identical to, or the known lattice says it permits, the DECLARED
-// scope. reject: the lattice explicitly says incompatible (never inferred). needs-judgment: anything the
-// lattice doesn't already know — offline there is no agent to weigh it, so it WAITS for the human (guard #9,
-// the judge never accepts a novel pair on its own). Online, judgement's LLM agent renders the same three
-// verdicts over the full {A, B, subject, guidance}; this is the cheap subset a lattice can settle with no
-// agent. (Mirrors antidote/bin/judge-constitution.mjs, mapped to the canonical verdict words.)
+// ---- the lattice fast-path — the "table of known common constitutions" ---------------------------------
+// accept: identical to, or the known lattice says A permits B — a discovered common exists. reject: the
+// lattice explicitly refuses (never inferred). needs-judgment: unknown — no common is known, so it must be
+// lodged. (Mirrors antidote/bin/judge-constitution.mjs, in the canonical verdict words.)
 export function judge({ answer, declared, lattice = {} } = {}) {
   if (!answer) return "reject";
   if (!declared) return "reject";
@@ -56,14 +56,20 @@ export function judge({ answer, declared, lattice = {} } = {}) {
   return "needs-judgment";
 }
 
+// The default `resolveCommon`: read the meet from the lattice you hold (a registered Antidote's known common
+// causes). known → the shared floor (identical: A itself; permits: the declared scope B). none → a refusal.
+// pending → nothing known, lodge it. A caller supplies a richer seam (probe an Antidote, try many in order).
+export function defaultResolveCommon(a, b, { lattice = {} } = {}) {
+  const v = judge({ answer: a, declared: b, lattice });
+  if (v === "accept") return { status: "known", common: a === b ? a : b, reason: a === b ? "identical constitutions" : "the lattice permits this pair" };
+  if (v === "reject") return { status: "none", reason: (!a || !b) ? "a request must name both constitutions" : "the lattice refuses this pair" };
+  return { status: "pending", reason: "no known common constitution — lodge with an antidote" };
+}
+
 // ---- metadata predicates — proven, not disclosed -------------------------------------------------------
-// A manifest predicate: { kind, asserts, evidence }. A verifier reports one of three results, which is the
-// whole "the judge might say: I'd have to SEE that" behaviour:
-//   held   — the evidence verifies and satisfies the assertion.
-//   unseen — no evidence, or it doesn't verify: the judge can't see it → the case HOLDS on this.
-//   unmet  — evidence verifies but CONTRADICTS the assertion → the opinion leans reject.
-// Default verifiers wire the presence/enroll artifacts (a bisect-witness, a membership) as real inputs; a
-// caller may pass `verifiers` to add kinds. Each is async (verification is crypto) and pure.
+// A predicate: { kind, asserts, evidence }. A verifier reports held / unseen / unmet — the whole "the judge
+// might say: I'd have to SEE that" behaviour. Default verifiers wire the presence/enroll artifacts as real
+// inputs; a caller may pass `verifiers` to add kinds. Each is async (verification is crypto) and pure.
 export const DEFAULT_VERIFIERS = {
   // asserts: { constituency }; evidence: a presence CLAIM or WITNESS record.
   async presence(asserts, evidence, _opts) {
@@ -95,27 +101,28 @@ export const DEFAULT_VERIFIERS = {
 
 // ---- assemble the case record — derive everything, resolve nothing -------------------------------------
 
-// The stable content-id binds the DERIVED FACTS (parents, verdict, meet, each predicate's assertion+result,
-// what stayed unseen) so every resolver renders on the same case. The advisory `opinion` is NOT bound — it
-// can be re-computed or improved without changing which case this is.
-async function caseId({ parents, verdict, meet, predicates, needsToSee }) {
+// The stable content-id binds the DERIVED FACTS so every resolver renders on the same case; the advisory
+// `opinion` and the runtime `deferrable` (which depends on `live`) are NOT bound.
+async function caseId({ constitution_a, constitution_b, subject, guidance, common, commonStatus, verdict, predicates, needsToSee }) {
   const facts = {
-    parents, verdict, meet: meet || null,
+    constitution_a, constitution_b, subject, guidance, common: common || null, commonStatus, verdict,
     predicates: (predicates || []).map((p) => ({ kind: p.kind, asserts: p.asserts, result: p.result })),
     needsToSee,
   };
   return "judgment:" + (await defaultHash(te.encode(canonicalize(facts))));
 }
 
-// Run the pure half. `manifest` = { parents: { answer, declared }, meet?, predicates?[] }. Returns a
-// self-contained case record: the verdict, every predicate resolved to held/unseen/unmet, the unseen set
-// (why it would hold), and an advisory opinion that NEVER leans accept for a novel pair. Deterministic.
-export async function assemble(manifest, { lattice = {}, verifiers = DEFAULT_VERIFIERS, now, at } = {}) {
-  const parents = manifest?.parents || {};
-  const verdict = judge({ answer: parents.answer, declared: parents.declared, lattice });
+// Run the pure half. `request` = { constitution_a, constitution_b, subject?, guidance?, context?, predicates?[] }.
+// opts.resolveCommon is the injected seam (default the lattice fast-path); opts.live marks a face-to-face
+// exchange that cannot table. Returns a self-contained case record: the resolved common + its status, the
+// verdict, whether it is TABLED (a pending common) and DEFERRABLE (tabled and not live), every predicate
+// resolved, the unseen set, and an advisory opinion. Deterministic given the same evidence.
+export async function assemble(request, { resolveCommon = defaultResolveCommon, lattice = {}, verifiers = DEFAULT_VERIFIERS, now, at, live = false } = {}) {
+  const { constitution_a = "", constitution_b = "", subject = "", guidance = "", context = null } = request || {};
+  const common = await resolveCommon(constitution_a, constitution_b, { lattice, now });
 
   const predicates = [];
-  for (const p of manifest?.predicates || []) {
+  for (const p of request?.predicates || []) {
     const fn = verifiers[p.kind];
     const r = fn ? await fn(p.asserts || {}, p.evidence, { now }) : { result: "unseen", detail: `no verifier for kind '${p.kind}'` };
     predicates.push({ kind: p.kind, asserts: p.asserts || {}, result: r.result, detail: r.detail, by: r.by ?? null });
@@ -123,27 +130,33 @@ export async function assemble(manifest, { lattice = {}, verifiers = DEFAULT_VER
   const needsToSee = predicates.filter((p) => p.result === "unseen").map((p) => ({ kind: p.kind, asserts: p.asserts, detail: p.detail }));
   const unmet = predicates.filter((p) => p.result === "unmet");
 
-  // The advisory opinion: leans by the derived facts, never a ruling. A lattice accept with all predicates
-  // held leans accept; any contradicted predicate leans reject; an unseen predicate or a needs-judgment
-  // verdict means the honest lean is needs-judgment — a human must see the rest.
+  // Verdict, driven by the common's status and then the local ruling. A pending common TABLES the case; a
+  // definitive `none` rejects; a known common still needs a human when the authorization is unseen or a
+  // subject must be ruled (offline there is no agent to rule it) — and lands accept only when nothing is left.
   const reasons = [];
-  let leans;
-  if (unmet.length) { leans = "reject"; unmet.forEach((p) => reasons.push(`predicate unmet: ${p.detail}`)); }
-  else if (verdict === "reject") { leans = "reject"; reasons.push("the lattice refuses this pair"); }
-  else if (verdict === "needs-judgment") { leans = "needs-judgment"; reasons.push("novel pair — no agent offline; a human must weigh it"); }
-  else if (needsToSee.length) { leans = "needs-judgment"; needsToSee.forEach((p) => reasons.push(`must see: ${p.detail}`)); }
-  else { leans = "accept"; reasons.push("known-lattice accept, every predicate held"); }
+  let verdict, tabled = false;
+  if (common.status === "none") { verdict = "reject"; reasons.push(common.reason || "no shared common constitution"); }
+  else if (common.status === "pending") { verdict = "needs-judgment"; tabled = true; reasons.push(common.reason || "common constitution pending — lodged, retry later"); }
+  else {                                                 // known
+    if (unmet.length) { verdict = "reject"; unmet.forEach((p) => reasons.push(`predicate unmet: ${p.detail}`)); }
+    else if (needsToSee.length) { verdict = "needs-judgment"; needsToSee.forEach((p) => reasons.push(`must see: ${p.detail}`)); }
+    else if (subject) { verdict = "needs-judgment"; reasons.push("common known; the subject must be ruled by the agent (online) or the human (offline)"); }
+    else { verdict = "accept"; reasons.push("common known; every predicate held; no subject left to rule"); }
+  }
+  const deferrable = tabled && !live;                    // only a pending common, and only when not live, may table
+  const leans = verdict;                                 // the opinion mirrors the derived verdict; never a ruling
 
-  const base = { parents, verdict, meet: manifest?.meet || null, predicates, needsToSee };
+  const base = { constitution_a, constitution_b, subject, guidance, context,
+                 common: common.status === "known" ? (common.common ?? null) : null, commonStatus: common.status,
+                 verdict, tabled, predicates, needsToSee };
   const id = await caseId(base);
-  return { schema: JUDGMENT, id, ...base, opinion: { leans, reasons }, at: at || new Date().toISOString() };
+  return { schema: JUDGMENT, id, ...base, deferrable, opinion: { leans, reasons }, at: at || new Date().toISOString() };
 }
 
-// A case is DECISIVE on its own only when the lattice already knew it (accept/reject) AND nothing was left
-// unseen. Everything else — a needs-judgment, or a held-but-incomplete manifest — summons a human.
+// A case is DECISIVE on its own only when the verdict is accept or reject; needs-judgment (tabled or rule-now)
+// summons a human.
 export function needsHuman(caseRecord) {
   if (!caseRecord) return true;
-  if (caseRecord.needsToSee && caseRecord.needsToSee.length) return true;
   return caseRecord.verdict === "needs-judgment";
 }
 
@@ -158,28 +171,33 @@ export function autoResolution(caseRecord) {
 
 // The offline run: a human renders `decision` ∈ accept | reject | needs-judgment, and the privileged gesture
 // SIGNS it, folding proof-of-presence into the bytes (gesture.mjs `gatedAttest`) — so "a human really pulled
-// the trigger on THIS case" is cryptographic, not a boolean a swapped queen could fake. This is the
-// compressed PR-open+PR-close; online, a PR merge produces the same RESOLUTION record instead. (A human may
-// also land on needs-judgment — parking it, deciding later.) `gate` is injectable (default the real gesture)
-// so a headless caller can supply its own signer. Returns { signed, gesture }.
-export async function resolveByGesture(caseRecord, { decision, reason = "" } = {}, identity, cred, { gate = gatedAttest, ...deps } = {}) {
+// the trigger on THIS case" is cryptographic. This is the compressed PR-open+PR-close; online a PR merge
+// makes the same RESOLUTION record. Pass `defer: true` to TABLE it for later (the "I'll approve later"
+// option) — allowed ONLY when the case is `deferrable` (a pending common, not a live exchange); deferring on
+// a rule-now or live case throws, because the receipt is needed now. `gate` is injectable (default the real
+// gesture). Returns { signed, gesture }.
+export async function resolveByGesture(caseRecord, { decision, reason = "", defer = false } = {}, identity, cred, { gate = gatedAttest, ...deps } = {}) {
   if (!caseRecord || caseRecord.schema !== JUDGMENT) throw new Error("judgment: resolve needs a case record");
-  if (!VERDICTS.includes(decision)) throw new Error("judgment: decision must be accept | reject | needs-judgment");
-  const obj = { schema: RESOLUTION, case: caseRecord.id, decision, reason, auto: false, at: deps.at || new Date().toISOString() };
+  let decided = decision;
+  if (defer) {
+    if (!caseRecord.deferrable) throw new Error("judgment: this case cannot be deferred — the receipt is needed now (live or rule-now)");
+    decided = "needs-judgment";                          // deferring parks it as needs-judgment
+  }
+  if (!VERDICTS.includes(decided)) throw new Error("judgment: decision must be accept | reject | needs-judgment");
+  const obj = { schema: RESOLUTION, case: caseRecord.id, decision: decided, reason, deferred: !!defer, auto: false, at: deps.at || new Date().toISOString() };
   return gate(obj, identity, cred, deps);   // gatedAttest -> { signed, gesture }; the signature carries the presence
 }
 
 // Verify a resolution end to end: it names a case, carries a real decision, its Ed25519 attestation holds,
 // and — unless it is an `auto` resolution — its embedded gesture is a genuine user-verified assertion over
-// these exact bytes (verifyGated). An auto resolution needs no gesture (the lattice decided). Returns
-// { ok, by, case, decision, gated, errors }.
+// these exact bytes (verifyGated). Returns { ok, by, case, decision, deferred, gated, errors }.
 export async function verifyResolution(resolution, { spki, alg, rpId, origin } = {}) {
-  if (!resolution || resolution.schema !== RESOLUTION) return { ok: false, by: null, case: null, decision: null, gated: false, errors: ["not a resolution"] };
-  if (!VERDICTS.includes(resolution.decision)) return { ok: false, by: null, case: resolution.case, decision: resolution.decision, gated: false, errors: ["bad decision"] };
+  if (!resolution || resolution.schema !== RESOLUTION) return { ok: false, by: null, case: null, decision: null, deferred: false, gated: false, errors: ["not a resolution"] };
+  if (!VERDICTS.includes(resolution.decision)) return { ok: false, by: null, case: resolution.case, decision: resolution.decision, deferred: !!resolution.deferred, gated: false, errors: ["bad decision"] };
   if (resolution.auto) {
     const v = await verifyAttestation(resolution, {});
-    return { ok: v.ok, by: v.by, case: resolution.case, decision: resolution.decision, gated: false, errors: v.errors };
+    return { ok: v.ok, by: v.by, case: resolution.case, decision: resolution.decision, deferred: false, gated: false, errors: v.errors };
   }
   const g = await verifyGated(resolution, { spki, alg, rpId, origin });
-  return { ok: g.ok, by: g.by, case: resolution.case, decision: resolution.decision, gated: true, errors: g.errors };
+  return { ok: g.ok, by: g.by, case: resolution.case, decision: resolution.decision, deferred: !!resolution.deferred, gated: true, errors: g.errors };
 }
