@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>git bottle</title>
+  <!--
+    THE GIT BOTTLE (git-enough/bottle.mjs): a headless, signed repository whose PROBE does the work. No UI.
+    Served on the bottle's own sub-sub-domain (…/​.git facet); a tool iframes this page and talks to its probe
+    to drive git-enough (log/files/commit/push/clone/fast-forward). Each op's rung is fixed by
+    composer/authorize.mjs, and what may run is the user's operate-grant (composer/bottle-grant.mjs) carried in
+    each request — the bottle vends the capability, the user's gesture-signed consent decides what runs.
+
+    Self-contained: this page + the git-enough modules it imports are the whole origin; it fetches nothing and
+    shows nothing. The repo here is a fresh in-memory one (the git storage adapter's seam) — a real bottle
+    would open its persisted repo instead.
+  -->
+</head>
+<body>
+  <script type="module">
+    import { repo } from "./repo.mjs";
+    import { serveOnHello } from "./bottle.mjs";
+    // The bottle's repo (its storage). In-memory for the shell; a provisioned bottle rehydrates its own.
+    const r = repo();
+    const author = { name: "bottle", email: "bottle@origin", epoch: 1700000000, tz: "+0000" };
+    // Announce readiness and serve git over the port the iframing tool transfers in.
+    serveOnHello({ repo: r, author });
+  </script>
+  <noscript>The git bottle is a probe, not a page — it needs JavaScript.</noscript>
+</body>
+</html>
