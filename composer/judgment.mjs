@@ -1,26 +1,33 @@
 // composer/judgment.mjs — THE OFFLINE JUDGE RUNNER: the gesture IS the workflow run.
 //
-// The judge (the FCCN-ANTIBODY/judge engine, mounted as `.judge-engine` where needed) decides one thing
-// about a constitution pair — admit / refuse / queue — against a DECLARED constitution, never a computed one
-// (antidote/bin/judge-constitution.mjs, the ratchet). Online it runs as a GitHub Action gated by a PR: the
-// PR is the consent event, the merge is the append. This module is the OFFLINE emulation of that same seam:
-// one pure verdict underneath, two runners on top — online = the Action, offline = the user's privileged
-// gesture. "Filing a judgment to summon the judge" is the slow-motion incantation; the gesture is the
-// compressed PR-open + PR-close in a single act (docs/consent-surface.md, the cracked judge — "you are the
-// judge of your own stuff").
+// The judge (FCCN-ANTIBODY/judgement, a composite GitHub Action — `uses: FCCN-ANTIBODY/judgement@main`)
+// renders one of three verdicts over a request — accept / reject / needs-judgment. It is a JUNCTION, not a
+// gate: online it summons a pluggable LLM agent (judgement/bin/judge-agent, Claude Opus 4.8) to decide
+// whether a subject, as clarified by its guidance, is permitted by BOTH constitutions; when no agent is
+// available (no credentials, rate-limited, out of budget, off, or unsure) it returns `needs-judgment`, the
+// honest default that ROUTES TO A HUMAN — always technically possible.
+//
+// This module is the OFFLINE emulation of that same seam. Offline there is no agent and no API key, so we
+// ARE the no-agent branch: a cheap lattice fast-path decides the pairs that need no intelligence
+// (identical / known-permitted / known-refused), and everything else is `needs-judgment` → the human. And
+// offline the human is the user's own privileged GESTURE (docs/consent-surface.md, the cracked judge — "you
+// are the judge of your own stuff"). "Filing a judgment to summon the judge" is the slow-motion incantation;
+// the gesture is the compressed PR-open + PR-close of the online consent-gate, in a single signed act.
 //
 // The shape has three moves, and the order is load-bearing (derive everything BEFORE anyone resolves, so a
 // human — or an agent operating the plug-in point — only RENDERS a decision, never re-derives the facts;
 // and a hasty resolution stays checkable after the fact):
-//   1. assemble(manifest) — PURE. Runs the verdict, verifies each metadata PREDICATE (proven-not-disclosed,
-//      guard #16) into held / unseen / unmet, and files a self-contained case record. No human yet.
-//   2. needsHuman(case)   — a known-lattice admit/refuse with nothing unseen is decisive on its own
-//      (autoResolution). A `queue`, or anything the manifest could not let it SEE, holds for a human.
+//   1. assemble(manifest) — PURE. Runs the fast-path verdict, verifies each metadata PREDICATE
+//      (proven-not-disclosed, guard #16) into held / unseen / unmet, and files a self-contained case record.
+//   2. needsHuman(case)   — a known-lattice accept/reject with nothing unseen is decisive on its own
+//      (autoResolution). A `needs-judgment`, or anything the manifest could not let it SEE, holds for a human.
 //   3. resolveByGesture(…) — the offline run: a gesture-signed resolution whose signature CONTAINS
 //      proof-of-presence for that exact case (gesture.mjs). Online this is a PR merge instead; same record.
 //
-// It NEVER admits on its own for a novel pair (guard #9). The `judge()` here is the byte-identical verdict
-// the engine repo will own (server↔declared is the only rename); assemble/resolve are the offline harness.
+// It NEVER accepts on its own for a novel pair — doubt never resolves toward accept; it becomes
+// `needs-judgment` and waits for the human (judgement/CONSTITUTION.md; guard #9). The predicate layer here
+// is an offline EXTENSION over the canonical {A, B, subject, guidance} contract — the material for a signed
+// authorization envelope (judgement/OPEN-QUESTIONS.md #1), not part of the core verdict.
 
 import { attest, verifyAttestation, canonicalize } from "./sign.mjs";
 import { defaultHash } from "./anecdote.mjs";
@@ -30,21 +37,23 @@ import { gatedAttest, verifyGated } from "./gesture.mjs";
 
 export const JUDGMENT = "anecdote.judgment/v1";
 export const RESOLUTION = "anecdote.judgment-resolution/v1";
+export const VERDICTS = ["accept", "reject", "needs-judgment"];
 const te = new TextEncoder();
 
-// ---- the pure verdict — the judge engine's contract, verbatim ------------------------------------------
-// admit: the arrival's constitution is identical to, or the known lattice says it permits, the DECLARED
-// scope. refuse: the lattice explicitly says incompatible (never inferred). queue: anything unknown — it
-// WAITS for a human (guard #9, the judge is never the sole gate). Same logic as antidote/bin/judge-
-// constitution.mjs `judgeConstitution`, with `server` renamed `declared` (a server charter OR a pile's
-// COMMON CONSTITUTION are both "the declared scope this pair is judged against").
+// ---- the fast-path verdict — the no-agent branch of judgement/bin/judge --------------------------------
+// accept: the arrival's constitution is identical to, or the known lattice says it permits, the DECLARED
+// scope. reject: the lattice explicitly says incompatible (never inferred). needs-judgment: anything the
+// lattice doesn't already know — offline there is no agent to weigh it, so it WAITS for the human (guard #9,
+// the judge never accepts a novel pair on its own). Online, judgement's LLM agent renders the same three
+// verdicts over the full {A, B, subject, guidance}; this is the cheap subset a lattice can settle with no
+// agent. (Mirrors antidote/bin/judge-constitution.mjs, mapped to the canonical verdict words.)
 export function judge({ answer, declared, lattice = {} } = {}) {
-  if (!answer) return "refuse";
-  if (!declared) return "refuse";
-  if (answer === declared) return "admit";
-  if ((lattice.refuses?.[answer] || []).includes(declared)) return "refuse";
-  if ((lattice.permits?.[answer] || []).includes(declared)) return "admit";
-  return "queue";
+  if (!answer) return "reject";
+  if (!declared) return "reject";
+  if (answer === declared) return "accept";
+  if ((lattice.refuses?.[answer] || []).includes(declared)) return "reject";
+  if ((lattice.permits?.[answer] || []).includes(declared)) return "accept";
+  return "needs-judgment";
 }
 
 // ---- metadata predicates — proven, not disclosed -------------------------------------------------------
@@ -52,7 +61,7 @@ export function judge({ answer, declared, lattice = {} } = {}) {
 // whole "the judge might say: I'd have to SEE that" behaviour:
 //   held   — the evidence verifies and satisfies the assertion.
 //   unseen — no evidence, or it doesn't verify: the judge can't see it → the case HOLDS on this.
-//   unmet  — evidence verifies but CONTRADICTS the assertion → the opinion leans refuse.
+//   unmet  — evidence verifies but CONTRADICTS the assertion → the opinion leans reject.
 // Default verifiers wire the presence/enroll artifacts (a bisect-witness, a membership) as real inputs; a
 // caller may pass `verifiers` to add kinds. Each is async (verification is crypto) and pure.
 export const DEFAULT_VERIFIERS = {
@@ -100,7 +109,7 @@ async function caseId({ parents, verdict, meet, predicates, needsToSee }) {
 
 // Run the pure half. `manifest` = { parents: { answer, declared }, meet?, predicates?[] }. Returns a
 // self-contained case record: the verdict, every predicate resolved to held/unseen/unmet, the unseen set
-// (why it would hold), and an advisory opinion that NEVER admits. Deterministic given the same evidence.
+// (why it would hold), and an advisory opinion that NEVER leans accept for a novel pair. Deterministic.
 export async function assemble(manifest, { lattice = {}, verifiers = DEFAULT_VERIFIERS, now, at } = {}) {
   const parents = manifest?.parents || {};
   const verdict = judge({ answer: parents.answer, declared: parents.declared, lattice });
@@ -114,28 +123,28 @@ export async function assemble(manifest, { lattice = {}, verifiers = DEFAULT_VER
   const needsToSee = predicates.filter((p) => p.result === "unseen").map((p) => ({ kind: p.kind, asserts: p.asserts, detail: p.detail }));
   const unmet = predicates.filter((p) => p.result === "unmet");
 
-  // The advisory opinion: leans by the derived facts, never a ruling. A lattice admit with all predicates
-  // held leans admit; any contradicted predicate leans refuse; an unseen predicate or a queue verdict means
-  // the honest lean is "hold — a human must see the rest."
+  // The advisory opinion: leans by the derived facts, never a ruling. A lattice accept with all predicates
+  // held leans accept; any contradicted predicate leans reject; an unseen predicate or a needs-judgment
+  // verdict means the honest lean is needs-judgment — a human must see the rest.
   const reasons = [];
   let leans;
-  if (unmet.length) { leans = "refuse"; unmet.forEach((p) => reasons.push(`predicate unmet: ${p.detail}`)); }
-  else if (verdict === "refuse") { leans = "refuse"; reasons.push("the lattice refuses this pair"); }
-  else if (verdict === "queue") { leans = "hold"; reasons.push("novel pair — not in the known lattice"); }
-  else if (needsToSee.length) { leans = "hold"; needsToSee.forEach((p) => reasons.push(`must see: ${p.detail}`)); }
-  else { leans = "admit"; reasons.push("known-lattice admit, every predicate held"); }
+  if (unmet.length) { leans = "reject"; unmet.forEach((p) => reasons.push(`predicate unmet: ${p.detail}`)); }
+  else if (verdict === "reject") { leans = "reject"; reasons.push("the lattice refuses this pair"); }
+  else if (verdict === "needs-judgment") { leans = "needs-judgment"; reasons.push("novel pair — no agent offline; a human must weigh it"); }
+  else if (needsToSee.length) { leans = "needs-judgment"; needsToSee.forEach((p) => reasons.push(`must see: ${p.detail}`)); }
+  else { leans = "accept"; reasons.push("known-lattice accept, every predicate held"); }
 
   const base = { parents, verdict, meet: manifest?.meet || null, predicates, needsToSee };
   const id = await caseId(base);
   return { schema: JUDGMENT, id, ...base, opinion: { leans, reasons }, at: at || new Date().toISOString() };
 }
 
-// A case is DECISIVE on its own only when the lattice already knew it (admit/refuse) AND nothing was left
-// unseen. Everything else — a queue, or a held-but-incomplete manifest — summons a human.
+// A case is DECISIVE on its own only when the lattice already knew it (accept/reject) AND nothing was left
+// unseen. Everything else — a needs-judgment, or a held-but-incomplete manifest — summons a human.
 export function needsHuman(caseRecord) {
   if (!caseRecord) return true;
   if (caseRecord.needsToSee && caseRecord.needsToSee.length) return true;
-  return caseRecord.verdict === "queue";
+  return caseRecord.verdict === "needs-judgment";
 }
 
 // For a decisive case, the resolution is the derived verdict itself — no gesture, like an Action that passes
@@ -147,14 +156,15 @@ export function autoResolution(caseRecord) {
 
 // ---- resolve by gesture — the offline workflow "run" ---------------------------------------------------
 
-// The offline run: a human renders `decision` ∈ admit | refuse | hold, and the privileged gesture SIGNS it,
-// folding proof-of-presence into the bytes (gesture.mjs `gatedAttest`) — so "a human really pulled the
-// trigger on THIS case" is cryptographic, not a boolean a swapped queen could fake. This is the compressed
-// PR-open+PR-close; online, a PR merge produces the same RESOLUTION record instead. `gate` is injectable
-// (default the real gesture) so a headless caller can supply its own signer. Returns { signed, gesture }.
+// The offline run: a human renders `decision` ∈ accept | reject | needs-judgment, and the privileged gesture
+// SIGNS it, folding proof-of-presence into the bytes (gesture.mjs `gatedAttest`) — so "a human really pulled
+// the trigger on THIS case" is cryptographic, not a boolean a swapped queen could fake. This is the
+// compressed PR-open+PR-close; online, a PR merge produces the same RESOLUTION record instead. (A human may
+// also land on needs-judgment — parking it, deciding later.) `gate` is injectable (default the real gesture)
+// so a headless caller can supply its own signer. Returns { signed, gesture }.
 export async function resolveByGesture(caseRecord, { decision, reason = "" } = {}, identity, cred, { gate = gatedAttest, ...deps } = {}) {
   if (!caseRecord || caseRecord.schema !== JUDGMENT) throw new Error("judgment: resolve needs a case record");
-  if (!["admit", "refuse", "hold"].includes(decision)) throw new Error("judgment: decision must be admit | refuse | hold");
+  if (!VERDICTS.includes(decision)) throw new Error("judgment: decision must be accept | reject | needs-judgment");
   const obj = { schema: RESOLUTION, case: caseRecord.id, decision, reason, auto: false, at: deps.at || new Date().toISOString() };
   return gate(obj, identity, cred, deps);   // gatedAttest -> { signed, gesture }; the signature carries the presence
 }
@@ -165,7 +175,7 @@ export async function resolveByGesture(caseRecord, { decision, reason = "" } = {
 // { ok, by, case, decision, gated, errors }.
 export async function verifyResolution(resolution, { spki, alg, rpId, origin } = {}) {
   if (!resolution || resolution.schema !== RESOLUTION) return { ok: false, by: null, case: null, decision: null, gated: false, errors: ["not a resolution"] };
-  if (!["admit", "refuse", "hold"].includes(resolution.decision)) return { ok: false, by: null, case: resolution.case, decision: resolution.decision, gated: false, errors: ["bad decision"] };
+  if (!VERDICTS.includes(resolution.decision)) return { ok: false, by: null, case: resolution.case, decision: resolution.decision, gated: false, errors: ["bad decision"] };
   if (resolution.auto) {
     const v = await verifyAttestation(resolution, {});
     return { ok: v.ok, by: v.by, case: resolution.case, decision: resolution.decision, gated: false, errors: v.errors };
