@@ -16,6 +16,7 @@
 
 import { verifyInstall as defaultVerify } from "./install.mjs";
 import { loadInstall as defaultLoad } from "./install-loader.mjs";
+import { engineBottleUrl } from "./bottle-uri.mjs";
 
 const firstFrame = (res) => (res && Array.isArray(res.frames) && res.frames.length ? res.frames[0] : null);
 
@@ -42,6 +43,26 @@ export async function openEngine(client, { platformKey, verify, load, wire, load
     return { client: wireFn(loaded.module, client.invoke), module: loaded.module, revoke: loaded.revoke, verified };
   } catch (e) {
     loaded.revoke(); // a bad entry shape leaves no Blob URLs behind
+    throw e;
+  }
+}
+
+// The consumer's FRONT DOOR: resolve a storage adapter NAME to its canonical engine bottle (bottle-uri
+// engineBottleUrl), embed it, and open it. `embed(url) => Promise<{ client, teardown }>` is injected
+// (git-enough embedBottle in the browser), so composer stays free of the iframe transport — the tell floor's
+// `open` seam is exactly this call with embedBottle passed in. Returns openEngine's result plus the resolved
+// `url` and the embed's `teardown`. Throws (tearing the embed down) if the name resolves to no engine or the
+// install doesn't verify.
+export async function openEngineByName(adapter, { embed, platformKey, ...rest } = {}) {
+  if (typeof embed !== "function") throw new Error("open-engine: openEngineByName needs an embed(url) transport");
+  const url = engineBottleUrl(adapter);
+  if (!url) throw new Error("open-engine: '" + adapter + "' is not a resolvable engine name");
+  const embedded = await embed(url);
+  try {
+    const opened = await openEngine(embedded.client, { platformKey, ...rest });
+    return { ...opened, url, teardown: embedded.teardown };
+  } catch (e) {
+    if (embedded && typeof embedded.teardown === "function") embedded.teardown();
     throw e;
   }
 }

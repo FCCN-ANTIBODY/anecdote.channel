@@ -22,6 +22,7 @@
 
 export const APEX = "anecdote.channel";
 export const STORAGE = "storage"; // the capability tag; the door stays open for other tags later
+export const BOTTLES = "bottles"; // the provisioned subdomain that arbitrary cubbies (and engines) live under
 const SLUG = /^[a-z0-9][a-z0-9-]*$/; // DNS-label + adapter-name charset
 const DNS_MAX = 63;
 
@@ -44,6 +45,16 @@ export function bottleUrl({ label, storage, apex = APEX, adapter = null } = {}) 
   if (!isSlug(storage)) throw new Error("bottle-uri: storage (subdomain) must be a slug");
   if (adapter !== null && !isSlug(adapter)) throw new Error("bottle-uri: adapter must be a slug");
   return `https://${label}.${storage}.${apex}${adapter ? "/" + STORAGE + "/." + adapter : "/"}`;
+}
+
+// The canonical ENGINE bottle for a storage adapter. Canonical names, NO registry: a `/storage/.<adapter>`
+// facet names the engine, and that engine is its OWN provisioned origin at <adapter>.bottles.<apex> — the
+// engine name IS the sub-sub-domain label. openEngine's consumer iframes this to run the install handshake;
+// the tell floor mirrors it (floor.mjs engineBottleUrl) so both sides resolve an adapter to one address.
+// Returns null (never throws) for a non-slug name, so a bad facet resolves to no engine rather than a URL
+// that lands somewhere unexpected.
+export function engineBottleUrl(adapter, { apex = APEX } = {}) {
+  return isSlug(adapter) ? bottleUrl({ label: adapter, storage: BOTTLES, apex }) : null;
 }
 
 // Parse a bottle address into { label, storage, apex, adapter } — or null if it is not a bottle address
