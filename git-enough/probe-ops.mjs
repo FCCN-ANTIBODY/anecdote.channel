@@ -8,6 +8,8 @@
 //   git.commit           — Rung 1, persists a commit (the beat's unit; yield→check-cancel→commit).
 //   git.push             — Rung 1, network egress to a downstream (send-pack) — consequential.
 //   git.clone            — Rung 1, imports a downstream's history into our origin (the Castle).
+//   git.fast-forward     — Rung 1, advances a ref to a known DESCENDANT (never a force) — the submodule
+//                          -graduation gesture: "ask the git bottle to fast-forward."
 // The staging beat is the Rung-2 STANDING behavior "git-enough:staging-beat": a grant over git.commit
 // that the scheduler runs on your behalf (its cadence is Origin's open "privileged budget" question).
 //
@@ -75,6 +77,35 @@ export function gitOps(deps = {}) {
       for (const [id, o] of got.objects) repo.objects.set(id, o);
       for (const [name, oid] of got.refs) repo.updateRef(name, oid);
       api.emit({ imported: got.objects.size, refs: Object.keys(refs) });
+    },
+
+    // Rung 1 — advance a ref to a known DESCENDANT already in our objects. A fast-forward ONLY: never a
+    // force, never a merge. This is the submodule-graduation gesture ("ask the git bottle to fast-forward").
+    // If the target isn't present, clone it first; if it isn't a descendant, this refuses rather than rewrite.
+    "git.fast-forward": async (input, api) => {
+      await api.tick();
+      const ref = (input && input.ref) || repo.head();
+      const to = input && input.to;
+      if (!to) throw new Error("git.fast-forward: a target oid (to) is required");
+      if (!repo.objects.get(to)) throw new Error("git.fast-forward: target " + to + " is not present (clone it first)");
+      const from = repo.readRef(ref) || null;
+      if (from === to) { api.emit({ ref, from, to, advanced: false, reason: "up-to-date" }); return; }
+      let isFF = from === null;                       // a new ref fast-forwards from nothing
+      if (!isFF) {
+        const seen = new Set();
+        const frontier = [to];
+        while (frontier.length) {
+          const oid = frontier.pop();
+          if (oid === from) { isFF = true; break; }
+          if (seen.has(oid)) continue;
+          seen.add(oid);
+          const obj = repo.objects.get(oid);
+          if (obj) frontier.push(...parseCommit(obj.content).parents);
+        }
+      }
+      if (!isFF) throw new Error("git.fast-forward: " + String(to).slice(0, 8) + " is not a descendant of " + String(from).slice(0, 8) + " (not a fast-forward)");
+      repo.updateRef(ref, to);
+      api.emit({ ref, from, to, advanced: true });
     },
   };
 }
