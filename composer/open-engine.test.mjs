@@ -2,7 +2,7 @@
 // install op, verifies against the consumer's pin, loads the entry, and wires the worn client back onto the
 // SAME probe. Tested end to end — including against the REAL git-enough/git-client source — with the mount
 // injected (the real Blob-URL path is Chromium-verified in install-loader). Run: node composer/open-engine.test.mjs
-import { openEngine } from "./open-engine.mjs";
+import { openEngine, openEngineByName } from "./open-engine.mjs";
 import { mintInstall } from "./install.mjs";
 import { generateIdentity } from "./sign.mjs";
 import { makeGitClient } from "../git-enough/git-client.mjs";
@@ -71,9 +71,38 @@ async function run() {
     ok(Object.keys(makeGitClient(() => {})).sort().join() === Object.keys(opened.client).sort().join(), "the delivered client's surface equals makeGitClient's");
   }
 
-  // --- 4. guards. ---
+  // --- 4. openEngineByName: the front door resolves the adapter name to its bottle, embeds it, opens it. ---
+  {
+    const manifest = await mintInstall({ "git-client.mjs": "// bytes\n" }, "git-client.mjs", platform);
+    const eng = fakeEngine(manifest, { "git.log": { log: [{ oid: "c".repeat(40), message: "one" }] } });
+    let torn = false;
+    const embed = (url) => { eng.embeddedUrl = url; return Promise.resolve({ client: eng.client, teardown: () => { torn = true; } }); };
+    const opened = await openEngineByName("git-enough", {
+      embed, platformKey: platform.fingerprint,
+      loadOpts: { createURL: (b, n) => "blob:" + n, revokeURL: () => {}, importer: () => import("../git-enough/git-client.mjs") },
+    });
+    ok(eng.embeddedUrl === "https://git-enough.bottles.anecdote.channel/", "the adapter name resolved to its canonical engine bottle url");
+    ok(opened.url === "https://git-enough.bottles.anecdote.channel/" && typeof opened.teardown === "function", "the resolved url + embed teardown come back");
+    ok((await opened.client.log()).log[0].message === "one", "the front-door client drives the engine end to end");
+    { let t = false; try { await openEngineByName("UP-CASE", { embed, platformKey: platform.fingerprint }); } catch { t = true; } ok(t, "an unresolvable engine name is refused before embedding"); }
+    ok(!torn, "a successful open leaves the embed standing (teardown is the caller's to call)");
+  }
+  // a bad-pin open through the front door tears the embed back down.
+  {
+    const impostor = await generateIdentity();
+    const manifest = await mintInstall({ "e.mjs": "export default () => ({});\n" }, "e.mjs", impostor);
+    const eng = fakeEngine(manifest);
+    let torn = false;
+    const embed = () => Promise.resolve({ client: eng.client, teardown: () => { torn = true; } });
+    let threw = false;
+    try { await openEngineByName("git-enough", { embed, platformKey: platform.fingerprint, loadOpts: { createURL: (b, n) => "blob:" + n, importer: () => Promise.resolve({ default: () => ({}) }) } }); } catch { threw = true; }
+    ok(threw && torn, "a front-door open that fails the pin tears the embed back down");
+  }
+
+  // --- 5. guards. ---
   { let t = false; try { await openEngine(null, { platformKey: "k" }); } catch { t = true; } ok(t, "refuses without a probe client"); }
   { let t = false; try { await openEngine({ invoke: () => {} }, {}); } catch { t = true; } ok(t, "refuses without a pinned platformKey"); }
+  { let t = false; try { await openEngineByName("git-enough", { platformKey: "k" }); } catch { t = true; } ok(t, "openEngineByName refuses without an embed transport"); }
 
   console.log(fails ? `\nFAILED (${fails})` : "\nok: open-engine — install → verify against the pin → wear the entry → drive the engine back over the same probe");
   process.exit(fails ? 1 : 0);

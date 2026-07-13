@@ -1,7 +1,7 @@
 // Unit: composer/bottle-uri.mjs — canonical bottle addressing + the storage-adapter routing primitive. The
 // wildcard is on the sub-sub-domain (invented label) under a provisioned storage subdomain; a floor recognizes
 // it was loaded as an adapter purely by the path /storage/.<adapter>. Run: node composer/bottle-uri.test.mjs
-import { bottleUrl, parseBottleUrl, storageRequest, isSlug, APEX, STORAGE } from "./bottle-uri.mjs";
+import { bottleUrl, parseBottleUrl, storageRequest, engineBottleUrl, isSlug, APEX, STORAGE } from "./bottle-uri.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -51,6 +51,13 @@ for (const notBottle of [
 
 // 7. isSlug guard.
 ok(isSlug("cd04-q1") && !isSlug("Cd04") && !isSlug("") && !isSlug("x".repeat(64)), "isSlug enforces DNS-label charset + length");
+
+// 8. engineBottleUrl — the canonical engine bottle for an adapter (name IS the label under bottles.<apex>).
+// This is what a consumer iframes to install; the tell floor mirrors it, so both resolve a name to one url.
+ok(engineBottleUrl("git-enough") === "https://git-enough.bottles.anecdote.channel/", "the canonical git engine → its own bottle: " + engineBottleUrl("git-enough"));
+ok(engineBottleUrl("opfs") === "https://opfs.bottles.anecdote.channel/", "any adapter name resolves by identity — no alias/registry");
+ok(engineBottleUrl("git-enough") === bottleUrl({ label: "git-enough", storage: "bottles" }), "engineBottleUrl is bottleUrl over the bottles subdomain");
+for (const bad of [".git", "UP", "", null, undefined, "x".repeat(64)]) ok(engineBottleUrl(bad) === null, "a non-slug engine name → null (no unexpected url): " + JSON.stringify(bad));
 
 console.log(fails ? `\nFAILED (${fails})` : "\nok: bottle-uri — provisioned storage + invented label + /storage/.<adapter> routing");
 process.exit(fails ? 1 : 0);
