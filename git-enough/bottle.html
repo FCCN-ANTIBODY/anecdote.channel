@@ -20,11 +20,15 @@
   <script type="module">
     import { repo } from "./repo.mjs";
     import { serveOnHello } from "./bottle.mjs";
-    // The bottle's repo (its storage). In-memory for the shell; a provisioned bottle rehydrates its own.
-    const r = repo();
+    // A provisioned bottle supplies its platform-signed attestation and the pinned platform key here — baked
+    // in at inception, loaded from the bottle's own data by the pinned runtime. Absent them, the boot gate
+    // offers nothing: an unprovisioned bottle does not serve. (Never trust these from the URL — the pin must
+    // come from the runtime, not the caller.)
+    const cfg = globalThis.__BOTTLE__ || {};
+    const r = repo(); // the bottle's repo (its storage). In-memory for the shell; a provisioned bottle rehydrates its own.
     const author = { name: "bottle", email: "bottle@origin", epoch: 1700000000, tz: "+0000" };
-    // Announce readiness and serve git over the port the iframing tool transfers in.
-    serveOnHello({ repo: r, author });
+    // Prove ourselves (the boot gate), then announce readiness and serve git over the transferred port.
+    serveOnHello({ repo: r, author, attestation: cfg.attestation, platformKey: cfg.platformKey });
   </script>
   <noscript>The git bottle is a probe, not a page — it needs JavaScript.</noscript>
 </body>
