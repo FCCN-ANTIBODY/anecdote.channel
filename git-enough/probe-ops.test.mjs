@@ -152,6 +152,22 @@ try {
     const files = l.frames.find((f) => f.type === FRAME && f.id === "F" && f.files);
     ok(files && files.files.some((x) => x.path === "pile.yml") && files.files.some((x) => x.path === "README.md"), "the rehydrated pile answers git.files with its file-set");
   }
+  // 8. export: serialize the CURRENT repo (Rung 0) so the floor can re-persist after a mutation — the
+  //    load ∘ mutate ∘ export ∘ persist round-trip for any change, not just init.
+  {
+    const origin = repo();
+    const { s, frames } = session(origin, {}, immediate);
+    await s.handle(request({ id: "C", op: "git.commit", confirmed: true, input: { files: [{ path: "a", content: "1\n" }], message: "one\n", root: true } }));
+    frames.length = 0;
+    await s.handle(request({ id: "X", op: "git.export", input: {} }));  // Rung 0 — no confirm
+    const exp = frames.find((f) => f.type === FRAME && f.id === "X" && f.bytes);
+    ok(exp && exp.refs["refs/heads/main"] === origin.readRef("refs/heads/main"), "git.export returns current bytes + refs (no confirm)");
+
+    const fresh = repo();
+    const l = session(fresh, {}, immediate);
+    await l.s.handle(request({ id: "L", op: "git.load", confirmed: true, input: { bytes: exp.bytes, refs: exp.refs, head: exp.head } }));
+    ok(fresh.readRef("refs/heads/main") === origin.readRef("refs/heads/main"), "a fresh adapter loads the exported bytes to the same tip");
+  }
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 }

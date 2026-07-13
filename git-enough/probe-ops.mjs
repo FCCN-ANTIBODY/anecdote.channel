@@ -12,6 +12,7 @@
 //                          -graduation gesture: "ask the git bottle to fast-forward."
 //   git.init             — Rung 1, make a newborn repo from a file-set and RETURN its bytes; the data pile
 //                          persists them (the adapter computes, the floor retains).
+//   git.export           — Rung 0, serialize the CURRENT repo to bytes (read-only) — re-persist after a change.
 //   git.load             — Rung 1, rehydrate a repo from the persisted bytes (the pile feeds them back).
 // The staging beat is the Rung-2 STANDING behavior "git-enough:staging-beat": a grant over git.commit
 // that the scheduler runs on your behalf (its cadence is Origin's open "privileged budget" question).
@@ -129,6 +130,14 @@ export function gitOps(deps = {}) {
       const tip = await repo.commitFiles(input.files || [], { author, message: input.message || "init\n", ref, root: true });
       const pack = await packRepo(repo);
       api.emit({ init: true, tip, ref, head: repo.head(), refs: Object.fromEntries(repo.refs), bytes: b64bin(pack), objects: repo.objects.size });
+    },
+
+    // Rung 0 — EXPORT the current repo to bytes (pack + refs + head), read-only. The floor calls this after a
+    // mutation to re-persist; paired with git.load (rehydrate) it is the pile's retain-between-loads round-trip
+    // for ANY change, not just init. It is also the portable form for a whole-repo transfer (e.g. a QR video).
+    "git.export": async (input, api) => {
+      const pack = await packRepo(repo);
+      api.emit({ bytes: b64bin(pack), refs: Object.fromEntries(repo.refs), head: repo.head(), objects: repo.objects.size });
     },
 
     // Rung 1 — LOAD a repository from the bytes the data pile persisted (git.init's output): unpack the
