@@ -116,15 +116,35 @@ complementary gates: enrollment is the standing "you belong here," the beacon is
 - `composer/place-seal.test.mjs` — the wiring proof: fresh beacon opens, stale/absent/decoy does not, grace
   straddles a boundary, snapshot is portable-to-holder-alone.
 
+## The judge — canonical shape and the offline seam
+
+The judge is **`FCCN-ANTIBODY/judgement`**, a composite GitHub Action (`uses: FCCN-ANTIBODY/judgement@main`),
+not a hosted worker. It renders one of three verdicts — **`accept` / `reject` / `needs-judgment`** — over a
+request `{constitution_a, constitution_b, subject, guidance}`: is the subject, as clarified by its guidance,
+permitted by BOTH constitutions? The compare is a **pluggable LLM agent** (Opus 4.8); `needs-judgment` is the
+honest default that **routes to a human** whenever no agent is available (no key, rate-limited, off, unsure).
+Online it runs three ways — `ondemand`, a `board` that drains a fixed bucket of `judge:pending` issues, and a
+**PR consent-gate** (the PR is the consent event, the merge is the append).
+
+`composer/judgment.mjs` is the **offline emulation of that same seam.** Offline there is no agent and no key,
+so it *is* the no-agent branch: a cheap lattice fast-path settles the pairs that need no intelligence, and
+everything novel becomes `needs-judgment` — where the human it routes to is the user's own **gesture**
+(`resolveByGesture`, the compressed PR-open+PR-close, its signature carrying proof-of-presence). Same case
+record either way; only the closer changes. The presence/enroll **predicates** are an offline *extension* —
+the material for the signed authorization envelope the judge's OPEN-QUESTIONS #1 wants (below).
+
 ## Next, in order
 
 1. ✅ **Presence-gated enrollment** — `composer/enroll.mjs` ties an atlas's recipient set to witnessed
    presence, per "membership cost" above.
-2. **The judge** — the predicate evaluator over presence + lease histories; the table above is its spec.
-   `enroll.meetsPolicy` is its enrollment-time face; the standing-history evaluator is still to build.
-3. **Probe-line capabilities** — expose `place.seal` / `place.open` and `enroll.*` on the consent ladder
-   (Rung 1; the secret stays Elevated, the chamber hands only the payload + caught beacon / presence proof),
-   mirroring `qr-mint`'s `poll.mint`.
-4. **WebAuthn-PRF at-rest binding** — already flagged in `gesture.mjs` as the "stronger follow-on": derive the
+2. ✅ **Offline judge runner** — `composer/judgment.mjs` emulates the `judgement` Action; verdicts aligned to
+   the canonical `accept`/`reject`/`needs-judgment`, the gesture as the human failover.
+3. **The authorization envelope** (`judgement` OPEN-QUESTIONS #1) — bind presence/enroll attestations into a
+   signed request envelope that proves a judgement request is legitimate. This is where the whole arc —
+   are-you-here, do-you-belong — plugs into the judge.
+4. **Probe-line capabilities** — expose `place.seal` / `place.open`, `enroll.*`, `judgment.*` on the consent
+   ladder (Rung 1; the secret stays Elevated, the chamber hands only the payload + caught beacon / presence
+   proof), mirroring `qr-mint`'s `poll.mint`.
+5. **WebAuthn-PRF at-rest binding** — already flagged in `gesture.mjs` as the "stronger follow-on": derive the
    snapshot wrap key from the passkey so on-device keys are cryptographically unusable without the live
    gesture — the best in-browser answer to impossibility #3.
