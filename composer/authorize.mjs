@@ -29,6 +29,7 @@ export const OP_CATALOG = {
   "git.push":                { rung: 1, persists: true  },  // network egress — consequential
   "git.clone":               { rung: 1, persists: true  },  // the Castle: imports history
   "git.fast-forward":        { rung: 1, persists: true  },  // advance a ref to a known descendant (submodule sync)
+  "git.export":              { rung: 0, persists: false },  // serialize current repo bytes (read-only)
   "git.init":                { rung: 1, persists: true  },  // make a newborn repo, hand back its bytes
   "git.load":                { rung: 1, persists: true  },  // rehydrate a repo from persisted bytes
   "viewer.repos":            { rung: 0, persists: false },  // the system viewer — enumerate + read only
