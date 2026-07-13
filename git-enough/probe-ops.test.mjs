@@ -102,6 +102,34 @@ try {
     ok(rep && rep.imported >= 3, "git.clone reports objects imported");
     ok(origin.readRef("refs/heads/main") === srcTip, "our origin's ref now points at the cloned source tip");
   }
+  // 6. Rung 1 — git.fast-forward advances a ref to a known descendant only (never a force/merge).
+  {
+    const origin = repo();
+    const A = await origin.commitFiles([{ path: "f", content: "a\n" }], { author, message: "A\n" });      // main = A
+    const B = await origin.commitFiles([{ path: "f", content: "b\n" }], { author, message: "B\n" });      // main = B, child of A
+    origin.updateRef("refs/heads/feature", A);                                                            // feature lags at A
+    const { s, frames } = session(origin, {}, immediate);
+
+    await s.handle(request({ id: "FF0", op: "git.fast-forward", input: { ref: "refs/heads/feature", to: B } }));
+    ok(frames.find((f) => f.type === ERROR && f.id === "FF0" && f.needsConfirm), "unconfirmed git.fast-forward → needsConfirm");
+    ok(origin.readRef("refs/heads/feature") === A, "…the ref is unmoved");
+
+    await s.handle(request({ id: "FF1", op: "git.fast-forward", confirmed: true, input: { ref: "refs/heads/feature", to: B } }));
+    ok(frames.find((f) => f.type === FRAME && f.id === "FF1" && f.advanced) && origin.readRef("refs/heads/feature") === B, "confirmed ff advances feature A→B");
+
+    frames.length = 0;
+    await s.handle(request({ id: "FF2", op: "git.fast-forward", confirmed: true, input: { ref: "refs/heads/main", to: A } }));
+    ok(frames.find((f) => f.type === ERROR && f.id === "FF2" && /not a fast-forward/.test(f.reason)), "a non-fast-forward (B→A) is refused");
+    ok(origin.readRef("refs/heads/main") === B, "…main is unmoved by the refused ff");
+
+    frames.length = 0;
+    await s.handle(request({ id: "FF3", op: "git.fast-forward", confirmed: true, input: { ref: "refs/heads/feature", to: B } }));
+    ok(frames.find((f) => f.type === FRAME && f.id === "FF3" && f.advanced === false), "already-current ff is a no-op (advanced:false)");
+
+    frames.length = 0;
+    await s.handle(request({ id: "FF4", op: "git.fast-forward", confirmed: true, input: { ref: "refs/heads/feature", to: "0".repeat(40) } }));
+    ok(frames.find((f) => f.type === ERROR && f.id === "FF4" && /not present/.test(f.reason)), "ff to an absent target is refused");
+  }
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 }
