@@ -6,7 +6,7 @@
 // file and its knobs; this reads them, folds in the newly-arrived resolutions, and reports what moved.
 //
 //   echo '{ "queue": [...], "resolutions": [...], "now": "<ISO>", "knobs": {...} }' | node composer/gate-tick.mjs
-//   -> { "queue": [<still pending>], "admitted": [...], "expired": [...], "escalated": [...] }
+//   -> { "queue": [<still pending>], "admitted": [...], "expired": [...] }
 //
 // It only VERIFIES and folds — no signing, no network, deterministic given `now`. The resolutions carry
 // their own presence proofs, so the tick can check bound + in-boundary + recent without holding any secret.
@@ -15,12 +15,12 @@ import { ingest, tick } from "./gate-queue.mjs";
 
 // Fold newly-arrived resolutions into the queue and run one tick. `queue` is the persisted pending set;
 // `resolutions` are the newly-filed ones; `knobs` are the Atlas's dial (quorum / recencyWindowMs /
-// decayWindowMs / atlasConstituency / friends). Returns { queue: <still pending>, admitted, expired, escalated }.
+// decayWindowMs / atlasConstituency / friends). Returns { queue: <still pending>, admitted, expired }.
 export async function runTick({ queue = [], resolutions = [], now, knobs = {} } = {}) {
   if (now == null) throw new Error("gate-tick: `now` (an ISO timestamp) is required");
   const ingested = ingest(queue, resolutions);
   const r = await tick(ingested, { now, ...knobs });
-  return { queue: r.pending, admitted: r.admitted, expired: r.expired, escalated: r.escalated };
+  return { queue: r.pending, admitted: r.admitted, expired: r.expired };
 }
 
 // ---- CLI: one JSON object on stdin -> the tick result JSON on stdout ------------------------------------

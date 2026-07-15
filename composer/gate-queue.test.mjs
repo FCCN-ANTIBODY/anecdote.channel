@@ -1,11 +1,11 @@
 // Unit: gate-queue (gate-queue.mjs) — the Atlas-operator half of the gate. Proves: enqueue is idempotent;
-// ingest attaches resolutions one-per-resolver; tick sorts entries into admitted / pending / expired
-// (decay) / escalated (disagreement); and toJudgmentRequest shapes an escalation for the Judge. Real
+// ingest attaches resolutions one-per-resolver; tick sorts entries into admitted / pending / expired (decay);
+// and — by design — there is NO judge: a minority against-vote never blocks an honest for-quorum. Real
 // presence proofs + a stub reducer. Run: node composer/gate-queue.test.mjs
 import { generateIdentity } from "./sign.mjs";
 import { makeClaim, witnessClaim } from "./presence.mjs";
 import { buildItem, resolveItem } from "./gate.mjs";
-import { enqueue, ingest, tick, toJudgmentRequest, DEFAULT_KNOBS } from "./gate-queue.mjs";
+import { enqueue, ingest, tick, DEFAULT_KNOBS } from "./gate-queue.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -77,32 +77,28 @@ const story = buildItem({ target: ATLAS, text: "a story about my garden", at: no
   ok(t.expired.length === 1 && t.pending.length === 0 && t.admitted.length === 0, "an item past the decay window with no quorum expires, not admitted");
 }
 
-// 5. tick — escalate: valid resolvers disagree (the deterministic reducer can't have; drift/lie) -> the Judge.
+// 5. NO JUDGE: a minority against-vote (drift or a lie) does not block an honest for-quorum, and there is
+// no `escalated` bucket. The dissent stays visible in the admitted tally for an operator's spot-audit.
 {
-  const q = ingest(await enqueue([], story, { at: now }), [await vote(story, { admitTrue: true }), await vote(story, { admitTrue: false })]);
+  const q = ingest(await enqueue([], story, { at: now }), [
+    await vote(story, { admitTrue: true }), await vote(story, { admitTrue: true }), await vote(story, { admitTrue: false }),
+  ]);
   const t = await tick(q, { now, ...KNOBS });
-  ok(t.escalated.length === 1 && t.escalated[0].forCount === 1 && t.escalated[0].againstCount === 1, "for + against among valid resolvers escalates to the Judge");
-  ok(t.admitted.length === 0 && t.pending.length === 0 && t.expired.length === 0, "an escalated entry lands only in escalated");
+  ok(t.escalated === undefined, "tick has no escalated outcome — the Atlas summons no judge");
+  ok(t.admitted.length === 1 && t.admitted[0].forCount === 2 && t.admitted[0].againstCount === 1, "a for-quorum admits despite a minority against; the dissent is recorded, not escalated");
 }
 
-// 6. tick — an operator escalate predicate can flag extra cases.
+// 6. an against-vote alone never admits, and never blocks — it just leaves the item short of quorum (pending).
 {
-  const q = ingest(await enqueue([], story, { at: now }), [await vote(story)]);
-  const t = await tick(q, { now, ...KNOBS, escalate: (e, tally) => tally.forCount === 1 });
-  ok(t.escalated.length === 1 && t.pending.length === 0, "a custom escalate predicate routes a sub-quorum entry to the Judge");
+  const q = ingest(await enqueue([], story, { at: now }), [await vote(story, { admitTrue: false })]);
+  const t = await tick(q, { now, ...KNOBS });
+  ok(t.admitted.length === 0 && t.pending.length === 1, "a lone against-vote leaves the item pending, never admitted, never escalated");
 }
 
-// 7. toJudgmentRequest shapes an escalation as the A=B single-constitution case.
-{
-  const req = toJudgmentRequest(story, { id: ATLAS, constitution: "sha256:atlas-charter" });
-  ok(req.constitution_a === "sha256:atlas-charter" && req.constitution_a === req.constitution_b, "escalation is A=B: both constitutions are the Atlas's own");
-  ok(req.subject === "a story about my garden", "the item's text is the subject the Judge rules on");
-}
-
-// 8. DEFAULT_KNOBS are sane and present.
+// 7. DEFAULT_KNOBS are sane and present.
 ok(DEFAULT_KNOBS.quorum === 2 && DEFAULT_KNOBS.recencyWindowMs > 0 && DEFAULT_KNOBS.decayWindowMs > 0, "DEFAULT_KNOBS carries quorum + recency + decay");
 
-// 9. full cycle: enqueue -> ingest a quorum -> tick -> admitted.
+// 8. full cycle: enqueue -> ingest a quorum -> tick -> admitted.
 {
   let q = await enqueue([], story, { at: now });
   q = ingest(q, [await vote(story), await vote(story)]);

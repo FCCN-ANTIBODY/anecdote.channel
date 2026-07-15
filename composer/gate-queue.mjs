@@ -1,18 +1,23 @@
 // composer/gate-queue.mjs — the ATLAS-OPERATOR half of the gate: the pending queue, DECAY (the traffic-jam
-// bound), the tunable knobs, and escalation to the summoned Judge. gate.mjs is the constituent's side (the
-// reducer verdict + the signed, proof-carrying resolution + the quorum fold); this is the side the Atlas
-// holds and ticks.
+// bound), and the tunable knobs. gate.mjs is the constituent's side (the reducer verdict + the signed,
+// proof-carrying resolution + the quorum fold); this is the side the Atlas holds and ticks.
+//
+// NO JUDGE HERE, by design. The Atlas CONSTITUTION is "I judge none of them — that reading belongs to an
+// intelligent being DOWNSTREAM, under a pile's own constitution, not to me." The gate is the deterministic,
+// pinned LABEL-REDUCER (perception), not the summoned LLM (that is Antidote's tempo, the permanent record).
+// So there is no escalation to a judge: because the reducer is deterministic, a minority against-vote (drift
+// or a lie) never blocks an honest for-quorum, and a false for-vote cannot reach quorum without Sybil-costly
+// collusion. Genuine disputes are settled by re-running the PINNED reducer or by eviction (a public floor,
+// "expecting shrapnel") — never by an LLM.
 //
 // The queue is a bag of entries — { id, item, resolutions[], firstSeen } — one per item seeking entry.
 // `enqueue` admits an item to the QUEUE (not to the Atlas — just "now waiting"); `ingest` attaches incoming
 // resolutions to their item, one per resolver (a resolver's newer resolution replaces their older). `tick`
 // is the periodic process the Atlas runs, sorting every entry into exactly one of:
-//   - admitted   — a quorum of distinct, valid, in-boundary, recent constituents agreed it may enter.
+//   - admitted   — a quorum of distinct, valid, in-boundary, recent constituents agreed it may enter. The
+//                  tally carries forCount/againstCount so an operator can spot-audit an admit that drew dissent.
 //   - expired    — it sat past the DECAY window without reaching quorum. This is the jam bound: a flood with
 //                  no constituents to resolve it drains here, never admitted (an un-renewed lease, in effect).
-//   - escalated  — valid resolvers DISAGREED (the reducer is deterministic, so disagreement means drift or a
-//                  lie). Perception could not settle it, so it goes to the summoned Judge — the reducer-first,
-//                  judge-when-it-cannot two-tier. `toJudgmentRequest` shapes the escalation for judgment.mjs.
 //   - pending    — still gathering votes, still inside the decay window.
 //
 // The knobs are the Atlas operator's dial: `quorum` (how many bodies admit), `recencyWindowMs` (how fresh a
@@ -56,40 +61,21 @@ export function ingest(queue = [], resolutions = []) {
 
 // ---- the tick — the Atlas's periodic gate pass ---------------------------------------------------------
 
-// Sort every entry into admitted / expired / escalated / pending, using gate.admit for the quorum fold.
-// `escalate` is an optional operator predicate (entry, tally) => boolean for extra escalation policy;
-// disagreement always escalates. Returns { pending, admitted, expired, escalated }.
-export async function tick(queue = [], { now, escalate, ...knobs } = {}) {
+// Sort every entry into admitted / expired / pending, using gate.admit for the quorum fold. There is no
+// escalation and no judge: an honest for-quorum admits (a minority against never blocks it), everything else
+// waits or decays. A dispute (an against-vote against a for-quorum) is left visible in the admitted tally for
+// an operator's deterministic spot-audit or eviction — never routed to an LLM. Returns { pending, admitted,
+// expired }.
+export async function tick(queue = [], { now, ...knobs } = {}) {
   const k = { ...DEFAULT_KNOBS, ...knobs };
   if (now == null) throw new Error("gate-queue: tick needs `now`");
-  const pending = [], admitted = [], expired = [], escalated = [];
+  const pending = [], admitted = [], expired = [];
   for (const e of queue) {
     const tally = await admit(e.item, e.resolutions, { now, ...k });
     if (tally.admitted) { admitted.push({ item: e.item, id: e.id, ...tally }); continue; }
-    const disagree = tally.forCount > 0 && tally.againstCount > 0;
-    if (disagree || (escalate && escalate(e, tally))) {
-      escalated.push({ item: e.item, id: e.id, reason: disagree ? "resolver disagreement (drift or a lie) — the Judge settles it" : "flagged for escalation", forCount: tally.forCount, againstCount: tally.againstCount });
-      continue;
-    }
     const age = Date.parse(now) - Date.parse(e.firstSeen);
     if (k.decayWindowMs != null && Number.isFinite(age) && age > k.decayWindowMs) { expired.push({ item: e.item, id: e.id, ageMs: age }); continue; }
     pending.push(e);
   }
-  return { pending, admitted, expired, escalated };
-}
-
-// ---- the bridge to the summoned Judge ------------------------------------------------------------------
-
-// Shape an escalated item as a judgment request (judgment.mjs / the judgement Action). "Will this Atlas
-// carry this?" is a single-constitution question, so it is the A=B case: both constitutions are the Atlas's
-// own; the subject is the item's text; guidance is the item's own narrowing if it carries one.
-export function toJudgmentRequest(item, atlas = {}) {
-  if (!atlas.constitution) throw new Error("gate-queue: the Atlas must name its constitution to escalate");
-  return {
-    constitution_a: atlas.constitution,
-    constitution_b: atlas.constitution,
-    subject: item.text || "",
-    guidance: item.guidance || "",
-    context: { caller: atlas.id || "atlas", intake: "gate-escalation", item_id: item.text ? undefined : null },
-  };
+  return { pending, admitted, expired };
 }
