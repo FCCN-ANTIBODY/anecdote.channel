@@ -68,5 +68,15 @@ const resolutions = [await vote(item), await vote(item)];
   ok(noNow.status === 2, "missing `now` exits 2");
 }
 
+// 6. `items` enqueue in the same pass: a brand-new item (empty queue) is enqueued and, with a quorum of
+// resolutions, admitted in one tick.
+{
+  const fresh = buildItem({ target: ATLAS, text: "a fresh arrival", at: now });
+  const votes = [];
+  for (const _ of [0, 1]) { const id = await generateIdentity(); votes.push(await resolveItem(fresh, dest, id, { proof: await proof(id), reduce, at: now })); }
+  const out = await runTick({ queue: [], items: [fresh], resolutions: votes, now, knobs });
+  ok(out.admitted.length === 1 && out.admitted[0].item.text === "a fresh arrival", "a newly-filed item is enqueued and admitted in one pass");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall gate-tick tests passed");

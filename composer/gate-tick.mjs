@@ -5,20 +5,26 @@
 // workflow in atlas.anecdote.channel can run a tick without embedding any logic. The Atlas holds the queue
 // file and its knobs; this reads them, folds in the newly-arrived resolutions, and reports what moved.
 //
-//   echo '{ "queue": [...], "resolutions": [...], "now": "<ISO>", "knobs": {...} }' | node composer/gate-tick.mjs
+//   echo '{ "queue": [...], "items": [...], "resolutions": [...], "now": "<ISO>", "knobs": {...} }' | node composer/gate-tick.mjs
 //   -> { "queue": [<still pending>], "admitted": [...], "expired": [...] }
+//
+// `items` are newly-filed items to enqueue this pass (each starts its decay clock at its own `at`);
+// `resolutions` are the newly-filed proof-of-work votes to fold in; `queue` is the persisted pending set.
 //
 // It only VERIFIES and folds — no signing, no network, deterministic given `now`. The resolutions carry
 // their own presence proofs, so the tick can check bound + in-boundary + recent without holding any secret.
 
-import { ingest, tick } from "./gate-queue.mjs";
+import { enqueue, ingest, tick } from "./gate-queue.mjs";
 
-// Fold newly-arrived resolutions into the queue and run one tick. `queue` is the persisted pending set;
-// `resolutions` are the newly-filed ones; `knobs` are the Atlas's dial (quorum / recencyWindowMs /
+// Enqueue newly-filed items, fold newly-arrived resolutions, and run one tick. `queue` is the persisted
+// pending set; `items` are new arrivals to enqueue (each starts its decay clock at its own `at`, or `now`);
+// `resolutions` are the newly-filed votes; `knobs` are the Atlas's dial (quorum / recencyWindowMs /
 // decayWindowMs / atlasConstituency / friends). Returns { queue: <still pending>, admitted, expired }.
-export async function runTick({ queue = [], resolutions = [], now, knobs = {} } = {}) {
+export async function runTick({ queue = [], items = [], resolutions = [], now, knobs = {} } = {}) {
   if (now == null) throw new Error("gate-tick: `now` (an ISO timestamp) is required");
-  const ingested = ingest(queue, resolutions);
+  let q = queue;
+  for (const it of items) q = await enqueue(q, it, { at: it?.at || now });
+  const ingested = ingest(q, resolutions);
   const r = await tick(ingested, { now, ...knobs });
   return { queue: r.pending, admitted: r.admitted, expired: r.expired };
 }
