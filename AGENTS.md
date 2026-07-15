@@ -9,6 +9,14 @@ onto this client, so what this repo can do is, increasingly, what the whole proj
 This file is deliberately `AGENTS.md`, not a Claude-specific file — any agent working here needs
 the same map.
 
+## Decisions — read before designing anything cross-cutting
+
+`docs/decisions.md` is the constellation's decision record: the load-bearing architectural choices
+and the **why**, so you don't re-derive settled ground. Read it before designing across repos (pins,
+bottles, the glove, identity/secrets, mirror discipline). When you make or change a cross-cutting
+decision, **record it there** in the same shape — one entry with its reasoning, superseding rather
+than silently contradicting. This is how a decision gets made once instead of every session.
+
 ## The demo shelf — read this before designing anything
 
 The demos are the representative, technical reflection of the project's real capabilities. They are
