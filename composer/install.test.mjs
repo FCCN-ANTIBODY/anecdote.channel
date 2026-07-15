@@ -3,6 +3,7 @@
 // tampered blob, a wrong signer, or a missing entry all fail. Run: node composer/install.test.mjs
 import { mintInstall, verifyInstall, INSTALL, BLOB } from "./install.mjs";
 import { generateIdentity } from "./sign.mjs";
+import { PLATFORM_KEY } from "./platform-key.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -57,6 +58,14 @@ async function run() {
 
   // 7. not-a-manifest → rejected before any crypto.
   ok((await verifyInstall({ schema: "nope" }, { platformKey: platform.fingerprint })).ok === false, "a non-manifest is rejected");
+
+  // 8. platformKey defaults to the canonical PLATFORM_KEY (composer/platform-key.mjs) — the single source of
+  // truth. It is null until set at inception, so the default is no-pin (self-consistency), and an explicit
+  // fingerprint still overrides. When the constellation sets PLATFORM_KEY, verifyInstall(manifest) enforces it
+  // with no per-call argument.
+  ok(PLATFORM_KEY === null, "the canonical platform key is null until set at inception (safe default)");
+  ok((await verifyInstall(man)).ok, "verifyInstall defaults platformKey to the canonical constant (null → self-consistency)");
+  ok(!(await verifyInstall(man, { platformKey: impostor.fingerprint })).ok, "an explicit fingerprint still overrides the default");
 
   console.log(fails ? `\nFAILED (${fails})` : "\nok: install — signed client blobs, verified against the pin before they could ever run");
   process.exit(fails ? 1 : 0);
