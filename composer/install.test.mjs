@@ -3,6 +3,7 @@
 // tampered blob, a wrong signer, or a missing entry all fail. Run: node composer/install.test.mjs
 import { mintInstall, verifyInstall, INSTALL, BLOB } from "./install.mjs";
 import { generateIdentity } from "./sign.mjs";
+import { PLATFORM_KEY } from "./platform-key.mjs";
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else console.log("  ok: " + m); };
@@ -57,6 +58,14 @@ async function run() {
 
   // 7. not-a-manifest → rejected before any crypto.
   ok((await verifyInstall({ schema: "nope" }, { platformKey: platform.fingerprint })).ok === false, "a non-manifest is rejected");
+
+  // 8. platformKey defaults to the canonical PLATFORM_KEY (composer/platform-key.mjs) — the single source of
+  // truth, an environment-sourced slot (ANECDOTE_PLATFORM_KEY, or null when the environment hasn't provided
+  // it). Null → self-consistency (no signer enforced); a set value → enforced by default; an explicit
+  // fingerprint always overrides.
+  ok(PLATFORM_KEY === (process.env.ANECDOTE_PLATFORM_KEY || null), "the platform key is the environment-sourced slot (ANECDOTE_PLATFORM_KEY, or null)");
+  if (PLATFORM_KEY === null) ok((await verifyInstall(man)).ok, "with no env pin, verifyInstall defaults to self-consistency only");
+  ok(!(await verifyInstall(man, { platformKey: impostor.fingerprint })).ok, "an explicit fingerprint always overrides the default");
 
   console.log(fails ? `\nFAILED (${fails})` : "\nok: install — signed client blobs, verified against the pin before they could ever run");
   process.exit(fails ? 1 : 0);

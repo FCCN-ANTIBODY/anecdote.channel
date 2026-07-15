@@ -7,6 +7,7 @@
 // composer/sign.mjs. The browser mount + Blob-URL import() is the follow-on layer.
 import { attest, verifyAttestation } from "./sign.mjs";
 import { defaultHash } from "./anecdote.mjs";
+import { PLATFORM_KEY } from "./platform-key.mjs";
 
 export const INSTALL = "anecdote.install/v1";
 export const BLOB = "anecdote.blob/v1";
@@ -33,9 +34,11 @@ export async function mintInstall(files, entry, identity, opts = {}) {
 
 // Verify an install manifest against the pinned platform key. Every blob's attestation must be valid, signed
 // by the pin, name-match, and hash-match its actual bytes; the entry must be present. Returns { ok, reason }
-// or { ok:true, entry, files: { name: Uint8Array } } — the verified bytes, ready to mount. Omit platformKey to
-// check self-consistency only (no pin); pass it to require the known-good platform signer.
-export async function verifyInstall(manifest, { platformKey = null, opts = {} } = {}) {
+// or { ok:true, entry, files: { name: Uint8Array } } — the verified bytes, ready to mount. platformKey defaults
+// to the canonical PLATFORM_KEY (composer/platform-key.mjs — the one Anecdote identity); pass an explicit
+// fingerprint to override, or null to check self-consistency only (no pin). When PLATFORM_KEY is unset (null),
+// the default is likewise no-pin until the constellation's key is set at inception.
+export async function verifyInstall(manifest, { platformKey = PLATFORM_KEY, opts = {} } = {}) {
   if (!manifest || manifest.schema !== INSTALL || !Array.isArray(manifest.blobs)) return { ok: false, reason: "not an install manifest" };
   const files = {};
   for (const blob of manifest.blobs) {
