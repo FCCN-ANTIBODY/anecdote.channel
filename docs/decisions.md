@@ -19,7 +19,8 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D3 — The platform pin.** One canonical Anecdote identity verifies every bottle; env-sourced (D1).
 - **D4 — Bottles topology.** `*.tell` = pile floors; `bottles.<apex>` = free-form; wildcard on the sub-sub-domain.
 - **D5 — Mirror discipline.** Cross-repo shared code is byte-identical from one source of truth.
-- **O1 (open) — Committed public halves.** `tell.fpr` / `boundary.fpr` under the D1 lens.
+- **D6 — Boundary signer public half → environment-sourced.** `keys/boundary.fpr` removed; nothing pins it.
+- **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
 
@@ -47,8 +48,8 @@ from `process.env`; a static site (the Floor) has it stamped in at build from th
 Even a harmless *public* fingerprint is kept out, so the model's shape (identity-lives-in-env) stays
 uniform rather than "secrets by env, public halves by commit."
 
-**Consequence.** See D3 for the platform pin as the first slot converted. See O1 for the existing
-committed public halves this principle now questions.
+**Consequence.** See D3 for the platform pin as the first slot converted, and D6 for the boundary
+signer's public half. See O1 for the delivery signer's committed public half still under question.
 
 ---
 
@@ -127,12 +128,40 @@ and it is documented as such.
 
 ---
 
-## O1 · (open) Committed public halves under the D1 lens
-*Status: open — flagged 2026-07-15, not yet decided*
+## D6 · Boundary signer public half → environment-sourced
+*Status: accepted 2026-07-15 (resolves the boundary half of the former O1)*
 
-D1 says operator identity material lives in the environment. But `keys/tell.fpr` and
-`keys/boundary.fpr` are committed public halves (bootstrap-generated per node). They are load-bearing
-and their private halves are already env/Secret-held — so this is not urgent — but by D1's logic their
-long-term home is the environment too. Open question: convert them to env-sourced slots, or accept
-committed *public* halves as a deliberate exception (they are per-node, so a fork re-keys them anyway,
-which softens the fork argument). Decide before adding any *new* committed key material.
+**Context.** `keys/boundary.fpr` was a committed public fingerprint (`tell.anecdote.channel`) — the
+boundary signer's public half, the same committed-public-half shape D1 questions. The motivation to
+fix it: the same Tell code runs on many offline clients, and each must sign boundaries with *its own*
+env key; a committed fingerprint bakes one operator's identity into shared code.
+
+**Decision.** The boundary fingerprint is environment-sourced (D1), never committed. `keys/boundary.fpr`
+is removed and gitignored; `bin/boundaries compile`/`bootstrap` no longer write or commit it.
+
+**Why it was safe (the deciding investigation).** Nothing *external* pins `boundary.fpr` — an Atlas
+ingests boundary artifacts verbatim and trusts each artifact's own signature, enforcing same-key
+continuity itself (`atlas bin/dump.mjs`). So the fingerprint was only the operator's own
+self-consistency check. `bin/boundaries check` now catches a signer swap by **internal consistency**
+(every compiled artifact shares one signer — needs no key, so it still runs in a fork's CI) and, when
+the environment names the identity (`TELL_BOUNDARY_FPR`, or derivable from `TELL_BOUNDARY_KEY`),
+additionally confirms it is the operator's key. Strictly ≥ the old committed-file check for the
+realistic (partial-swap) threat, with nothing committed.
+
+**Contrast for O1.** This worked *because* boundary.fpr had no external pinner. The delivery signer is
+different — see O1.
+
+---
+
+## O1 · (open) The delivery signer's committed public half
+*Status: open — narrowed 2026-07-15 (the boundary half is resolved by D6)*
+
+D1 says operator identity material lives in the environment; D6 moved the boundary signer's public half
+there. The **delivery signer** (`keys/tell.fpr` / `tell.pub` / `tell.signers`) is the remaining committed
+public half — but it is *not* the same case: a **data-pile pins it** (copies `tell.signers`/`tell.fpr`
+into its own `pile.yml`), so the committed file is a genuine **publication channel** for external
+verifiers, not just the operator's self-consistency. Moving it to the environment means giving piles
+another way to *discover* the Tell's key (a deployed artifact / published endpoint) instead of reading
+it from the repo. Open question: build that publication channel and env-source the delivery signer, or
+accept its committed public half as a deliberate exception (it is per-node, so a fork re-keys it anyway).
+Decide before adding any *new* committed key material.
