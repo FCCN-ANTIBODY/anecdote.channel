@@ -18,17 +18,17 @@
 //   3. INCAPACITY   — the weights fail to LOAD (the mobile-memory edge): loadInstall throws, openEngine tears
 //                     the embed down. This is why capacity is only known after the load, not after the hello.
 //
-// Pure: the `openByName` seam (default openEngineByName) and the `embed` transport (default embedBottle) are
-// injected, so the whole thing is Node-testable against a stub, like the gate's stub-engine test. Run-time
-// incapacity (an OOM DURING an inference call, after a clean load) is the caller's concern — it treats a
-// rejected op the same way, degrading to the declaration.
+// Pure and TRANSPORT-AGNOSTIC: the `openByName` seam (default openEngineByName) and the `embed` transport are
+// BOTH injected — probe-engine imports no iframe/git code itself, so a caller that only wants to CHECK for a
+// capability (the reducer's on-stall path) doesn't drag the git-enough client just to probe. The browser
+// passes git-enough's embedBottle; a test passes a stub. Run-time incapacity (an OOM DURING an inference call,
+// after a clean load) is the caller's concern — it treats a rejected op the same way, degrading to declaration.
 //
 // Browser follow-up (tracked, not hidden): on a TIMEOUT the iframe was created inside embedBottle, which only
 // returns its teardown on READY — so a handshake that never completes can leak the frame. We capture the
 // embed handle here and tear it down if it arrives LATE (after we've given up); a bottle that never resolves
 // at all still can't be reclaimed until embedBottle exposes the frame before READY. Noted for the real wiring.
 
-import { embedBottle } from "../git-enough/bottle.mjs";
 import { openEngineByName } from "./open-engine.mjs";
 
 export const DEFAULT_TIMEOUT_MS = 8000;
@@ -52,8 +52,9 @@ function raceTimeout(promise, ms) {
 //   { present:true,  name, url, client, module, verified, teardown }  — usable; caller MUST teardown when done
 //   { present:false, name, reason }                                   — absent / inauthentic / no capacity
 // Throws only for a programmer error (a missing pin) — never for the model being unavailable.
-export async function probeEngine(name, { platformKey, timeoutMs = DEFAULT_TIMEOUT_MS, embed = embedBottle, openByName = openEngineByName, ...rest } = {}) {
+export async function probeEngine(name, { platformKey, embed, timeoutMs = DEFAULT_TIMEOUT_MS, openByName = openEngineByName, ...rest } = {}) {
   if (!platformKey) throw new Error("probe-engine: needs the consumer's pinned platformKey");
+  if (typeof embed !== "function") throw new Error("probe-engine: needs an embed(url) transport (git-enough embedBottle in the browser)");
 
   let captured = null;
   const capturingEmbed = async (url) => { const h = await embed(url); captured = h; return h; };
@@ -84,8 +85,8 @@ export async function probeEngine(name, { platformKey, timeoutMs = DEFAULT_TIMEO
 // the "grouped probe talking to each model directly." This is NOT a registry lookup (models are open-ended,
 // homebrewable, un-enumerable): you address by name and probe, in order. Returns the usable capability (with
 // its teardown) or { present:false } for the caller to degrade on. `probe` is injected for tests.
-export async function resolveCapability({ tag, names = [], platformKey, timeoutMs, probe } = {}) {
-  const tryOne = probe || ((name) => probeEngine(name, { platformKey, timeoutMs }));
+export async function resolveCapability({ tag, names = [], platformKey, embed, timeoutMs, probe } = {}) {
+  const tryOne = probe || ((name) => probeEngine(name, { platformKey, embed, timeoutMs }));
   const attempts = [];
   for (const name of names) {
     const r = await tryOne(name, tag);
