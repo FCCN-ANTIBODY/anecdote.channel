@@ -99,7 +99,7 @@ export function locate(map, question) {
   };
 }
 
-function collectTerms(node) {
+export function collectTerms(node) {
   const out = new Set();
   const go = (n) => { if (n.kind === "term") out.add(n.label); for (const c of n.children || []) go(c); };
   go(node); return out;
