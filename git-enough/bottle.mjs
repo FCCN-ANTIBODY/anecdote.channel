@@ -7,7 +7,7 @@
 // The bottle holds the repo (deps.repo) and any credential/network (deps.credential/fetch); a caller names
 // only the op it wants — the probe-line's "the powerful side holds the power" rule. A git bottle vends git,
 // and ONLY git: compose nothing else here.
-import { elevatedSession, serveProbeLine, connectProbeLine, READY, INIT } from "../composer/probe-line.mjs";
+import { elevatedSession, serveProbeLine, READY, INIT } from "../composer/probe-line.mjs";
 import { verifyBottleAttestation, bottleHost } from "../composer/bottle-attest.mjs";
 import { gitOps } from "./probe-ops.mjs";
 
@@ -64,27 +64,7 @@ export async function serveOnHello({ repo, credential, fetch, inflate, author, c
   return { ok: true, stop: () => { win.removeEventListener("message", onMessage); if (served) served.stop(); } };
 }
 
-// PARENT (client) side: iframe a bottle by URL, wait for its READY, hand it a private MessagePort, and return
-// a connected probe client. Cross-origin: a bottle serves whoever holds its port, so the consent that decides
-// what RUNS rides in each request (composer/bottle-grant operateTag + the user's grant). Returns
-// { client, iframe, teardown }.
-export function embedBottle(url, { document: doc = globalThis.document, targetWindow = globalThis, mount = null, sandbox = null } = {}) {
-  const iframe = doc.createElement("iframe");
-  if (sandbox) iframe.setAttribute("sandbox", sandbox);
-  iframe.src = url;
-  (mount || doc.body).appendChild(iframe);
-  const channel = new MessageChannel();
-  return new Promise((resolve) => {
-    const onReady = (event) => {
-      if (event.source !== iframe.contentWindow || !event.data || event.data.type !== READY) return;
-      targetWindow.removeEventListener("message", onReady);
-      iframe.contentWindow.postMessage({ type: INIT }, "*", [channel.port2]); // transfer the capability
-      resolve({
-        client: connectProbeLine(channel.port1),
-        iframe,
-        teardown: () => { try { channel.port1.close(); } catch {} iframe.remove(); },
-      });
-    };
-    targetWindow.addEventListener("message", onReady);
-  });
-}
+// PARENT (client) side: iframe a bottle by URL, wait for its READY, hand it a private MessagePort. This is the
+// GENERIC transport (any bottle, not just git), so it now lives in composer/bottle-embed.mjs; re-exported here
+// for the existing callers that reach for it alongside the git bottle.
+export { embedBottle } from "../composer/bottle-embed.mjs";

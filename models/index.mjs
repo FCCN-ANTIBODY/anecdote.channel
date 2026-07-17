@@ -13,7 +13,7 @@
 
 import { probeEngine, resolveCapability } from "../composer/probe-engine.mjs";
 import { engineBottleUrl } from "../composer/bottle-uri.mjs";
-import { embedBottle } from "../git-enough/bottle.mjs"; // the generic iframe transport (browser-only lives here)
+import { embedBottle } from "../composer/bottle-embed.mjs"; // the generic iframe transport (not the git bottle)
 
 // The preference list: capability tag -> canonical model names to TRY, in order. This is NOT a registry —
 // models are open-ended and homebrewable, so there is no list of "what exists"; you address by name and probe.
