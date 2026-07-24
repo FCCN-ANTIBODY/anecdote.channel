@@ -124,6 +124,7 @@ export async function serveOrigins(origins, { tls = false } = {}) {
   const served = [];
   const foreign = [];
   const noise = [];
+  const apiCalls = [];
   const handler = (req, res) => {
     const host = String(req.headers.host || "").split(":")[0];
     const origin = origins[host];
@@ -131,6 +132,35 @@ export async function serveOrigins(origins, { tls = false } = {}) {
       (BROWSER_NOISE.test(host) ? noise : foreign).push({ host, path: req.url });
       res.statusCode = 404;
       return res.end("harness: no such origin: " + host);
+    }
+    // Cross-origin POSTs preflight; answer for any origin so the real adapters' requests go through.
+    if (req.method === "OPTIONS") {
+      res.statusCode = 204;
+      res.setHeader("access-control-allow-origin", "*");
+      res.setHeader("access-control-allow-methods", "*");
+      res.setHeader("access-control-allow-headers", "*");
+      return res.end();
+    }
+    // An origin may declare an `api` handler — a stand-in for a JSON API (a fake api.github.com, a
+    // submit relay) so pages can be driven through their REAL egress adapters with every request
+    // RECORDED (method, path, auth header, body) on `server.apiCalls`. Non-GET requests route to it;
+    // GETs still serve files, so one origin can be both a site and an API. The handler returns
+    // { status, json } — the same contract the adapters' transports expect back.
+    if (origin.api && req.method !== "GET" && req.method !== "HEAD") {
+      const chunks = [];
+      req.on("data", (c) => chunks.push(c));
+      req.on("end", async () => {
+        const call = { host, method: req.method, path: req.url, authorization: req.headers.authorization || null,
+                       body: Buffer.concat(chunks).toString("utf8") };
+        apiCalls.push(call);
+        let out;
+        try { out = await origin.api(call); } catch (e) { out = { status: 500, json: { message: String(e && e.message || e) } }; }
+        res.statusCode = (out && out.status) || 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("access-control-allow-origin", "*");
+        res.end(JSON.stringify((out && out.json) || {}));
+      });
+      return;
     }
     const found = lookup(origin, req.url || "/");
     served.push({ host, path: req.url, hit: !!found });
@@ -168,6 +198,7 @@ export async function serveOrigins(origins, { tls = false } = {}) {
     served,
     foreign,
     noise,
+    apiCalls,
     hosts: Object.keys(origins),
     urlFor: (host, path = "/") => (tls ? `https://${host}${path}` : `http://${host}:${port}${path}`),
     close: () => new Promise((r) => server.close(r)),
