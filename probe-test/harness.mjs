@@ -179,7 +179,9 @@ export async function serveOrigins(origins, { tls = false } = {}) {
 // Launch headless Chromium aimed at the harness server and open a CDP connection. Every hostname
 // resolves to 127.0.0.1 ("MAP * …"), each served origin is secure-context, and the profile is a
 // throwaway tmp dir removed on close.
-export async function launch({ server, chromium, timeout = 20000 } = {}) {
+// The launch window is generous: on a busy CI runner Chrome can spend >20s in startup (blocking
+// dbus connection attempts each eat seconds before the DevTools endpoint appears).
+export async function launch({ server, chromium, timeout = 90000 } = {}) {
   const bin = chromium || findChromium();
   if (!bin) throw new Error("harness: no chromium (findChromium() first and skip)");
   const profile = mkdtempSync(join(os.tmpdir(), "probe-test-"));
@@ -197,7 +199,7 @@ export async function launch({ server, chromium, timeout = 20000 } = {}) {
     "--disable-site-isolation-trials",
     "--no-first-run", "--no-default-browser-check", "--disable-background-networking",
     "--disable-sync", "--disable-default-apps", "--disable-component-update", "--metrics-recording-only",
-    "--mute-audio", "--disable-features=Translate,OptimizationHints,AutofillServerCommunication",
+    "--mute-audio", "--disable-features=Translate,OptimizationHints,AutofillServerCommunication,MediaRouter",
     `--user-data-dir=${profile}`,
     "about:blank",
   ], { stdio: ["ignore", "ignore", "pipe"] });
