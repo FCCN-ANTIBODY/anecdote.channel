@@ -1,7 +1,7 @@
 // Unit: the portable pure bit of the gesture gate — DER→raw ECDSA conversion (WebAuthn ES256 assertions are
 // DER; WebCrypto verify wants raw r||s). Validated end-to-end: sign with node:crypto (DER), convert, and
 // confirm WebCrypto accepts it against the SPKI public key. The full WebAuthn enroll/assert/gate path is
-// browser-only and is proven in probe-test/drive-gesture.mjs (Chromium virtual authenticator).
+// browser-only and is proven in probe-test/gesture.ui.test.mjs (Chromium virtual authenticator).
 // Run: node composer/gesture.test.mjs
 import { generateKeyPairSync, sign as nodeSign, createPublicKey } from "node:crypto";
 import { derToRaw } from "./gesture.mjs";

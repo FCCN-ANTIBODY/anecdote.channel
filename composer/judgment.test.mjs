@@ -2,7 +2,7 @@
 // envelope. Proves: the common is resolved through an injected seam (known → fast verdict, none → reject,
 // pending → tabled); tabled defers only when not live; a known common still summons a human for a subject or
 // an unseen predicate; and the OFFLINE RUN is a real gesture (a node:crypto virtual authenticator; browser
-// path is drive-gesture.mjs).
+// path is probe-test/gesture.ui.test.mjs).
 // Run: node composer/judgment.test.mjs
 import { generateKeyPairSync, sign as nodeSign } from "node:crypto";
 import { generateIdentity, attest } from "./sign.mjs";

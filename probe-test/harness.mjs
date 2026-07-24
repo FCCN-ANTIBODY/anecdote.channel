@@ -391,6 +391,24 @@ async function makePage({ send, listeners, sessionId, targetId }) {
       throw new Error("harness: waitFor timed out: " + expression + (lastErr ? "\n  last: " + lastErr.message : ""));
     },
 
+    // A virtual platform authenticator (CDP WebAuthn domain), so passkey ceremonies — enroll, the
+    // user-verified gesture, and the REFUSAL when verification is withheld — run for real in headless.
+    // Defaults to an internal CTAP2 authenticator that verifies its user; setUserVerified(false) turns
+    // the same authenticator into a presence-only one, which a userVerification:"required" ceremony
+    // must refuse — the gate's failure mode, drivable.
+    async webauthn(options = {}) {
+      await send("WebAuthn.enable", {}, sessionId);
+      const { authenticatorId } = await send("WebAuthn.addVirtualAuthenticator", { options: {
+        protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true,
+        isUserVerified: true, automaticPresenceSimulation: true, ...options,
+      } }, sessionId);
+      return {
+        authenticatorId,
+        setUserVerified: (v) => send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: !!v }, sessionId),
+        remove: () => send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }, sessionId),
+      };
+    },
+
     async close() { try { await send("Target.closeTarget", { targetId }); } catch { /* browser going down */ } },
   };
   return page;
