@@ -41,9 +41,19 @@ export function render(src) {
     }
 
     // raw HTML block: a line that begins with '<' - pass the whole block through until a blank line.
+    // A RAW-TEXT element (script/style/pre/textarea) runs to its CLOSING TAG instead, blank lines and
+    // all - that's HTML's own parsing rule, and kramdown's passthrough honors it. Without this, a
+    // blank line inside an inline <script> (tell.anecdote.channel's landing) would seed a literal
+    // <p> into the script body and break the page's JS - caught by the real-Chromium chain test.
     if (lines[i].trimStart().startsWith("<")) {
+      const raw = /^<(script|style|pre|textarea)\b/i.exec(lines[i].trimStart());
       const buf = [];
-      while (i < lines.length && !blank(lines[i])) buf.push(lines[i++]);
+      if (raw && !new RegExp(`</${raw[1]}\\s*>`, "i").test(lines[i])) {
+        const close = new RegExp(`</${raw[1]}\\s*>`, "i");
+        while (i < lines.length) { const l = lines[i++]; buf.push(l); if (close.test(l)) break; }
+      } else {
+        while (i < lines.length && !blank(lines[i])) buf.push(lines[i++]);
+      }
       out.push(buf.join("\n"));
       continue;
     }

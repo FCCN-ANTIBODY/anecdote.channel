@@ -113,3 +113,11 @@ BarcodeDetector), `age-mint.mjs` (browser-minted `age` identity, byte-interopera
 
 House test style: dependency-free, real crypto, one command — `node scripts/test.mjs` (each
 `*.test.mjs` is a standalone `node` script). Verify locally; CI is the final gate.
+
+`probe-test/` is the committed **real-Chromium layer**: `harness.mjs` drives an actual headless
+browser over CDP with node-stdlib only (Node 22's built-in WebSocket; multi-origin serving keyed by
+Host, plain-http or real-https-on-443), so iframe topology, the probe line, and the shipped pages
+run as deployed — the `*.ui.test.mjs` suites there turn the docs' old "VERIFIED (Chromium)" prose
+into runnable tests, and self-skip where no browser is available. Sibling repos (tell, antidote)
+import the harness from this checkout for their own UI suites — write new browser-truth tests
+against it rather than re-verifying by hand.

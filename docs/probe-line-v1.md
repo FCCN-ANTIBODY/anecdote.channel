@@ -230,7 +230,10 @@ firmware-trust act of [`probe-line.md`](probe-line.md) Edge 4, not by this trans
 
 ## 12. Non-normative: provenance
 
-Every rule here is grounded, not guessed:
+Every rule here is grounded, not guessed — and the load-bearing Chromium verifications are now
+**committed** as [`probe-test/probe-line.ui.test.mjs`](../probe-test/probe-line.ui.test.mjs)
+(Edges 1, 2 and 6 re-run against the shipped modules in a real headless Chromium on every test run,
+via `probe-test/harness.mjs`):
 
 | spec section | grounded in |
 |---|---|
