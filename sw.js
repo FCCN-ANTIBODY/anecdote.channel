@@ -35,6 +35,13 @@ const FALLBACK_SHELL = [
   "/composer/constituency-demo.html",                           // find your constituencies in a dead room, no watchers
   "/composer/carrier-loop-demo.html", "/composer/carrier-catch-demo.html",   // both ends of the room, offline
   "/composer/firmware.mjs", "/viewer/poll.mjs", "/git-enough/read.mjs",
+  // The MODELS HUB (/models/) — the non-bottle client that probes canonical model bottles. Its full import
+  // closure so a direct, OFFLINE visit boots and can probe. Light by design: probe-engine is transport-agnostic
+  // and embedBottle is the generic transport (composer/bottle-embed), so no git-enough client rides along.
+  "/models/", "/models/index.html", "/models/index.mjs",
+  "/composer/probe-engine.mjs", "/composer/open-engine.mjs", "/composer/install.mjs",
+  "/composer/install-loader.mjs", "/composer/bottle-uri.mjs", "/composer/platform-key.mjs",
+  "/composer/bottle-embed.mjs",
 ];
 
 // ---- a tiny IndexedDB for the pin (fingerprint + held version + last rejection) ----------------------

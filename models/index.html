@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- models/index.html — the MODELS HUB page. A non-bottle, pure-client shim: it iframes canonical model
+     bottles and probes them; it holds no key, vends no port, serves nothing. Being iframed by anyone confers
+     NO power — the hub registers no listener for its parent and acts on no message from it (see index.mjs).
+
+     CSP posture: the enforceable-via-<meta> directives are locked down below. NOTE that `frame-ancestors`
+     (who may embed US) and `sandbox` are IGNORED in a <meta> CSP by spec, so the "no power when framed"
+     guarantee here is BEHAVIORAL (pure initiator, no parent listener). If/when this is served with real HTTP
+     headers, add:  Content-Security-Policy: frame-ancestors 'self' https://anecdote.channel;  to also refuse
+     the embed outright. Everything the page needs is same-origin except the bottles it frames, which are the
+     only cross-origin allowance (frame-src). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src https://*.bottles.anecdote.channel; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>models · anecdote.channel</title>
+<link rel="icon" href="/icon.svg">
+<meta name="theme-color" content="#990049">
+<style>
+  :root { --accent: #990049; --bg1: #293033; --bg2: #274f4b; --fg1: #dfdfdf; --dim: #8fa0a0; --ok: #7fd7a1; --absent: #d79a7f; --warn: #e0c04a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 1.4rem clamp(1rem, 4vw, 3rem); background: linear-gradient(160deg, var(--bg1), var(--bg2)); color: var(--fg1); font: 15px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; min-height: 100vh; }
+  h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 .2rem; }
+  h1 .accent { color: var(--accent); }
+  p.lede { color: var(--dim); margin: 0 0 1.2rem; max-width: 62ch; }
+  #hub { display: flex; flex-direction: column; gap: .5rem; }
+  .row { padding: .5rem .7rem; background: #0003; border-left: 2px solid #ffffff14; border-radius: 3px; overflow-x: auto; }
+  code { color: #e9d8f7; }
+  .dim { color: var(--dim); }
+  .pending { color: var(--warn); }
+  .ok { color: var(--ok); }
+  .absent { color: var(--absent); }
+  .warn { color: var(--warn); }
+</style>
+</head>
+<body>
+<h1>models <span class="accent">·</span> the hub</h1>
+<p class="lede">A pure client. It reaches canonical model bottles (<code>&lt;name&gt;.bottles.anecdote.channel</code>) and probes each for a capability — degrading to absent whenever a bottle is missing, unsigned, or too big to load. It stores nothing and offers nothing; embedding it grants no power.</p>
+<div id="hub"></div>
+<script type="module" src="/models/index.mjs"></script>
+</body>
+</html>
