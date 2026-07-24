@@ -45,6 +45,22 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else co
   ok(out.includes('<a href="/u">l</a>'), "trailing paragraph link");
 }
 
+// 3b. a raw-text element (script/style) runs to its CLOSING TAG - blank lines inside stay VERBATIM.
+// The real case: tell.anecdote.channel's landing carries its forward logic in one inline <script>
+// with blank lines between sections; wrapping its tail in <p> feeds literal HTML to the JS parser
+// and kills the page (caught by the chain UI test driving the built site in Chromium).
+{
+  const script = '<script>\nvar a = 1;\n\nvar b = 2;\n</' + 'script>';
+  const out = md('# H\n\n' + script + '\n\nafter');
+  ok(out.includes(script), "a <script> with blank lines passes through verbatim, to its close tag");
+  ok(!out.includes("<p>var") && !out.includes("<p><script"), "no <p> seeded inside or around the script");
+  ok(out.includes("<p>after</p>"), "markdown resumes after the raw-text element closes");
+  const style = '<style>\n.a { color: red; }\n\n.b { color: blue; }\n</style>';
+  ok(md(style).includes(style), "a <style> with blank lines passes through verbatim too");
+  const oneLine = '<script>var x = 1;</' + 'script>';
+  ok(md(oneLine + '\n\ntext').includes(oneLine), "a same-line open+close raw-text element still works");
+}
+
 // 4. the FULL civic pipeline: Liquid (with data) then markdown, on the real page bodies.
 {
   const site = { title: "Atlas", baseurl: "", data: {
