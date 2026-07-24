@@ -118,7 +118,7 @@ function lookup(origin, reqPath) {
 // component updates) even with the disable flags; with every hostname resolved to the harness those
 // land here too. They are BROWSER traffic, not page traffic — recorded on `noise`, kept out of
 // `foreign` so "no request escaped" stays an assertion about the pages under test.
-const BROWSER_NOISE = /(^|\.)(gvt1\.com|google\.com|googleapis\.com|gstatic\.com|googleusercontent\.com)$/;
+const BROWSER_NOISE = /(^|\.)(gvt1\.com|google\.com|googleapis\.com|gstatic\.com|googleusercontent\.com|youtube\.com|cloudflare-dns\.com)$/;
 
 export async function serveOrigins(origins, { tls = false } = {}) {
   const served = [];
