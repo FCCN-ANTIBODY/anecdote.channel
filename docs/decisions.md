@@ -21,6 +21,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D5 — Mirror discipline.** Cross-repo shared code is byte-identical from one source of truth.
 - **D6 — Boundary signer public half → environment-sourced.** `keys/boundary.fpr` removed; nothing pins it.
 - **D7 — Bottle self-description.** Signed macro `kind` at inception; live descriptor as self-report; the map is a device-local book, explicit-save; deletion is enumerate-and-destroy.
+- **D8 — Identity arrival.** The keeper vends the *capability*, never the secret; origin-bound at the hello; consent in the keeper's own UI; every vend chronicled.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -199,6 +200,54 @@ test obligation, not a promise: blankness gets measured from outside the page (t
 lie in its descriptor; it cannot lie about its charter), keeps subtypes emergent (the journalism pile
 is just a data-pile whose descriptor lists anecdote-type filters — no coordination on names), and keeps
 the map consistent with D4's no-registry stance by making memory personal, deliberate, and destroyable.
+
+---
+
+## D8 · Identity arrival — the keeper vends the capability, never the secret
+*Status: accepted 2026-07-25*
+
+**Context.** The room (`<name>.tell.anecdote.channel`) can now decrypt a delivered feed (feed-open in
+WebCrypto) — but only if the pile's age identity reaches it. D1 says identity lives in "the
+environment"; for a room nobody instantiated (the user typed a name), what counts as the environment?
+
+**Decision.** The device's one keeper — the **anecdote.channel origin**, whose trove holds the
+identity — is the environment, and it **never hands the secret down**. The room embeds the keeper as
+an Elevated guest (the bottle-embed hello: the keeper is the capable child) and receives the
+*capability*: the keeper pulls the sealed feed itself, verifies and decrypts it keeper-side, and
+returns **plaintext frames for display**. The identity never crosses the port; the room — the least-
+trusted code in the system, a wildcard-served dumb shell — never holds a credential of any kind.
+Plaintext never *rests* in the room either (display-only, re-asked per session): the wipe story stays
+trivially true and the room stays dumb.
+
+**What is proven to get it — two things, neither a credential the room holds:**
+1. **The asking origin, browser-attested.** At the hello the keeper reads the embedding parent's
+   `event.origin` and binds the session's scope to it: the capability for pile `parks-2026` is offered
+   only to the origin whose *name is that pile*. The name-is-a-key property becomes the authorization
+   anchor. (Honestly stated: ports are technically re-transferable — the origin check happens at
+   adoption, as in probe-line §2; the mitigations are tight scopes, `port.close()` revocation, and the
+   chronicle.)
+2. **The operator's consent, in the keeper's OWN UI.** The keeper iframe is visible and renders its
+   own allow surface — a click in the keeper's origin the room cannot paint or fake. A session allow
+   is a scoped, session-lived grant `{piles:[<name>]}` on the standard ladder; standing grants come
+   via the grants panel later. The consent surface hardens further with the gesture gate.
+
+**Every vend is chronicled.** The keeper appends each act — when, which pile, which op, which asking
+origin, which grant — to its own hash-chained local log (freshness-not-secrecy applied to *key use*;
+the `grantId` accounting hook already rides the probe-line terminator). The operator can audit every
+use of their identity; an act that skipped the ceremony isn't in the log. Local only — the metadata
+never leaves the device any more than the key does.
+
+**No daisy chains.** One hop, no transitive reach: a tool that wants pile records makes its *own*
+hello to the keeper, so the keeper always sees the true asking origin — forwarded requests would
+launder the binding (the confused deputy). The chain to "where the secret is" terminates at devices
+the operator holds: another device's keeper hands it across by the deliberate transfer gestures
+(meet/QR), never an automatic fetch; a lost identity means an unreadable pile — the stated cost,
+softened only by published `prove` checkpoints. The D1 slot has two fillings: the trove for the
+offline origin, the GitHub Secret (`PILE_AGE_IDENTITY`) for the workflow mirror.
+
+**Consequence.** The keeper page and its op catalog (`pile.read` / `pile.recipient` / `pile.adopt`)
+live on anecdote.channel; the consumer core (`feed-open`/`age-open`, data-pile's `bin/` as source of
+truth) is byte-mirrored into `composer/` under D5 with a drift guard.
 
 ---
 

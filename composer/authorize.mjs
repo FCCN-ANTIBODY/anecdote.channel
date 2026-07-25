@@ -16,6 +16,9 @@ export const OP_CATALOG = {
   "describe":                { rung: 0, persists: false },  // any bottle's self-description: the pre-crunched, dated descriptor snapshot (read-only)
   "attest":                  { rung: 0, persists: false },  // the bottle's inception attestation, already-public signed bytes — the consumer verifies the charter (and its kind) itself
   "bottles.list":            { rung: 0, persists: false },  // sift the device's own bottle book (read-only Elevated memory)
+  "pile.recipient":          { rung: 0, persists: false },  // the keeper shows a pile's PUBLIC half (D8) — encrypt-only, read-only
+  "pile.read":               { rung: 1, persists: false },  // the keeper pulls+verifies+decrypts a pile's feed TROVE-SIDE and vends display frames — the capability, never the secret
+  "pile.adopt":              { rung: 1, persists: true  },  // adopt a pile's identity into this device's trove (the deliberate custody act)
   "bottles.save":            { rung: 1, persists: true  },  // the deliberate act: remember a bottle on this device
   "bottles.forget":          { rung: 1, persists: true  },  // the mild rung of deletion: the book stops knowing the name
   "label":                   { rung: 0, persists: false },  // the "reading glasses" — perception, not persistence
