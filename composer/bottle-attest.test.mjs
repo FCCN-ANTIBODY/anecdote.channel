@@ -46,6 +46,17 @@ async function run() {
   // 7. mint refuses a non-bottle target.
   { let threw = false; try { await mintBottleAttestation("https://example.com/", platform); } catch { threw = true; } ok(threw, "a non-bottle target can't be attested"); }
 
+  // 8. the SIGNED KIND — the coarse "what this origin is", inside the signed bytes, so a picker can
+  // trust it before connecting and a bottle can't quietly change what it was chartered as.
+  const kinded = await mintBottleAttestation(B, platform, { now: "2026-01-01T00:00:00Z", kind: "data-pile" });
+  v = await verifyBottleAttestation(kinded, { host: "cd04-q1.tell", platformKey: platform.fingerprint });
+  ok(v.ok && v.kind === "data-pile", "a chartered kind rides inside the attestation and verifies out");
+  ok((await verifyBottleAttestation(att, { host: "cd04-q1.tell", platformKey: platform.fingerprint })).kind === null,
+     "an unkinded bottle verifies exactly as before (kind null)");
+  const rekinded = { ...kinded, kind: "storage-engine" };
+  v = await verifyBottleAttestation(rekinded, { host: "cd04-q1.tell", platformKey: platform.fingerprint });
+  ok(!v.ok && v.reason === "bad signature", "flipping the kind after signing breaks the signature — data can't become code");
+
   console.log(fails ? `\nFAILED (${fails})` : "\nok: bottle-attest — the API is signed to run for its own bottle, or not at all");
   process.exit(fails ? 1 : 0);
 }

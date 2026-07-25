@@ -10,24 +10,33 @@
 import { elevatedSession, serveProbeLine, READY, INIT } from "../composer/probe-line.mjs";
 import { verifyBottleAttestation, bottleHost } from "../composer/bottle-attest.mjs";
 import { installOps } from "../composer/install-op.mjs";
+import { describeOps } from "../composer/describe-op.mjs";
 import { gitOps } from "./probe-ops.mjs";
 
 // The bottle's op surface: git, and — when this bottle was PROVISIONED as a storage engine — the one common
 // `install` op (composer/install-op) vending its pre-minted, platform-signed client manifest. The manifest is
 // static signed bytes produced at publish (composer/install mintInstall); composing it here is what makes the
 // glove reachable: a consumer's openEngine asks `install` on the same port the git ops ride. No manifest →
-// a git-only bottle, exactly as before.
-function bottleOps({ repo, credential, fetch, inflate, author, manifest }) {
-  const ops = gitOps({ repo, credential, fetch, inflate, author });
-  return manifest ? { ...installOps({ manifest }), ...ops } : ops;
+// a git-only bottle, exactly as before. A provisioned `descriptor` (composer/describe-op) likewise vends the
+// bottle's self-description over `describe` — the skimmable snapshot a picker or shelf reads; absent, the
+// bottle simply doesn't describe itself. The inception `attestation` is vended too (`attest`, Rung 0):
+// already-public signed bytes, so a CONSUMER can verify the bottle's charter — domain anchor, platform
+// signer, and the signed KIND (D7) — for itself, against its own pin and the host it actually addressed.
+function bottleOps({ repo, credential, fetch, inflate, author, manifest, descriptor, attestation }) {
+  return {
+    ...(attestation ? { "attest": async (_input, api) => { api.emit({ attestation }); } } : {}),
+    ...(descriptor ? describeOps({ descriptor }) : {}),
+    ...(manifest ? installOps({ manifest }) : {}),
+    ...gitOps({ repo, credential, fetch, inflate, author }),
+  };
 }
 
 // The headless session — drive it with probe-line REQUEST/CANCEL messages; frames go to `emit`. Pure, so a
 // test and the eventual served page share one brain. `context` is read live per request (recording toggle +
 // standing grants); default is recording-on with no grants, so Rung-1 ops need a fresh confirmation.
-export function gitBottleSession({ repo, credential, fetch, inflate, author, manifest, emit, context, yield_, trace } = {}) {
+export function gitBottleSession({ repo, credential, fetch, inflate, author, manifest, descriptor, emit, context, yield_, trace } = {}) {
   return elevatedSession({
-    ops: bottleOps({ repo, credential, fetch, inflate, author, manifest }),
+    ops: bottleOps({ repo, credential, fetch, inflate, author, manifest, descriptor }),
     emit,
     context,
     yield_,
@@ -38,8 +47,8 @@ export function gitBottleSession({ repo, credential, fetch, inflate, author, man
 // Browser convenience: serve the git bottle over the MessagePort the iframing tool transferred in. Thin
 // wrapper over serveProbeLine — the transport, not the logic. (The cross-origin hello that hands us the port,
 // and the caller-signature check the bottle forces before serving, are the follow-on browser unit.)
-export function serveGitBottle(port, { repo, credential, fetch, inflate, author, manifest, context } = {}) {
-  return serveProbeLine(port, { ops: bottleOps({ repo, credential, fetch, inflate, author, manifest }), context });
+export function serveGitBottle(port, { repo, credential, fetch, inflate, author, manifest, descriptor, attestation, context } = {}) {
+  return serveProbeLine(port, { ops: bottleOps({ repo, credential, fetch, inflate, author, manifest, descriptor, attestation }), context });
 }
 
 // ---- the thin cross-origin transport (browser-only; verified in Chromium, like probe-line's spawnChamber).
@@ -59,7 +68,7 @@ function runningHost(win) {
 // wrong for this domain we OFFER NOTHING: no readiness is announced and no port is ever served. On success we
 // announce READY and, on the INIT hello, serve git over the transferred port (one port; later inits ignored).
 // Async (the verify is async). Returns { ok, stop } on success, or { ok:false, reason } when the gate refuses.
-export async function serveOnHello({ repo, credential, fetch, inflate, author, manifest, context, attestation, platformKey, host, self: win = globalThis } = {}) {
+export async function serveOnHello({ repo, credential, fetch, inflate, author, manifest, descriptor, context, attestation, platformKey, host, self: win = globalThis } = {}) {
   const anchor = host || runningHost(win);
   const gate = await verifyBottleAttestation(attestation, { host: anchor, platformKey });
   if (!gate.ok) return { ok: false, reason: gate.reason }; // the API crashes its own surface — offers nothing
@@ -68,7 +77,7 @@ export async function serveOnHello({ repo, credential, fetch, inflate, author, m
   const onMessage = (event) => {
     const d = event.data;
     if (!d || d.type !== INIT || !event.ports || !event.ports[0] || served) return;
-    served = serveGitBottle(event.ports[0], { repo, credential, fetch, inflate, author, manifest, context });
+    served = serveGitBottle(event.ports[0], { repo, credential, fetch, inflate, author, manifest, descriptor, attestation, context });
   };
   win.addEventListener("message", onMessage);
   (win.parent || win).postMessage({ type: READY }, "*"); // the inverted hello — we don't know the parent's origin

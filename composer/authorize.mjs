@@ -13,6 +13,11 @@ import { grantLive } from "./consent.mjs";
 // descriptors. Unknown ops are treated as consequential+persisting (fail safe, not open).
 export const OP_CATALOG = {
   "install":                 { rung: 0, persists: false },  // every storage engine's install: hand back its pre-minted, platform-signed client blobs (read-only)
+  "describe":                { rung: 0, persists: false },  // any bottle's self-description: the pre-crunched, dated descriptor snapshot (read-only)
+  "attest":                  { rung: 0, persists: false },  // the bottle's inception attestation, already-public signed bytes — the consumer verifies the charter (and its kind) itself
+  "bottles.list":            { rung: 0, persists: false },  // sift the device's own bottle book (read-only Elevated memory)
+  "bottles.save":            { rung: 1, persists: true  },  // the deliberate act: remember a bottle on this device
+  "bottles.forget":          { rung: 1, persists: true  },  // the mild rung of deletion: the book stops knowing the name
   "label":                   { rung: 0, persists: false },  // the "reading glasses" — perception, not persistence
   "trove.read":              { rung: 0, persists: false },
   "digest":                  { rung: 0, persists: false },
