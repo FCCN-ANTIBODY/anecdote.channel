@@ -212,11 +212,13 @@ Throughput, then, is not won by more bottles — the bottleneck is camera captur
 2. **vault adapter** — a new `<slug>.bottles.anecdote.channel` (sibling to the named-but-unbuilt `.opfs` in
    [`bottle-uri.mjs`](../composer/bottle-uri.mjs)): OPFS bounded conveyor + downloads-stream + File System Access
    re-pick, exposing a seekable `read(offset,len) / stat()` surface. The bottle behind the stub does not know
-   which backend served the bytes. *Core skeleton built and Node-tested — [`vault/vault-store.mjs`](../vault/vault-store.mjs)
+   which backend served the bytes. *Core built and Node-tested — [`vault/vault-store.mjs`](../vault/vault-store.mjs)
    (the seekable shard VFS with a memory-bounded working set), [`vault/admit.mjs`](../vault/admit.mjs) (the trust
-   model above, in code), and the glove halves [`vault/vault-client.mjs`](../vault/vault-client.mjs) /
-   [`vault/probe-ops.mjs`](../vault/probe-ops.mjs). Still stubbed: the real OPFS/Downloads/File-handle backends
-   and the served, signed bottle (inception + boot).*
+   model above, in code), the glove halves [`vault/vault-client.mjs`](../vault/vault-client.mjs) /
+   [`vault/probe-ops.mjs`](../vault/probe-ops.mjs), and the first real backend — the OPFS conveyor
+   [`vault/opfs-backend.mjs`](../vault/opfs-backend.mjs) (staging spill + range reads, tested end-to-end through
+   the store against a fake OPFS handle). Still stubbed: the Downloads-stream and File-System-Access re-pick
+   backends, and the served, signed bottle (inception + boot).*
 3. **Streamed reassembly** — member-at-a-time spill (leverages the multi-member layout above).
 4. **Crown → vault-promotion** generalization.
 5. **Format-adapter** (safetensors/GGUF seek) — read-time, later; the compute (WebGPU where present incl. iOS
