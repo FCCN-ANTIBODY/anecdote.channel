@@ -20,6 +20,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D4 — Bottles topology.** `*.tell` = pile floors; `bottles.<apex>` = free-form; wildcard on the sub-sub-domain.
 - **D5 — Mirror discipline.** Cross-repo shared code is byte-identical from one source of truth.
 - **D6 — Boundary signer public half → environment-sourced.** `keys/boundary.fpr` removed; nothing pins it.
+- **D7 — Bottle self-description.** Signed macro `kind` at inception; live descriptor as self-report; the map is a device-local book, explicit-save; deletion is enumerate-and-destroy.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -150,6 +151,54 @@ realistic (partial-swap) threat, with nothing committed.
 
 **Contrast for O1.** This worked *because* boundary.fpr had no external pinner. The delivery signer is
 different — see O1.
+
+---
+
+## D7 · Bottle self-description — signed kind, self-reported descriptor, a book instead of a registry
+*Status: accepted 2026-07-25*
+
+**Context.** Tools need to PICK bottles — the journal picking a data-pile, antidote listing what it
+provisioned — but a label on a sub-sub-domain carries almost no information, nothing signed says what a
+bottle *is* (code vs data vs a pile), and no map of created bottles exists at all ("an empty pit of
+unknown addresses"). A global registry was repeatedly considered and rejected: it would break the
+name-is-a-key property (D4 — the network puts nothing at either address, so two strangers at one name
+never collide and a wiped name returns to mint condition).
+
+**Decision — three layers, three trust treatments:**
+1. **The KIND is a signed fact.** The inception attestation (`composer/bottle-attest`, the boot gate's
+   anchor) optionally carries `kind` — one free string, the coarse "what this origin is" (`data-pile`,
+   `storage-engine`). Signed by the platform key at inception: a picker can trust it *before*
+   connecting, and a bottle cannot quietly become code when it was chartered as data. One macro kind
+   covers polls and investigations alike — subtypes are never enumerated here.
+2. **The DESCRIPTOR is a self-report.** The `describe` op (`composer/describe-op`, sibling of
+   `install`; Rung 0, pre-crunched static bytes) vends a dated snapshot of what the bottle holds —
+   questions/leads, input filters, counts, optionally its op surface. For skimming and sifting, never
+   for trust; **subtypes stay emergent** — the descriptor's content is the taxonomy, no enum anywhere.
+   **Empty is observable**: a fresh bottle ships a zero-count descriptor from inception, so "nothing
+   here yet, as of <date>" is a statement, not an absence. Nothing runs in the background: the
+   snapshot updates only when the owner re-crunches (staleness chosen and visible in `as_of`).
+   Stats derivable from the *public* surface (question texts, sealed-block counts) may always ride;
+   stats requiring *decryption* (answer distributions) are owner-side work and publishing them is a
+   disclosure act, forward-only, in the `bin/prove` family.
+3. **The map is the DEVICE'S OWN BOOK** (`composer/bottle-book`), never a registry: Elevated memory,
+   explicit-save only (provisioning records what it made; the room offers "remember this pile on this
+   device"), synced nowhere by default, read over the probe (`bottles.list` Rung 0; `bottles.save`/
+   `bottles.forget` Rung 1). No ambient visit-tracking — a browsing history is creepy; a bookmarks
+   shelf is consented.
+
+**Deletion is enumerate-and-destroy.** Forget (the book stops knowing the name) and wipe (the room
+tears down EVERY storage kind the origin can hold — vault, IndexedDB, caches, the service-worker
+registration — so the name returns to mint condition and "might not be a data-pile anymore") are two
+rungs of one gesture. Teardown enumerates the *platform's* storage surfaces rather than asking each
+feature to clean up after itself — cooperative teardown rots; enumerated teardown doesn't care what was
+stored. Teardown needs **no counterparty**: nothing was ever provisioned server-side for a name, and
+the no-registry decision means there is no third place to scrub. "Know we can make a blank state" is a
+test obligation, not a promise: blankness gets measured from outside the page (the harness, over CDP).
+
+**Why this shape.** Splitting signed-kind from self-report keeps the trust boundary crisp (a bottle can
+lie in its descriptor; it cannot lie about its charter), keeps subtypes emergent (the journalism pile
+is just a data-pile whose descriptor lists anecdote-type filters — no coordination on names), and keeps
+the map consistent with D4's no-registry stance by making memory personal, deliberate, and destroyable.
 
 ---
 

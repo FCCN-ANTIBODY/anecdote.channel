@@ -48,22 +48,27 @@ const foreignManifest = await mintInstall({ "git-client.mjs": clientSource }, "g
 const tampered = JSON.parse(JSON.stringify(goodManifest));
 tampered.blobs[0].bytes = Buffer.from(clientSource + "\n// dent\n", "utf8").toString("base64");
 
-const attest = (host) => mintBottleAttestation(`https://${host}.anecdote.channel/`, platform, { now: NOW });
-const inception = (att, manifest) =>
+const attest = (host) => mintBottleAttestation(`https://${host}.anecdote.channel/`, platform, { now: NOW, kind: "storage-engine" });
+// The good bottle also carries its D7 self-description: the dated descriptor snapshot (empty-ish — a
+// young engine with one skimmable fact), vended over `describe`.
+const DESCRIPTOR = { schema: "anecdote.describe/v1", as_of: NOW, kind: "storage-engine",
+                     api: ["git.init", "git.commit", "git.log", "git.files", "git.export", "git.load"],
+                     counts: { repos: 0 } };
+const inception = (att, manifest, descriptor = null) =>
   `// stamped by the provision step (test environment) — the served copy of the committed null slot\n` +
-  `export const INCEPTION = ${JSON.stringify({ attestation: att, platformKey: platform.fingerprint, manifest }, null, 1)};\n` +
+  `export const INCEPTION = ${JSON.stringify({ attestation: att, platformKey: platform.fingerprint, manifest, ...(descriptor ? { descriptor } : {}) }, null, 1)};\n` +
   `export default INCEPTION;\n`;
 
 // Every bottle origin serves the repo (the module graph) with a root page + its own stamped inception.
 const BOOT_PAGE = `<!doctype html><meta charset="utf-8"><title>bottle</title>
 <script type="module">import { bootBottle } from "/git-enough/bottle-boot.mjs"; bootBottle();</script>`;
-const bottleOrigin = (att, manifest) => ({
+const bottleOrigin = (att, manifest, descriptor = null) => ({
   root,
-  tree: { "index.html": BOOT_PAGE, "git-enough/bottle-inception.mjs": inception(att, manifest) },
+  tree: { "index.html": BOOT_PAGE, "git-enough/bottle-inception.mjs": inception(att, manifest, descriptor) },
 });
 
 const origins = {
-  "git.bottles.anecdote.channel": bottleOrigin(await attest("git.bottles"), goodManifest),
+  "git.bottles.anecdote.channel": bottleOrigin(await attest("git.bottles"), goodManifest, DESCRIPTOR),
   "dent.bottles.anecdote.channel": bottleOrigin(await attest("dent.bottles"), tampered),
   "moth.bottles.anecdote.channel": bottleOrigin(await attest("moth.bottles"), foreignManifest),
   "rogue.bottles.anecdote.channel": bottleOrigin(await attest("git.bottles"), goodManifest), // stolen anchor
@@ -76,11 +81,31 @@ const FIXTURE = `<!doctype html><meta charset="utf-8"><title>glove consumer</tit
 <script type="module">
 import { embedBottle } from "/composer/bottle-embed.mjs";
 import { openEngine, openEngineByName } from "/composer/open-engine.mjs";
+import { verifyBottleAttestation, bottleHost } from "/composer/bottle-attest.mjs";
+import { saveBottle, siftBook } from "/composer/bottle-book.mjs";
 window.R = { stage: "boot" };
 const PIN = ${JSON.stringify(platform.fingerprint)};
 const embed = (url) => embedBottle(url);
 const refusal = (e) => String(e && e.message || e);
+const firstFrame = (r) => (r && r.frames && r.frames[0]) || null;
 try {
+  // THE PICKER LOOP (D7): connect, read the charter, verify it OURSELVES, skim the self-report,
+  // remember the bottle in the device's own book — signed kind trusted, descriptor merely cached.
+  window.R.stage = "picker";
+  {
+    const url = "https://git.bottles.anecdote.channel/";
+    const peek = await embed(url);
+    const att = firstFrame(await peek.client.invoke("attest", {})).attestation;
+    const charter = await verifyBottleAttestation(att, { host: bottleHost(url), platformKey: PIN });
+    const desc = firstFrame(await peek.client.invoke("describe", {}));
+    peek.teardown();
+    saveBottle(localStorage, { host: charter.ok ? charter.host : null, kind: charter.ok ? charter.kind : null,
+                               label: "the git engine", descriptor: desc });
+    window.R.picker = { charterOk: charter.ok, kind: charter.kind, since: charter.since,
+                        descAsOf: desc && desc.as_of, descApi: desc && desc.api,
+                        sifted: siftBook(localStorage, { kind: "storage-engine" }).map((e) => e.host) };
+  }
+
   // git.bottles — the canonical resolve-by-name front door, then DRIVE the worn client.
   window.R.stage = "good";
   const good = await openEngineByName("git", { embed, platformKey: PIN });
@@ -130,6 +155,14 @@ const ran = await withPage({ chromium, tls: true, origins }, async (page, { serv
   await page.goto("https://anecdote.channel/glove-ui.html");
   const R = await page.waitFor("window.R && (window.R.stage === 'done' || window.R.stage === 'error') && window.R", { timeout: 60000 });
   if (R.stage === "error") { ok(false, `consumer failed at stage '${R.at}': ${R.error}`); return; }
+
+  // The picker loop (D7): charter verified consumer-side, self-report skimmed, bottle remembered.
+  ok(R.picker.charterOk === true && R.picker.kind === "storage-engine",
+     "the consumer verified the bottle's charter itself — signed kind: " + R.picker.kind);
+  ok(R.picker.descAsOf === "2026-07-24T00:00:00.000Z" && Array.isArray(R.picker.descApi),
+     "the self-report skims: a dated snapshot naming the op surface");
+  ok(R.picker.sifted.length === 1 && R.picker.sifted[0] === "git.bottles",
+     "the device's book remembers it, siftable by the SIGNED kind — a shelf, never a registry");
 
   // The live pin: boot gate → signed install → verify → wear → drive.
   ok(R.good.url === "https://git.bottles.anecdote.channel/", "the adapter name resolved to its canonical bottle");

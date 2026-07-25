@@ -22,6 +22,7 @@ export function bootBottle({ inception = INCEPTION, self: win = globalThis } = {
     attestation: cfg.attestation,
     platformKey: cfg.platformKey,
     manifest: cfg.manifest || undefined,
+    descriptor: cfg.descriptor || undefined,
     self: win,
   });
   win.__BOTTLE_BOOT__ = boot;

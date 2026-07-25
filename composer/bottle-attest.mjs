@@ -22,10 +22,20 @@ export function bottleHost(target) {
 
 // Mint the bottle's self-attestation: the platform identity signs "this API runs for <host>, since <since>".
 // Self-issued once at inception and put into the bottle. `opts.now` (ISO-8601) pins `since` for determinism.
+//
+// `opts.kind` — the bottle's SIGNED MACRO KIND, when the charter declares one: the coarse "what this
+// origin is" a picker can trust BEFORE connecting ("data-pile", "storage-engine", …). Deliberately a free
+// string, one word deep: the rich self-description (questions/leads, counts, the API surface) is the
+// bottle's live descriptor over the `describe` op — a SELF-REPORT for skimming, never the trust signal.
+// Kind is inside the signed bytes, so a bottle cannot quietly become code when it was chartered as data;
+// subtypes stay emergent (they live in the descriptor's content, not in any enum here). Absent → an
+// unkinded bottle, exactly as before; verifiers ignore unknown fields, so old attestations stay valid.
 export async function mintBottleAttestation(target, identity, opts = {}) {
   const host = bottleHost(target);
   const since = opts.now || new Date().toISOString();
-  return attest({ schema: BOTTLE_ATTEST, bottle: host, since }, identity, opts);
+  const body = { schema: BOTTLE_ATTEST, bottle: host, since };
+  if (opts.kind) body.kind = String(opts.kind);
+  return attest(body, identity, opts);
 }
 
 // Verify a bottle's self-attestation against the domain it is ACTUALLY running on and the pinned platform
@@ -39,5 +49,5 @@ export async function verifyBottleAttestation(signed, { host, platformKey = null
   if (!v.ok) return { ok: false, reason: "bad signature" };
   if (platformKey && v.by !== platformKey) return { ok: false, reason: "not the platform key" };
   if (signed.bottle !== host) return { ok: false, reason: `domain anchor mismatch: signed for ${signed.bottle}, running on ${host}` };
-  return { ok: true, by: v.by, host: signed.bottle, since: signed.since };
+  return { ok: true, by: v.by, host: signed.bottle, since: signed.since, kind: signed.kind || null };
 }
