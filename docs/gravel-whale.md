@@ -211,8 +211,12 @@ Throughput, then, is not won by more bottles — the bottleneck is camera captur
    signed, single-instance bottle.
 2. **vault adapter** — a new `<slug>.bottles.anecdote.channel` (sibling to the named-but-unbuilt `.opfs` in
    [`bottle-uri.mjs`](../composer/bottle-uri.mjs)): OPFS bounded conveyor + downloads-stream + File System Access
-   re-pick, exposing a seekable `open() / read(offset,len) / stat()` surface. The bottle behind the stub does not
-   know which backend served the bytes.
+   re-pick, exposing a seekable `read(offset,len) / stat()` surface. The bottle behind the stub does not know
+   which backend served the bytes. *Core skeleton built and Node-tested — [`vault/vault-store.mjs`](../vault/vault-store.mjs)
+   (the seekable shard VFS with a memory-bounded working set), [`vault/admit.mjs`](../vault/admit.mjs) (the trust
+   model above, in code), and the glove halves [`vault/vault-client.mjs`](../vault/vault-client.mjs) /
+   [`vault/probe-ops.mjs`](../vault/probe-ops.mjs). Still stubbed: the real OPFS/Downloads/File-handle backends
+   and the served, signed bottle (inception + boot).*
 3. **Streamed reassembly** — member-at-a-time spill (leverages the multi-member layout above).
 4. **Crown → vault-promotion** generalization.
 5. **Format-adapter** (safetensors/GGUF seek) — read-time, later; the compute (WebGPU where present incl. iOS
