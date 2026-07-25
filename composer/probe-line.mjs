@@ -102,7 +102,10 @@ export function elevatedSession(deps = {}) {
       tick: async (ms = 0) => { await turn(ms); if (s.cancelled) throw new Cancelled(); },
     };
     try {
-      await handler(msg.input, api);
+      // The gate's decision reaches the op as read-only meta — so an Elevated op that KEEPS ITS OWN
+      // LOG (the keeper's chronicle) can record which grant covered the act, matching the grantId the
+      // terminator carries to the caller. Additive: existing two-arg handlers never see it.
+      await handler(msg.input, api, { grantId: decision.grantId, rung: decision.rung });
       if (s.cancelled) send({ type: CANCELLED, id, seq });
       else send({ type: FRAME, id, seq, final: true, grantId: decision.grantId });
     } catch (e) {

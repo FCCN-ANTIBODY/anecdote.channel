@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<!-- anecdote.channel/keeper.html — THE KEEPER'S FACE (docs/decisions.md D8). A pile's room embeds this
+     page as its Elevated guest; the trove behind it holds the pile's age identity, and what crosses the
+     port is only ever the CAPABILITY — verified, decrypted display frames — never the secret. The
+     session binds to the embedding room's browser-attested origin at the hello (the name is the key:
+     parks-2026's room can ask only about parks-2026), and CONSENT happens HERE, in this origin's own
+     pixels — the Allow button below is a surface the room cannot paint, spoof, or click. Every vend is
+     appended to the keeper's hash-chained local chronicle. Visited directly (not embedded), this page
+     only explains itself: a keeper with no room asking has nothing to serve. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — your keeper</title>
+<link rel="icon" href="/icon.svg">
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; padding: .8rem 1rem; }
+  .who { font-weight: 600; }
+  .muted { opacity: .7; font-size: .85rem; }
+  button { font: inherit; padding: .4rem .9rem; margin-top: .5rem; cursor: pointer; }
+  #status { margin-top: .5rem; font-size: .85rem; }
+</style>
+<body>
+<div id="mount"><p class="muted">Your keeper — the custody surface for this device's pile identities.
+It serves only when a pile's own room embeds it, and secrets never leave it.</p></div>
+
+<script type="module">
+import { serveProbeLine } from "/composer/probe-line.mjs";
+import { keeperOps, pileForOrigin, readChronicle, READ_BEHAVIOR } from "/composer/pile-keeper.mjs";
+
+const mount = document.getElementById("mount");
+
+if (window.parent !== window) {
+  // The inverted hello, keeper as the capable child: announce READY, adopt the one INIT, bind the
+  // session to the embedding origin the browser attests.
+  let served = null;
+  globalThis.__KEEPER_BOOT__ = new Promise((resolve) => {
+    addEventListener("message", (event) => {
+      if (!event.data || event.data.type !== "probe.line.init/v1" || !event.ports || !event.ports[0] || served) return;
+      const origin = event.origin;
+      const pile = pileForOrigin(origin);
+
+      // The session's consent state: empty until the OPERATOR clicks Allow in THESE pixels. The allow
+      // is a session-lived grant scoped to exactly the bound pile — the ladder's standard shape, held
+      // in memory only (standing grants are the grants panel's job, later).
+      const grants = [];
+      served = serveProbeLine(event.ports[0], {
+        ops: keeperOps({ origin, storage: localStorage }),
+        context: () => ({ recordingOn: true, grants }),
+      });
+
+      mount.textContent = "";
+      const p = document.createElement("p");
+      if (pile) {
+        p.innerHTML = 'The room <span class="who"></span> asks to use this device\'s keeper for its pile.';
+        p.querySelector(".who").textContent = pile;
+      } else {
+        p.textContent = "An origin that speaks for no pile embedded the keeper (" + origin + "). Nothing to allow.";
+      }
+      mount.appendChild(p);
+      const status = document.createElement("div");
+      status.id = "status";
+      if (pile) {
+        const allow = document.createElement("button");
+        allow.id = "allow";
+        allow.textContent = "Allow " + pile + " this session";
+        allow.addEventListener("click", () => {
+          grants.push({ grant: "session:" + pile, behavior: READ_BEHAVIOR,
+                        scope: { piles: [pile] }, status: "live", signed: { expiry: null } });
+          allow.remove();
+          status.textContent = "Allowed for this session — reads of '" + pile + "' are covered and chronicled ("
+            + readChronicle(localStorage).length + " acts in the log so far).";
+        });
+        mount.appendChild(allow);
+        status.textContent = "Nothing runs until you allow it here — this button is not the room's to paint.";
+      }
+      mount.appendChild(status);
+      resolve({ origin, pile, served: true });
+    });
+    parent.postMessage({ type: "probe.line.ready/v1" }, "*");
+  });
+}
+</script>
+</body>
+</html>
