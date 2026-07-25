@@ -391,6 +391,23 @@ async function makePage({ send, listeners, sessionId, targetId }) {
       throw new Error("harness: waitFor timed out: " + expression + (lastErr ? "\n  last: " + lastErr.message : ""));
     },
 
+    // Independent storage measurement (CDP Storage domain): what the BROWSER says an origin holds,
+    // outside anything the page could fake. This is how "the blank state is real" gets proven — a
+    // teardown suite fills every storage kind, runs the page's own wipe, then asks the browser
+    // whether the origin's usage actually reached zero.
+    async usage(origin) {
+      const { usage, quota, usageBreakdown } = await send("Storage.getUsageAndQuota", { origin }, sessionId);
+      return { usage, quota, breakdown: usageBreakdown };
+    },
+
+    // The browser's own root-level clear for an origin (what the user's site-settings "clear data"
+    // does). A teardown suite uses this to prove the LAYERED guarantee: the page's wipe reaches
+    // everything the platform exposes; this reaches the backend artifacts beneath (e.g. IndexedDB
+    // tombstones awaiting compaction).
+    async clearOrigin(origin) {
+      await send("Storage.clearDataForOrigin", { origin, storageTypes: "all" }, sessionId);
+    },
+
     // A virtual platform authenticator (CDP WebAuthn domain), so passkey ceremonies — enroll, the
     // user-verified gesture, and the REFUSAL when verification is withheld — run for real in headless.
     // Defaults to an internal CTAP2 authenticator that verifies its user; setUserVerified(false) turns
