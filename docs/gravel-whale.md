@@ -125,6 +125,49 @@ bounded conveyor is unprivileged and runs freely; **crossing into the user's dur
 signs** — in batch, with a legible manifest-derived description (size, source, kind, shape) so one gear-tick
 signs many, which is the crown's whole premise.
 
+## Trust and admissibility — the hostile case
+
+A whale forces a decision the rest of gravel never has to make: you must **commit resources (storage, camera
+time) before you can verify anything**, because you stage gigabytes as they stream, long before the complete
+signed envelope exists to check. Getting this wrong is the one way intake can be attacked, so it is settled here
+rather than left open.
+
+**Split the word "trust" into two authorities it quietly bundles:**
+
+- **Shape is signed *sender*-authority.** The layout's member boundaries and sizing are the sender's to declare,
+  signed in the layout tile. You trust the shape *only for reconstruction*, and *only after* the signature
+  verifies. A lying or wrong shape cannot corrupt you — it can only **fail** (members won't reassemble, or the
+  whole-payload hash won't match). So there is nothing to negotiate about the shape: verify, then rebuild.
+- **Budget is *receiver*-authority, and is never delegated to the manifest.** The manifest *proposes* a size
+  (`L`); the crown *grants* a budget. Admission is `declared L ≤ granted budget`, and then you **allocate against
+  verified bytes, never declared bytes** — a manifest claiming 900 GB cannot make you reserve 900 GB, only make
+  you refuse. This is the whole answer to "trust the envelope or make it negotiate": you do neither for
+  resources.
+
+**This adds a third gate in front of gravel's existing two.** gravel already keeps `ok` (authentic + intact,
+*verify from anyone*) apart from `trusted` (signer on your local friend-list, *should you act*) —
+[offline-transfer.md](offline-transfer.md). Whales add **`admissible`**, which runs *before* either, on
+declared-but-unverified data, so it must be defensive:
+
+1. **Admissibility is consented, not demanded** — the crown grants the resource budget at intake; the manifest
+   never sets it.
+2. **Allocate against verified bytes only** — per-shard `intact` hashing means a lying or corrupt shard is
+   dropped, not staged; exposure stays bounded to the conveyor (a few shards) at all times.
+3. **Trust, learned early, scales the budget** — and this is why carousel'ing the signed layout tile is a
+   *security* feature, not just a classification one. The tile is a small signed object caught from any entry
+   point, so the *signer* is verifiable before the bulk is committed: a friend's whale gets a generous default
+   budget; an unknown or unverifiable signer's whale gets a minimal one, or an explicit *"this is anonymous —
+   how much will you spend?"* crown grant. That is the "installing something anonymous" instinct, made
+   mechanical.
+
+**The byte/execution boundary is the safety story.** A whale at rest is always **inert** — the danger is never
+the bytes, only the transition to code. A hostile whale can at worst waste storage and camera time you already
+consented to spend; it **cannot execute**, because data→module is a separate, signed, crown-gated door (the
+glove D2, signed `kind` D7). So the receiver's rule, which it cannot get wrong: **admit inert data freely within
+a consented budget; let nothing become code without a trusted signature and the crown.** An anonymous big file
+is admitted as inert and **marked** (`untrusted`/`anonymous` on its cold-store receipt); it simply has no path to
+doing anything — the start of something malicious never gets its second step.
+
 ## Data vs code is already born — the receiver just sorts on it
 
 The receiver's job is to sort what arrives, and the distinction it sorts on is **already a signed fact**, not a
@@ -186,10 +229,15 @@ net-new pieces end to end.
 
 - **Denser frames.** Is the throughput win in bigger QR versions, multiplexed tiles-per-frame, or a different
   visual code? The bottleneck is capture+decode, not the channel.
-- **Member sizing policy.** Working-set budget is device-specific; who measures it (a probe) and where is it
-  recorded — in the layout `shape`, or negotiated at intake?
-- **Verify-don't-trust the manifest.** An incoming whale is untrusted; the manifest is attacker-controlled.
-  Allocate against *verified* bytes, treat declared `L` as an upper-bound hint, and (when provenance matters)
-  bind the layout signature to a known peer at crown-signing time.
+- **Member sizing policy.** *Settled in "Trust and admissibility": the sender declares the member shape (signed
+  in the layout); the receiver decides the resource budget at intake (crown-granted).* What remains open is the
+  narrower mechanic: how the receiver *measures* its own working-set budget on a given device — a probe at first
+  run, a conservative default, or a value the user sets — and whether that number surfaces in the vault adapter's
+  `stat()` contract.
+- **Verify-don't-trust the manifest.** *Settled in "Trust and admissibility": shape is trusted only for
+  reconstruction after the signature verifies; budget is never delegated to the manifest; allocate against
+  verified bytes; trust-of-signer scales the admissibility budget.* Remaining: the exact default budgets for
+  trusted vs. anonymous signers, and whether an anonymous whale is refused outright or admitted inert-and-marked
+  by default (this note leans **admit-inert-and-marked**).
 - **Persistence.** `navigator.storage.persist()` is unused today; the conveyor origin is the one tenant that
   should request it. iOS quota grant for multi-GB is unproven — measure per-device before relying on it.
