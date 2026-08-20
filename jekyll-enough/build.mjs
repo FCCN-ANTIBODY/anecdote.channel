@@ -67,6 +67,36 @@ function urlOf(out) {
   return "/" + out;
 }
 
+// Jekyll's `defaults:` — front matter a site declares once, which every matching page inherits.
+//
+// Load-bearing rather than a convenience. A piece that is MOUNTED by another site carries no
+// `layout` of its own, precisely so it need not know who is publishing it; the mounting site's
+// defaults are what give it one. Without this, such a page builds as a bare fragment — prose
+// present, no layout, no styling, no navigation — which is the silent blank-page failure this
+// renderer exists to avoid, and it is invisible to any check that greps templates, because the
+// template is fine and the CONFIG is what was not read.
+//
+// Matching is Jekyll's. `scope.path` is "" (everything) or a path prefix; the page's OWN front
+// matter always wins; a more specific scope (longer path) beats a less specific one, and ties go
+// to the later entry, the way a later key wins in a merge. `scope.type` is honoured as far as
+// this builder has types: everything here is a page, so a scope naming any other collection
+// simply does not apply.
+function defaultsFor(srcPath, defaults) {
+  if (!Array.isArray(defaults)) return {};
+  const matched = [];
+  defaults.forEach((entry, index) => {
+    const scope = (entry && entry.scope) || {};
+    const type = scope.type;
+    if (type !== undefined && type !== null && type !== "" && type !== "pages") return;
+    const prefix = String(scope.path ?? "");
+    const dir = prefix.replace(/\/+$/, "");
+    if (prefix !== "" && srcPath !== dir && !srcPath.startsWith(dir + "/")) return;
+    matched.push({ depth: dir.length, index, values: (entry && entry.values) || {} });
+  });
+  matched.sort((a, b) => (a.depth - b.depth) || (a.index - b.index));
+  return Object.assign({}, ...matched.map((m) => m.values));
+}
+
 // Render one page body through the template seam (+ doc-render for .md) then wrap it up its layout chain.
 // `plugs` = { renderTemplate, renderMarkdown, parseYaml }; `tpl` = the template-seam pass-through options
 // { filters, lenient, gaps }. Include loaders + the pass-through options travel together so a nested
@@ -139,7 +169,8 @@ export function buildSite(tree, {
     if (excluded(path, config.exclude)) continue;
     if (isPage(path) && FM_RE.test(tree[path])) {
       const { fmText, body } = splitFront(tree[path]);
-      const data = fmText ? (parseYaml(fmText) || {}) : {};
+      const front = fmText ? (parseYaml(fmText) || {}) : {};
+      const data = { ...defaultsFor(path, config.defaults), ...front };
       const out = outputPath(path, data, pretty);
       pages.push({ path, data, body, isMd: /\.(md|markdown)$/.test(path), out, url: urlOf(out) });
     } else {

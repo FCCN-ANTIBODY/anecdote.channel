@@ -1,10 +1,17 @@
 // jekyll-enough/yaml.mjs - YAML-ENOUGH: a deliberately dumb YAML reader for the two YAML shapes Jekyll
 // actually hands us (docs/actions-enough.md): page/site front matter + _config.yml (a mapping), and the
 // _data/*.yml registries (a sequence of flat maps). NOT a YAML engine - the civic files were measured and
-// use none of the hard parts: no anchors/aliases, no multi-doc, no flow collections beyond empty [] / {},
-// no tags. Supported: 2-space-indented mappings and sequences, scalars (quoted / bare / number / bool /
-// null / empty [] / {}), a trailing "# comment" (quote-aware), and folded/literal block scalars (>, >-, |,
+// use none of the hard parts: no anchors/aliases, no multi-doc, no tags. Supported: 2-space-indented
+// mappings and sequences, scalars (quoted / bare / number / bool / null), SINGLE-LINE flow collections
+// ([a, b] and {k: v}), a trailing "# comment" (quote-aware), and folded/literal block scalars (>, >-, |,
 // |-) which _config's description uses. Everything else is out of scope by design.
+//
+// Flow collections were once out of scope, on a measurement that turned out to be short. The journal
+// engine's `defaults:` writes its scope inline - `- scope: {path: "journal"}` - and a mounted piece writes
+// `tags: [a, b]`. Read as strings those do not fail loudly: `defaults` silently stops matching and every
+// cited page loses its layout, while tags quietly become one long tag. Both are the blank-page class of
+// failure this renderer exists to prevent, so the reader grew to meet them. Still single-line only: a flow
+// collection spanning lines is not something the civic files do.
 
 // strip a trailing "# comment" that is not inside quotes; a line that is only a comment becomes "".
 function stripComment(line) {
@@ -20,11 +27,39 @@ function stripComment(line) {
 
 const indentOf = (l) => l.length - l.trimStart().length;
 
+// Split the inside of a flow collection on its TOP-LEVEL commas, respecting quotes and nesting, so
+// `{a: 1, b: [2, 3]}` and `["x, y", z]` both come apart where they should.
+function splitFlow(inner) {
+  const parts = [];
+  let depth = 0, quote = null, cur = "";
+  for (const c of inner) {
+    if (quote) { cur += c; if (c === quote) quote = null; continue; }
+    if (c === '"' || c === "'") { quote = c; cur += c; continue; }
+    if (c === "[" || c === "{") depth++;
+    else if (c === "]" || c === "}") depth--;
+    else if (c === "," && depth === 0) { parts.push(cur); cur = ""; continue; }
+    cur += c;
+  }
+  if (cur.trim() !== "") parts.push(cur);
+  return parts;
+}
+
 function scalar(tok) {
   const t = tok.trim();
   if (t === "" || t === "~" || t === "null") return null;
   if (t === "[]") return [];
   if (t === "{}") return {};
+  // single-line flow collections; the elements go back through scalar(), so they nest.
+  if (t.startsWith("[") && t.endsWith("]")) return splitFlow(t.slice(1, -1)).map(scalar);
+  if (t.startsWith("{") && t.endsWith("}")) {
+    const map = {};
+    for (const part of splitFlow(t.slice(1, -1))) {
+      const ci = part.indexOf(":");
+      if (ci < 0) continue;
+      map[part.slice(0, ci).trim().replace(/^["']|["']$/g, "")] = scalar(part.slice(ci + 1));
+    }
+    return map;
+  }
   if (t === "true") return true;
   if (t === "false") return false;
   if (/^-?\d+$/.test(t)) return parseInt(t, 10);
