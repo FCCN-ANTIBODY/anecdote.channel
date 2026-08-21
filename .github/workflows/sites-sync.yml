@@ -1,0 +1,59 @@
+# Keep the published directory (sites.json) in step with what actually answers.
+#
+# No credential required, by design. A site is a hostname that responds; the check is the same
+# unauthenticated request a visitor makes, so this keeps working when a site is not a GitHub repo
+# at all. The SAN list holds wildcards and cannot enumerate leaves — this is what does.
+#
+# It also verifies every listed host is covered by config/san-list.txt. An uncovered deep leaf is
+# a TLS error for visitors, and nothing else in the pipeline catches it. A PR run validates and
+# never commits, so that failure lands before merge.
+#
+# OPTIONAL, per owner: SITES_TOKEN_<OWNER> (e.g. SITES_TOKEN_NCCV_OPINION) lets a `repo:` entry be
+# confirmed while it is configured but not yet serving. One secret per owner — never one blob of
+# `OWNER=token` lines, which has no schema, breaks every owner on one bad line, and forces a full
+# rewrite to rotate a single token. Absent the secret, the entry reports "not serving yet".
+name: "Publish · directory (sites.json)"
+
+on:
+  push:
+    branches: [main]
+    paths: [config/sites.txt, config/san-list.txt, scripts/sync-sites.mjs, directory.mjs]
+  pull_request:
+    paths: [config/sites.txt, config/san-list.txt, scripts/sync-sites.mjs, directory.mjs]
+  schedule:
+    - cron: "17 7 * * *"      # a site can start (or stop) answering without this repo changing
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sites-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Probe + verify TLS coverage
+        env:
+          SITES_TOKEN_NCCV_OPINION: ${{ secrets.SITES_TOKEN_NCCV_OPINION }}
+        run: node scripts/sync-sites.mjs ${{ github.event_name == 'pull_request' && '--check' || '' }}
+
+      - name: Commit when the directory moved
+        if: github.event_name != 'pull_request'
+        run: |
+          if git diff --quiet -- sites.json; then
+            echo "directory unchanged — nothing to commit"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sites.json
+          git commit -m "directory: refresh sites.json [skip ci]"
+          git push

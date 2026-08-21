@@ -23,6 +23,7 @@ const VERSION = "anecdote-shell-v2";
 // be checked offline too.
 const FALLBACK_SHELL = [
   "/", "/index.html", "/poll.html", "/manifest.webmanifest", "/icon.svg",
+  "/directory.mjs", "/sites.json",              // the directory renders offline like everything else
   "/composer/probe-line.mjs", "/composer/authorize.mjs", "/composer/consent.mjs",
   "/composer/sign.mjs", "/composer/anecdote.mjs", "/composer/poll-answer.mjs",
   "/composer/qr-mint.mjs", "/composer/qr-sign.mjs", "/composer/qr-mint-demo.html",

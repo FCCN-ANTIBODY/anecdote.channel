@@ -1,0 +1,38 @@
+{
+  "apex": "anecdote.channel",
+  "root": "colorado.anecdote.channel",
+  "sites": [
+    {
+      "host": "antibody.fort-collins.colorado.anecdote.channel",
+      "draft": false,
+      "system": false,
+      "served": true,
+      "label": "Antibody",
+      "note": ""
+    },
+    {
+      "host": "atlas.anecdote.channel",
+      "draft": false,
+      "system": true,
+      "served": true,
+      "label": "Atlas",
+      "note": ""
+    },
+    {
+      "host": "tell.anecdote.channel",
+      "draft": false,
+      "system": true,
+      "served": true,
+      "label": "Tell",
+      "note": ""
+    },
+    {
+      "host": "voices.north.colorado.anecdote.channel",
+      "draft": false,
+      "system": false,
+      "served": false,
+      "label": "Voices",
+      "note": "unreachable"
+    }
+  ]
+}
