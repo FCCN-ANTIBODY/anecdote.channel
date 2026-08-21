@@ -198,9 +198,7 @@ const site = buildSite(tree);
   ok(s2["_site/a/b/deep.html"] === "inner", "the most specific scope wins over the less specific ones");
   ok(s2["_site/a/shallow.html"] === "outer", "a page matches the deepest scope that contains it");
   ok(s2["_site/z.html"] === "site", "an unmatched page keeps the site-wide default");
-  // built PAGES only: _config.yml is copied through to the output verbatim and carries the word.
-  const built = ["_site/a/b/deep.html", "_site/a/shallow.html", "_site/z.html"].map((k) => s2[k]);
-  ok(!built.some((v) => String(v).includes("never")),
+  ok(!Object.values(s2).some((v) => String(v).includes("never")),
      "a scope naming a collection this builder does not have never applies");
 }
 
@@ -213,6 +211,39 @@ const site = buildSite(tree);
     "list.html": '---\nlayout: null\n---\n{{ site.pages | where: "kind", "letter" | size }}',
   };
   ok(buildSite(t)["_site/list.html"] === "1", "an inherited key is queryable on site.pages");
+}
+
+// 14. what a build must NOT publish: the site's own config, and anything hidden.
+{
+  const t = {
+    "_config.yml": "title: Site\n",
+    "index.html": "---\nlayout: null\n---\nhome",
+    ".git/config": "[core]\n",
+    ".gitignore": "_site\n",
+    "assets/x.css": "body{}",
+  };
+  const s2 = buildSite(t);
+  ok(!("_site/_config.yml" in s2),
+     "the site's own config is an input, not an artifact - a build does not publish it");
+  ok(!Object.keys(s2).some((k) => k.includes("/.git/")),
+     "a held tree's .git never reaches the site");
+  ok(!("_site/.gitignore" in s2), "dotfiles are ignored, the way Jekyll ignores them");
+  ok(s2["_site/assets/x.css"] === "body{}", "ordinary statics still pass through");
+  ok(s2["_site/index.html"] === "home", "and pages still build");
+}
+
+// 15. `include:` is Jekyll's declared way back in, which is how a static site publishes .well-known.
+{
+  const t = {
+    "_config.yml": 'include:\n  - ".well-known"\n  - ".nojekyll"\n',
+    ".well-known/assetlinks.json": "[]",
+    ".nojekyll": "",
+    ".git/HEAD": "ref: refs/heads/main\n",
+  };
+  const s2 = buildSite(t);
+  ok(s2["_site/.well-known/assetlinks.json"] === "[]", "an included dot-directory publishes");
+  ok("_site/.nojekyll" in s2, "an included dotfile publishes");
+  ok(!("_site/.git/HEAD" in s2), "everything else hidden stays hidden");
 }
 
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }

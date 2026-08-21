@@ -42,6 +42,18 @@ function excluded(path, list) {
   return false;
 }
 
+// Jekyll ignores anything whose name begins with a dot, and `include:` is the declared way back in -
+// how a site publishes .well-known or .nojekyll. Without this, a caller handing over a whole held tree
+// (git-enough does exactly that) publishes .git into the site, which is both a leak and a large one.
+function hidden(path, include) {
+  if (!path.split("/").some((seg) => seg.startsWith("."))) return false;
+  for (const e of include || []) {
+    const entry = String(e).replace(/\/+$/, "");
+    if (path === entry || path.startsWith(entry + "/")) return false;
+  }
+  return true;
+}
+
 // Where a rendered page lands. Explicit permalink wins (pretty "/tells/" -> tells/index.html); otherwise
 // index.* -> index.html, and with `permalink: pretty` a non-index page foo.md -> foo/index.html.
 function outputPath(srcPath, pageData, prettyDefault) {
@@ -166,6 +178,11 @@ export function buildSite(tree, {
   const pages = [], statics = [];
   for (const path of Object.keys(tree)) {
     if (SPECIAL.some((s) => path.startsWith(s))) continue;
+    // The site's own config is an INPUT. Real Jekyll never publishes it, and nothing downstream reads
+    // it out of a built site - the offline reader renders from the CHECKOUT, where the config is still
+    // right there. Copying it into the artifact only risks publishing whatever a site keeps in it.
+    if (path === "_config.yml") continue;
+    if (hidden(path, config.include)) continue;
     if (excluded(path, config.exclude)) continue;
     if (isPage(path) && FM_RE.test(tree[path])) {
       const { fmText, body } = splitFront(tree[path]);
