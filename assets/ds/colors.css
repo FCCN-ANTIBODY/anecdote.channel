@@ -1,0 +1,48 @@
+/* Anecdote — color tokens.
+   A stark, near-monochrome system: black ink on white paper, anchored by one
+   deep slate surface and a single pale lilac accent (the mark's chip color).
+   Restraint is the brand. No gradients beyond the faint paper sheen. */
+
+:root {
+  /* ---- Base palette ---- */
+  --ink: #0A0A0A;          /* primary text, rules, the heavy "A" */
+  --ink-soft: #2B2B2B;     /* secondary ink */
+  --ink-faint: #6B6E6E;    /* muted captions / metadata */
+
+  --paper: #FFFFFF;        /* the canvas */
+  --paper-warm: #FDFCFA;   /* faint warm white, top-of-slide sheen */
+  --paper-edge: #ECEAE6;   /* hairline dividers on paper */
+
+  --slate: #3F4F50;        /* THE dark surface — footer bars, inverse panels */
+  --slate-deep: #313F40;   /* pressed / lower slate */
+  --slate-line: #546364;   /* hairlines drawn on slate */
+
+  --lilac: #E9D6E8;        /* the one accent — the mark's chip */
+  --lilac-deep: #D9BFD8;   /* lilac, one step down for hovers/edges */
+
+  --cream: #F4F1EC;        /* text & marks set on slate */
+  --cream-dim: #BFC6C4;    /* secondary text on slate */
+
+  /* ---- Semantic aliases ---- */
+  --text-strong: var(--ink);
+  --text-body: var(--ink-soft);
+  --text-muted: var(--ink-faint);
+  --text-on-inverse: var(--cream);
+  --text-on-inverse-dim: var(--cream-dim);
+  --text-on-accent: var(--ink);
+
+  --surface: var(--paper);
+  --surface-warm: var(--paper-warm);
+  --surface-inverse: var(--slate);
+  --surface-inverse-deep: var(--slate-deep);
+  --surface-accent: var(--lilac);
+
+  --accent: var(--lilac);
+  --accent-edge: var(--lilac-deep);
+
+  --border: var(--ink);            /* the brand draws hard black rules */
+  --border-faint: var(--paper-edge);
+  --border-inverse: var(--slate-line);
+
+  --rule: 2px;                     /* the canonical heavy underline weight */
+}

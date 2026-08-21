@@ -1,0 +1,45 @@
+/* Anecdote — webfonts. THE ONE FILE HERE THAT IS NOT A VERBATIM MIRROR. See MIRROR.md.
+ *
+ * The design system's own fonts.css @imports its faces from a third-party font host. That is
+ * the one thing this publication cannot carry: a webfont fetched from elsewhere tells that
+ * elsewhere who is reading, and a page carrying no third-party request is a page whose
+ * rendering can be verified. It is the same argument that keeps advertising off the site,
+ * applied to a font.
+ *
+ * So both voices are self-hosted, and every declaration below points at this origin.
+ */
+
+/* The display voice. The provided master, as the design system ships it. */
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/playfair-display.regular.ttf') format('truetype');
+}
+
+/* The small true voice underneath it. SIL Open Font License 1.1 — the licence travels with
+   the files, at assets/fonts/SpaceMono-OFL.txt, because vendoring a font means carrying its
+   terms rather than pointing at where they used to be.
+   Bold italic is not vendored; nothing here sets it, and the browser may synthesise it. */
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/SpaceMono-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/fonts/SpaceMono-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Mono';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/SpaceMono-Italic.woff2') format('woff2');
+}

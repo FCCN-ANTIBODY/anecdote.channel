@@ -14,54 +14,115 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>anecdote.channel</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#990049">
+<meta name="theme-color" content="#FFFFFF">
 <link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/assets/ds/colors.css">
+<link rel="stylesheet" href="/assets/ds/spacing.css">
+<link rel="stylesheet" href="/assets/ds/typography.css">
+<link rel="stylesheet" href="/assets/ds/fonts.css">
 <!-- Hold the app shell so anecdote boots with no connection / origin unreachable (sw.js, docs/origin.md). -->
 <script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{type:"module"}).then(function(){return navigator.serviceWorker.ready;}).then(function(){if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:"firmware-check"});}).catch(function(){});});</script>
 <style>
-  :root {
-    --io: #ccad31;
-    --accent: #990049;
-    --accent-fg: #e9d8f7;
-    --accent-sh: #000000a0;
-    --bg1: #293033;
-    --bg2: #274f4b;
-    --fg1: #dfdfdf;
-    --fg2: #e9daf5;
-    --fg-inverse: #040404;
-    --sh: #18151a;
-    --stroke: #282524;
-    --shade-hard: #232224f2;
-    --shade: #23222440;
-    --border: #00000080;
+  /* The page's own use of the design system. Tokens come from /assets/ds/ — never redefined here.
+     Two voices, no third (typography.css): Playfair says the loud thing, Space Mono says the small
+     true thing underneath it. So a DESTINATION is set in serif — it is the name you would say out
+     loud — and everything structural (the levels, the notes) is mono. */
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; background: var(--paper); }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--text-body);
+    font-family: var(--font-mono);
+    font-size: var(--mono-body);
+    line-height: var(--leading-body);
   }
-  /* The directory: quiet, nested by hostname depth. Categories are levels nobody serves yet. */
-  #directory { font: 14px/1.7 ui-monospace, Menlo, monospace; margin: 1.5rem auto 3rem; max-width: 46rem; padding: 0 1.5rem; }
-  #directory ul { list-style: none; margin: 0; padding-left: 1.25rem; }
-  #directory > ul { padding-left: 0; }
-  #directory li { margin: .2rem 0; }
-  #directory a { color: var(--fg2); text-decoration: none; border-bottom: 1px solid var(--accent); }
-  #directory a:hover, #directory a:focus { color: var(--accent-fg); background: var(--shade); }
-  #directory .category { color: var(--fg1); opacity: .55; }
-  #directory .soon { color: var(--fg1); opacity: .75; }
-  #directory small { color: var(--fg1); opacity: .5; margin-left: .6rem; }
+
+  /* ---- the masthead: the one loud thing on a page that holds almost nothing ---------- */
+  .masthead {
+    padding: var(--space-8) var(--gutter) var(--space-5);
+    border-bottom: var(--rule) solid var(--border);
+  }
+  .wordmark {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: var(--weight-display);
+    font-size: var(--display-hero);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-display);
+    color: var(--text-strong);
+    text-shadow: var(--shadow-display);
+  }
+  /* The apex is the name people say out loud; the full host is the small true thing under it. */
+  .eyebrow {
+    margin: var(--space-4) 0 0;
+    font-size: var(--text-eyebrow);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* ---- the directory ----------------------------------------------------------------- */
+  #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
   #directory[hidden] { display: none; }
-  html { width: 100vw; min-height: 100vh; place-content: center; }
-  html::before {
-    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background:
-      radial-gradient(ellipse 100% 100% at 50% bottom, var(--bg2) 0%, var(--bg1) 80%, var(--bg1) 100%), var(--bg1);
-    will-change: transform; transform: translateZ(0); contain: paint; image-rendering:auto; backface-visibility:hidden;
+  #directory ul { list-style: none; margin: 0; padding: 0; }
+  #directory > ul > li + li { margin-top: var(--space-7); }
+  #directory ul ul { margin-top: var(--space-3); }
+  #directory ul ul li + li { border-top: 1px solid var(--border-faint); }
+
+  /* A level nobody serves is a category, not a destination: mono, small, set as an eyebrow. */
+  .category {
+    display: block;
+    font-size: var(--text-eyebrow);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
   }
-  body { display: flex; flex-direction: column; width: max-content; padding: 1rem; margin: auto; color: var(--fg2); }
-  code { white-space: pre; font-weight: bolder; font-size: 1.5em; font-family: "Courier New", Courier, monospace; color: var(--fg2); mix-blend-mode: overlay; text-shadow: 0 .15rem 0 var(--sh); }
-  body::before { content: ""; position: fixed; inset: 3rem; background-color: var(--shade); box-shadow: 0 0 .5rem var(--border); z-index: -1; pointer-events: none; }
-  iframe[id] { position: absolute; width: 1px; height: 1px; left: -100vw; top: -100vh; pointer-events: none; opacity: 0; user-select: none; overflow: hidden; border: none; margin: 0; padding: 0; }
+  /* A destination carries the serif — it is a place, and it is meant to be read as one. */
+  .place, .soon {
+    display: block;
+    font-family: var(--font-display);
+    font-size: var(--display-3);
+    line-height: var(--leading-snug);
+    padding: var(--space-3) 0;
+  }
+  a.place { color: var(--text-strong); text-decoration: none; }
+  a.place:hover { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: var(--rule); }
+  a.place:focus-visible { outline: var(--rule) solid var(--border); outline-offset: 4px; }
+  /* Listed but not answering: shown, deliberately not a link. */
+  .soon { color: var(--text-muted); }
+  .soon small {
+    font-family: var(--font-mono);
+    font-size: var(--mono-caption);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    margin-left: var(--space-3);
+    vertical-align: middle;
+  }
+
+  /* ---- the standing-by fallback + ?diag readout -------------------------------------- */
+  #heading {
+    display: block;
+    padding: var(--space-7) var(--gutter);
+    font-family: var(--font-mono);
+    font-size: var(--mono-small);
+    color: var(--text-muted);
+    white-space: pre;
+  }
+  #heading[hidden] { display: none; }
+
+  /* Diagnostics run offscreen (see the ?diag block below). */
+  iframe[id] { position: fixed; left: -100vw; width: 100vw; height: 100vh; border: 0; }
 </style>
 </head>
 <body>
-<code id="heading">Please Stand By.</code>
+<header class="masthead">
+  <h1 class="wordmark">anecdote</h1>
+  <p class="eyebrow" id="eyebrow">Please Stand By.</p>
+</header>
 <nav id="directory" hidden></nav>
+<code id="heading" hidden></code>
 
 <script type="module">
   // THE DIRECTORY. This same page is the listing at EVERY level: it reads its own
@@ -97,6 +158,7 @@
         const name = n.site?.label || seg;
         if (n.site && n.site.served) {         // answering: a place you can go
           const a = document.createElement("a");
+          a.className = "place";
           a.href = `https://${n.host}/`;
           a.textContent = name;
           li.append(a);
@@ -120,7 +182,8 @@
     const nav = document.getElementById("directory");
     nav.append(list(tree));
     nav.hidden = false;
-    document.getElementById("heading").textContent = here;
+    // The wordmark is the name you say out loud; the host is the small true thing under it.
+    document.getElementById("eyebrow").textContent = here;
   })();
 </script>
 
@@ -135,6 +198,7 @@
       { id: "diag-composer", src: "composer/index.html",         name: "composer" },
     ];
     const heading = document.getElementById("heading");
+    heading.hidden = false;
     const state = Object.fromEntries(DIAGS.map((d) => [d.name, "…"]));
     const render = () => {
       heading.textContent =

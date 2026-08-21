@@ -16,14 +16,22 @@
 
 import { pinDecision, verifyFiles } from "/composer/firmware.mjs";
 
-const VERSION = "anecdote-shell-v2";
+// BUMP THIS whenever FALLBACK_SHELL changes. handle() is strict cache-first — a hit is returned
+// and the network is never consulted — and activate() only deletes caches whose key DIFFERS from
+// VERSION. So editing the shell without bumping the key strands every existing install on the old
+// copy, and no amount of edge purging reaches it: the request never leaves the browser.
+const VERSION = "anecdote-shell-v3";
 
 // Fallback shell when NO firmware.json is deployed — pinning is dormant, static precache (slice 1a note:
 // arming the guarantee is opt-in). Same set as before + the firmware verify graph so a signed manifest can
 // be checked offline too.
 const FALLBACK_SHELL = [
   "/", "/index.html", "/poll.html", "/manifest.webmanifest", "/icon.svg",
-  "/directory.mjs", "/sites.json",              // the directory renders offline like everything else
+  "/directory.mjs",                             // the directory renders offline like everything else
+  "/assets/ds/colors.css", "/assets/ds/spacing.css", "/assets/ds/typography.css",
+  "/assets/ds/fonts.css",                       // the design system is vendored, so it boots dark-origin too
+  "/assets/fonts/playfair-display.regular.ttf", "/assets/fonts/SpaceMono-Regular.woff2",
+  "/assets/fonts/SpaceMono-Bold.woff2", "/assets/fonts/SpaceMono-Italic.woff2",
   "/composer/probe-line.mjs", "/composer/authorize.mjs", "/composer/consent.mjs",
   "/composer/sign.mjs", "/composer/anecdote.mjs", "/composer/poll-answer.mjs",
   "/composer/qr-mint.mjs", "/composer/qr-sign.mjs", "/composer/qr-mint-demo.html",
@@ -159,10 +167,23 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname === "/firmware.json") return;         // control data — always fresh, never shell-cached
+  if (url.pathname === "/sites.json") return e.respondWith(fresh(req));  // directory data — see fresh()
   e.respondWith(handle(req));
 });
 
 // Cache-first: a held (pinned) file wins, so a dead — or possessed — origin can't replace what's cached.
+// Network-first with a cached floor. The directory is DATA: under strict cache-first it would
+// freeze at whatever a visitor saw once, and the daily sync would never reach anybody. Offline,
+// the last good copy still renders — the origin being unreachable is the normal case here.
+async function fresh(req) {
+  const cache = await caches.open(VERSION);
+  try {
+    const res = await fetch(req);
+    if (res && res.ok) { cache.put(req, res.clone()); return res; }
+  } catch {}
+  return (await cache.match(req)) || Response.error();
+}
+
 async function handle(req) {
   const cache = await caches.open(VERSION);
   const hit = await cache.match(req, { ignoreSearch: req.mode === "navigate" });
