@@ -34,5 +34,10 @@ anecdote.channel
 # --- per-state wildcards (covers <city>.<state>.anecdote.channel) --------------
 *.colorado.anecdote.channel
 
-# --- per-city wildcards (covers <leaf>.<city>.<state>.anecdote.channel) --------
+# --- per-city / per-region wildcards (covers <leaf>.<region>.<state>.anecdote.channel) ---
+# `north` is a REGION label sitting at the same DNS level as a city — deliberately not
+# `northern-colorado.colorado`, which stutters. The per-level rule is identical either way:
+# *.colorado.anecdote.channel covers `north.colorado...`, but the varying leaf beneath it
+# (e.g. voices.north.colorado...) needs its own wildcard.
 *.fort-collins.colorado.anecdote.channel
+*.north.colorado.anecdote.channel

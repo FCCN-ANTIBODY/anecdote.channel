@@ -1,0 +1,30 @@
+# sites.txt — the directory anecdote.channel publishes.
+#
+# HOSTNAMES, not repos. A site is a name that answers; how it is hosted is nobody's business
+# here. Reading a repo would assume GitHub forever and need a credential per org — a probe
+# assumes nothing and needs none. Registration is a PR from whoever runs the site; verification
+# is an ordinary HTTPS request anyone could make.
+#
+# Format: one hostname per line, plus optional space-separated flags, plus an optional `= label`.
+#   system     — verify it (TLS, liveness) but NEVER publish it. Infrastructure other software
+#                talks to, not a place to send a person.
+#   draft      — hold it back from the directory entirely.
+#   = <label>  — override the label; default is the site's own <title>.
+#
+# A listed site that is not answering yet still appears, unlinked — saying "soon" is honest and
+# useful; hiding it makes the directory silently incomplete.
+#
+# `@root` sets which level the APEX lists. anecdote.channel is the name people can remember and
+# say out loud, so it shows destinations rather than the top of the tree. Everything currently
+# lives under one state; widen this when that stops being true.
+@root colorado.anecdote.channel
+# Blank lines and `#` comments ignored.
+
+# --- system: machinery, verified but never advertised to a person --------------------
+tell.anecdote.channel                            system
+atlas.anecdote.channel                           system
+
+# --- destinations --------------------------------------------------------------------
+# `north` is a region label sitting at city level.
+antibody.fort-collins.colorado.anecdote.channel  = Antibody
+voices.north.colorado.anecdote.channel           = Voices
