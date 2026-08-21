@@ -28,6 +28,18 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Gather the directory as part of the deploy. The site is a site: what it publishes about
+      # itself should be resolved when it is published, not carried in the repo and refreshed on
+      # some schedule nobody remembers. This probes each host in config/sites.txt, fails the deploy
+      # if any listed name is missing TLS coverage in config/san-list.txt, and writes sites.json
+      # straight into the uploaded artifact — never committed, so there is nothing to drift.
+      - name: Gather the directory
+        run: node scripts/sync-sites.mjs
+
       - name: Serve files as-is (no Jekyll)
         run: touch .nojekyll
       - uses: actions/configure-pages@v5
