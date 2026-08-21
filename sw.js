@@ -167,7 +167,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname === "/firmware.json") return;         // control data — always fresh, never shell-cached
-  if (url.pathname === "/sites.json") return e.respondWith(fresh(req));  // directory data — see fresh()
+  if (NETWORK_FIRST.has(url.pathname)) return e.respondWith(fresh(req));   // the landing page only
   e.respondWith(handle(req));
 });
 
@@ -175,13 +175,38 @@ self.addEventListener("fetch", (e) => {
 // Network-first with a cached floor. The directory is DATA: under strict cache-first it would
 // freeze at whatever a visitor saw once, and the daily sync would never reach anybody. Offline,
 // the last good copy still renders — the origin being unreachable is the normal case here.
+// WHAT THE SHELL IS FOR, and what it is not (docs/origin.md). The precache exists so a holder can
+// answer a poll, mint, and sign with the origin unreachable — poll.html and its probe-line / consent /
+// sign module graph. Those are APP SURFACES: they must be instant and must not depend on a network.
+//
+// The landing page is not one of them. It is a directory of links to OTHER origins; offline, every
+// link on it is dead, so cache-first buys it nothing and costs the one failure that matters — a front
+// page frozen behind a cache no edge purge can reach, because the request never leaves the browser.
+//
+// So the landing page and the directory data are served network-first with the cached copy as a
+// floor: fresh whenever the origin answers, still rendering when it does not.
+//
+// SCOPED DELIBERATELY NARROW — this set, never "all navigations". Cache-first is not only a speed
+// choice; together with the firmware pin it is what makes the copy a holder already has AUTHORITATIVE
+// over whatever the origin serves later. Route poll.html through the network and a possessed origin
+// gets to re-serve the answer runtime on every visit, which is the exact threat origin.md is built
+// against. The landing page can be given up that way because nothing is held in it.
+const NETWORK_FIRST = new Set(["/", "/index.html", "/sites.json"]);
+
 async function fresh(req) {
   const cache = await caches.open(VERSION);
   try {
     const res = await fetch(req);
     if (res && res.ok) { cache.put(req, res.clone()); return res; }
   } catch {}
-  return (await cache.match(req)) || Response.error();
+  const hit = await cache.match(req, { ignoreSearch: req.mode === "navigate" });
+  if (hit) return hit;
+  // Origin unreachable and nothing cached for this exact request: fall back the way the shell does,
+  // so arriving offline lands on something held rather than a browser error.
+  if (req.mode === "navigate") {
+    return (await cache.match("/index.html")) || (await cache.match("/poll.html")) || Response.error();
+  }
+  return Response.error();
 }
 
 async function handle(req) {
