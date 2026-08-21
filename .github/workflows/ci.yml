@@ -25,3 +25,9 @@ jobs:
           git config --global user.email ci@local
       - name: Run all suites
         run: node scripts/test.mjs
+
+      # The directory's own preflight. A listed host with no wildcard covering it in
+      # config/san-list.txt is a TLS error for visitors, and the deploy is too late to find out —
+      # so it fails here, on the PR that added the name. Probes only; writes nothing.
+      - name: Directory — probe hosts and verify TLS coverage
+        run: node scripts/sync-sites.mjs --check

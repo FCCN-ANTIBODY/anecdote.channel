@@ -10,3 +10,7 @@ vendor/
 # environment-specific (installed with --ignore-scripts behind the proxy), so it is not pinned.
 node_modules/
 package-lock.json
+
+# Generated during deploy (pages.yml, "Gather the directory") — resolved at publish time,
+# never carried in the repo, so it cannot drift from what is actually being served.
+sites.json
