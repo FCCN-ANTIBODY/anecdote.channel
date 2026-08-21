@@ -145,5 +145,75 @@ const site = buildSite(tree);
   ok(threw, "strict (default): a missing include throws - a build wants the failure");
 }
 
+// 11. `defaults:` - front matter a site declares once and matching pages inherit. This is the mounted-piece
+// case: a cited page carries no layout of its own, precisely so it need not know who is publishing it, and
+// the mounting site's defaults are what give it one. Read as absent, such a page builds as a bare fragment.
+{
+  const cfg = [
+    "defaults:",
+    '  - scope: {path: ""}',
+    "    values:",
+    "      preferences: journal",
+    '  - scope: {path: "journal"}',
+    "    values:",
+    "      layout: wrap",
+    "      badge: mounted",
+  ].join("\n");
+  const t = {
+    "_config.yml": cfg,
+    "_layouts/wrap.html": "<main>{{ content }}</main>",
+    // a mounted piece: no layout of its own, and no idea who is publishing it
+    "journal/piece/index.md": "---\ntitle: A piece\n---\nprose\n",
+    // a page that overrides one inherited key and keeps the other
+    "journal/own.html": "---\nlayout: null\nbadge: its own\n---\n{{ page.badge }}/{{ page.preferences }}",
+    // outside the mount: inherits the site-wide default only
+    "top.html": "---\nlayout: null\n---\n{{ page.preferences }}/{{ page.badge }}",
+  };
+  const s2 = buildSite(t);
+
+  ok(s2["_site/journal/piece/index.html"] === "<main><p>prose</p></main>",
+     "a mounted piece with no layout of its own inherits one from the site's defaults");
+  ok(s2["_site/journal/own.html"] === "its own/journal",
+     "the page's own front matter wins over a default, key by key");
+  ok(s2["_site/top.html"] === "journal/",
+     "a scope the path does not match does not apply; the site-wide one still does");
+}
+
+// 12. defaults: precedence between overlapping scopes, and scope.type.
+{
+  const cfg = [
+    "defaults:",
+    '  - scope: {path: ""}',
+    "    values: {tier: site}",
+    '  - scope: {path: "a"}',
+    "    values: {tier: outer}",
+    '  - scope: {path: "a/b"}',
+    "    values: {tier: inner}",
+    '  - scope: {path: "", type: "posts"}',
+    "    values: {tier: never}",
+  ].join("\n");
+  const page = (p) => ({ [p]: "---\nlayout: null\n---\n{{ page.tier }}" });
+  const t = { "_config.yml": cfg, ...page("a/b/deep.html"), ...page("a/shallow.html"), ...page("z.html") };
+  const s2 = buildSite(t);
+  ok(s2["_site/a/b/deep.html"] === "inner", "the most specific scope wins over the less specific ones");
+  ok(s2["_site/a/shallow.html"] === "outer", "a page matches the deepest scope that contains it");
+  ok(s2["_site/z.html"] === "site", "an unmatched page keeps the site-wide default");
+  // built PAGES only: _config.yml is copied through to the output verbatim and carries the word.
+  const built = ["_site/a/b/deep.html", "_site/a/shallow.html", "_site/z.html"].map((k) => s2[k]);
+  ok(!built.some((v) => String(v).includes("never")),
+     "a scope naming a collection this builder does not have never applies");
+}
+
+// 13. defaults reach site.pages too, so a template that queries the page list sees them - which is how an
+// issue layout finds a piece it cited.
+{
+  const t = {
+    "_config.yml": 'defaults:\n  - scope: {path: "journal"}\n    values: {kind: letter}',
+    "journal/one.md": "---\ntitle: One\n---\nx",
+    "list.html": '---\nlayout: null\n---\n{{ site.pages | where: "kind", "letter" | size }}',
+  };
+  ok(buildSite(t)["_site/list.html"] === "1", "an inherited key is queryable on site.pages");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall jekyll-enough build tests passed");

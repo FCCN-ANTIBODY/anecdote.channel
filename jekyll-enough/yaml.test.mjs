@@ -81,5 +81,45 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fails++; } else co
   ok(frontMatter("no front matter here").body === "no front matter here", "a page with no front matter returns the whole body");
 }
 
+// 7. single-line flow collections. Once out of scope, and the omission was not loud: read as strings, a
+// journal engine's `defaults:` silently stops matching and every mounted piece loses its layout, while a
+// piece's `tags: [a, b]` quietly becomes one long tag.
+{
+  const y = parse([
+    'scope: {path: "journal"}',
+    "tags: [vehicle, location, data warehousing]",
+    "nested: {a: 1, b: [2, 3]}",
+    'quoted: ["x, y", z]',
+    "empty_seq: []",
+    "empty_map: {}",
+  ].join("\n"));
+  ok(y.scope && y.scope.path === "journal", "a flow mapping reads as a mapping, not a string");
+  ok(Array.isArray(y.tags) && y.tags.length === 3 && y.tags[2] === "data warehousing",
+     "a flow sequence splits on commas and keeps spaces inside an element");
+  ok(y.nested.a === 1 && Array.isArray(y.nested.b) && y.nested.b[1] === 3, "flow collections nest");
+  ok(y.quoted.length === 2 && y.quoted[0] === "x, y", "a comma inside quotes does not split an element");
+  ok(Array.isArray(y.empty_seq) && y.empty_seq.length === 0, "[] is still the empty sequence");
+  ok(y.empty_map && Object.keys(y.empty_map).length === 0, "{} is still the empty mapping");
+}
+
+// 8. the shape that motivated it: a sequence of maps whose scope is written inline, as the journal
+// engine's _config.yml writes it.
+{
+  const y = parse([
+    "defaults:",
+    '  - scope: {path: ""}',
+    "    values:",
+    "      preferences: journal",
+    '  - scope: {path: "journal"}',
+    "    values:",
+    "      layout: journal",
+  ].join("\n"));
+  ok(y.defaults.length === 2, "both default entries parsed");
+  ok(y.defaults[0].scope.path === "" && y.defaults[0].values.preferences === "journal",
+     "the site-wide scope and its values");
+  ok(y.defaults[1].scope.path === "journal" && y.defaults[1].values.layout === "journal",
+     "the mount-scoped default that gives a cited piece its layout");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall yaml-enough tests passed");
