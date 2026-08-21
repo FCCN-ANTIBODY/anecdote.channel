@@ -30,9 +30,9 @@
       "host": "voices.north.colorado.anecdote.channel",
       "draft": false,
       "system": false,
-      "served": false,
+      "served": true,
       "label": "Voices",
-      "note": "unreachable"
+      "note": ""
     }
   ]
 }
