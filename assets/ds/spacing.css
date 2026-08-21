@@ -1,0 +1,39 @@
+/* Anecdote — spacing, radius, shadow, layout.
+   The brand is built on air. Generous margins, hard edges, almost no rounding.
+   Shadows are a single soft offset under display text — never decorative. */
+
+:root {
+  /* 8px base rhythm */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --space-10: 128px;
+
+  /* Corners stay sharp. The mark's chip is the only soft thing. */
+  --radius-none: 0;
+  --radius-sm: 3px;
+  --radius: 6px;
+  --radius-chip: 10px;   /* the lilac mark chip */
+  --radius-full: 999px;
+
+  /* The signature: a soft drop beneath over-large display type. */
+  --shadow-display: 0 3px 0 rgba(10, 10, 10, 0.06), 0 10px 22px rgba(10, 10, 10, 0.10);
+  /* Quiet lift for cards on paper. */
+  --shadow-card: 0 1px 2px rgba(10, 10, 10, 0.05), 0 8px 24px rgba(10, 10, 10, 0.08);
+  /* Marks/panels on slate. */
+  --shadow-inverse: 0 8px 30px rgba(0, 0, 0, 0.35);
+
+  /* Layout */
+  --slide-w: 1280px;
+  --slide-h: 720px;
+  --footer-h: 132px;        /* the persistent slate lockup bar on slides */
+  --gutter: clamp(24px, 5vw, 96px); /* @kind spacing */
+  --measure: 64ch;          /* reading width for mono body */
+}

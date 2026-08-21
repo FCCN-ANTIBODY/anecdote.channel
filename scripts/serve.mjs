@@ -22,6 +22,8 @@ const MIME = {
   ".json": "application/json; charset=utf-8",
   ".wasm": "application/wasm",
   ".onnx": "application/octet-stream",
+  ".woff2": "font/woff2",              // the vendored faces: served with the type they are, so a
+  ".ttf": "font/ttf",                  // local run renders exactly like the deployed origin
   ".txt": "text/plain; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".map": "application/json; charset=utf-8",

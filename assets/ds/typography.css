@@ -1,0 +1,39 @@
+/* Anecdote — typography tokens.
+   Two voices, no third. Playfair Display says the loud thing, over-large.
+   Space Mono says the small true thing underneath it. Nothing whispers in serif
+   and nothing shouts in mono. */
+
+:root {
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-mono: 'Space Mono', 'Courier New', ui-monospace, monospace;
+
+  /* The display scale is deliberately enormous — the brand doubles down on
+     the little it puts on the page. clamp() keeps it composed across viewports. */
+  --display-hero: clamp(3.5rem, 9vw, 8rem); /* @kind font */   /* the one-sentence wall */
+  --display-1: clamp(2.75rem, 6vw, 5rem); /* @kind font */     /* section statements */
+  --display-2: clamp(2rem, 4vw, 3.25rem); /* @kind font */     /* sub-statements */
+  --display-3: clamp(1.5rem, 2.6vw, 2.25rem); /* @kind font */ /* column headers */
+
+  /* Mono carries everything that isn't the headline. */
+  --mono-lead: 1.375rem;   /* the line under the headline */
+  --mono-body: 1rem;
+  --mono-small: 0.8125rem;
+  --mono-caption: 0.6875rem; /* footer marks, eyebrows */
+
+  --weight-display: 400;     /* Playfair lives at regular; size carries weight */
+  --weight-display-bold: 700;
+  --weight-mono: 400;
+  --weight-mono-bold: 700;
+
+  --leading-tight: 1.02;     /* display headlines hug */
+  --leading-snug: 1.18;
+  --leading-body: 1.55;
+
+  --tracking-display: -0.01em;
+  --tracking-mono: 0;
+  --tracking-caps: 0.16em;   /* mono / serif small-caps eyebrows */
+
+  /* Semantic */
+  --text-eyebrow: var(--mono-caption);
+  --text-lead: var(--mono-lead);
+}
