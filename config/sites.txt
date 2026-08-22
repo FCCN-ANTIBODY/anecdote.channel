@@ -14,7 +14,10 @@
 #                it, it survives them changing hosts, and a public repo needs no credential.
 #   to:<url>    — a SHELL pointed at a literal URL, for something with no repo to read.
 #                Either way the listing says it leaves. Naming someone is not hosting them.
-#   = <label>  — override the label; default is the site's own <title>.
+#   type:<kind> — what sort of thing it is (`journal`). Shown beside the name. Leave it off for
+#                something that does not want a category — a platformed site is just a site.
+#   = <label>  — override the label; default is the site's own <title>. Written exactly as the
+#                thing brands itself: ANTIBODY is never "Antibody".
 #
 # A listed site that is not answering yet still appears, unlinked — saying "soon" is honest and
 # useful; hiding it makes the directory silently incomplete.
@@ -31,8 +34,8 @@ atlas.anecdote.channel                           system
 
 # --- destinations we run ---------------------------------------------------------------
 # `north` is a region label sitting at city level.
-antibody.fort-collins.colorado.anecdote.channel  = Antibody
-voices.north.colorado.anecdote.channel           = Voices
+antibody.fort-collins.colorado.anecdote.channel  type:journal  = ANTIBODY
+voices.north.colorado.anecdote.channel           type:journal  = Voices
 
 # --- shells: names we assert over things we do not run ----------------------------------
 # The name is the claim. Putting a neighbour in the same predictable place as our own nodes

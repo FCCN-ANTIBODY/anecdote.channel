@@ -25,7 +25,8 @@ export function parseSites(text) {
     if (!host.includes(".")) throw new Error(`sites.txt: expected a hostname, got "${host}"`);
     const repo = (parts.find((p) => p.startsWith("repo:")) || "").slice(5);
     const to = (parts.find((p) => p.startsWith("to:")) || "").slice(3);
-    const flags = parts.filter((p) => !p.startsWith("repo:") && !p.startsWith("to:"));
+    const kind = (parts.find((p) => p.startsWith("type:")) || "").slice(5);
+    const flags = parts.filter((p) => !/^(repo|to|type):/.test(p));
     out.push({
       host: host.toLowerCase(),
       draft: flags.includes("draft"),       // held back entirely
@@ -33,6 +34,7 @@ export function parseSites(text) {
       label: label || "",
       repo,
       to,                                   // a SHELL: we assert the name, it points somewhere we do not run
+      kind,                                 // what sort of thing it is — `journal`, etc. Empty = undecorated.
     });
   }
   return out;
@@ -107,6 +109,18 @@ export function treeUnder(root, sites) {
 // A shell always announces that it leaves. Someone following a name in this namespace should
 // never discover afterwards that they left it; being handed off is fine, being handed off
 // silently is not.
+
+// THE LEAF IS A CATEGORY TOO. Every label in the chain is one, including the last: `media` is the
+// category, and what currently sits in it is one provider. So the leaf label is shown, not just the
+// human name — a reader standing in fort-collins should be able to see that `media` is the thing
+// they are looking at. Where a category holds exactly ONE entry there is nothing to choose between,
+// so it collapses flush against its parent rather than indenting a list of one.
+export function collapse(node) {
+  const chain = [node];
+  let cur = node;
+  while (!cur.site && cur.children.length === 1) { cur = cur.children[0]; chain.push(cur); }
+  return { chain, tail: cur };
+}
 
 // `@root <host>` — which level the APEX lists. The apex is the name people can remember and say
 // out loud, so it should show the places worth going, not the top of the tree. Today everything

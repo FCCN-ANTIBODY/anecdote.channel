@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, collapse, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -8,8 +8,8 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 t("parseSites reads hostnames, flags, repo hints and labels", () => {
   const got = parseSites("# hi\n@root x.anecdote.channel\n\na.anecdote.channel\nb.anecdote.channel draft repo:O/r = Voices  # trailing\n");
   assert.deepEqual(got, [
-    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "" },
-    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "" },
+    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "", kind: "" },
+    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "", kind: "" },
   ]);
 });
 
@@ -33,6 +33,33 @@ t("a shell's canonical name still needs TLS coverage — it is served from this 
   const san = parseSan("*.longmont.colorado.anecdote.channel\n");
   assert.equal(coveredBy("media.longmont.colorado.anecdote.channel", san), true);
   assert.equal(coveredBy("media.boulder.colorado.anecdote.channel", san), false);
+});
+
+t("type: marks what a thing is, and is optional", () => {
+  const [j] = parseSites("antibody.fort-collins.colorado.anecdote.channel type:journal = ANTIBODY\n");
+  assert.equal(j.kind, "journal");
+  assert.equal(j.label, "ANTIBODY", "written as the thing brands itself");
+  const [plain] = parseSites("media.fort-collins.colorado.anecdote.channel\n");
+  assert.equal(plain.kind, "", "a platformed site is just a site");
+});
+
+t("a category of one collapses; a category of several does not", () => {
+  const sites = [
+    { host: "voices.north.colorado.anecdote.channel", label: "Voices" },
+    { host: "antibody.fort-collins.colorado.anecdote.channel", label: "ANTIBODY" },
+    { host: "media.fort-collins.colorado.anecdote.channel", label: "FCPM" },
+  ];
+  const [colorado] = treeUnder(APEX, sites);
+  const north = colorado.children.find((c) => c.host.startsWith("north."));
+  const fc = colorado.children.find((c) => c.host.startsWith("fort-collins."));
+
+  const one = collapse(north);
+  assert.equal(one.tail.site.label, "Voices", "nothing to choose between — folds to the entry");
+  assert.equal(one.chain.length, 2);
+
+  const many = collapse(fc);
+  assert.equal(many.tail, fc, "two entries is a real choice — stays a category");
+  assert.equal(many.chain.length, 1);
 });
 
 t("system marks machinery: validated, never a destination", () => {

@@ -71,6 +71,36 @@
   #directory ul ul { margin-top: var(--space-3); }
   #directory ul ul li + li { border-top: 1px solid var(--border-faint); }
 
+  /* The leaf label — the category you are actually standing in. Mono, quiet, above the name. */
+  .leaf {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--text-eyebrow);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  /* What sort of thing it is. Only where it has one; a platformed site is just a site. */
+  .kind {
+    font-family: var(--font-mono);
+    font-size: var(--mono-caption);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border: 1px solid var(--border-faint);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    vertical-align: middle;
+  }
+  .note {
+    font-family: var(--font-mono);
+    font-size: var(--mono-caption);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-left: var(--space-3);
+  }
+
   /* A level nobody serves is a category, not a destination: mono, small, set as an eyebrow. */
   .category {
     display: block;
@@ -81,7 +111,7 @@
   }
   /* A destination carries the serif — it is a place, and it is meant to be read as one. */
   .place, .soon {
-    display: block;
+    display: inline-block;
     font-family: var(--font-display);
     font-size: var(--display-3);
     line-height: var(--leading-snug);
@@ -93,15 +123,16 @@
   /* Listed but not answering: shown, deliberately not a link. */
   .soon { color: var(--text-muted); }
   /* Outbound: stated plainly, in mono, under the name. Not a warning — a courtesy. */
-  .leaves {
+  .out {
     display: block;
     font-family: var(--font-mono);
     font-size: var(--mono-caption);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-top: calc(var(--space-1) * -1);
     padding-bottom: var(--space-3);
+    text-transform: none;
+    letter-spacing: 0;
   }
   .soon small {
     font-family: var(--font-mono);
@@ -141,7 +172,7 @@
   // becomes a listing of its leaves the moment a host is arranged for it — no new page.
   // Levels nobody serves still render, as categories. Offline-safe: sites.json rides in the
   // shell (sw.js), and a failed fetch simply leaves the standing-by heading alone.
-  import { APEX, treeUnder } from "/directory.mjs";
+  import { APEX, treeUnder, collapse } from "/directory.mjs";
 
   (async () => {
     const here = location.hostname.endsWith(APEX) ? location.hostname : APEX;
@@ -164,42 +195,77 @@
     const tree = treeUnder(from, published);
     if (!tree.length) return;                 // nothing beneath this level yet
 
-    const list = (nodes) => {
+    // Every label in the chain is a category, the leaf included: `media` is the category and what
+    // sits in it is one provider. So the leaf is shown, not only the human name. A category holding
+    // exactly ONE entry has nothing to choose between, so it collapses flush against its parent
+    // instead of indenting a list of one.
+    const entry = (node, crumb) => {
+      const li = document.createElement("li");
+      const s = node.site;
+
+      const seg = s?.leaf || node.host.split(".")[0];
+      const name = s?.label || seg;
+      // Where the label already IS the leaf (ANTIBODY at `antibody`), printing both says it twice.
+      // The leaf line exists to show what is otherwise invisible, not to pad.
+      const leafText = (crumb ? crumb + " / " : "") + seg;
+      if (crumb || seg.toLowerCase() !== name.toLowerCase()) {
+        const leaf = document.createElement("span");
+        leaf.className = "leaf";
+        leaf.textContent = leafText;
+        li.append(leaf);
+      }
+
+      if (s && (s.served || s.leaves)) {
+        const a = document.createElement("a");
+        a.className = "place";
+        a.href = s.leaves ? s.href : `https://${node.host}/`;
+        a.textContent = name;
+        if (s.leaves) a.rel = "noopener";
+        li.append(a);
+      } else {
+        const span = document.createElement("span");
+        span.className = "soon";
+        span.textContent = name;
+        li.append(span, Object.assign(document.createElement("small"),
+          { className: "note", textContent: "soon" }));
+      }
+
+      if (s?.kind) li.append(Object.assign(document.createElement("small"),
+        { className: "kind", textContent: s.kind }));
+
+      // Where it actually goes, and — for something genuinely foreign — who answers for it. A
+      // directory owes a reader that much before handing them off. Our own names, and a repo we
+      // can read (something on its way to being platformed here), do not need announcing.
+      if (s?.leaves) {
+        const foreign = s.via === "config";
+        const dest = new URL(s.href).hostname;
+        li.append(Object.assign(document.createElement("small"), {
+          className: "out",
+          textContent: foreign && s.targetProvider && s.targetProvider !== "unknown"
+            ? `${dest} · served by ${s.targetProvider}`
+            : dest,
+        }));
+      }
+      return li;
+    };
+
+    const list = (nodes, crumb = "") => {
       const ul = document.createElement("ul");
       for (const n of nodes) {
-        const li = document.createElement("li");
-        const seg = n.host.split(".")[0];
-        const name = n.site?.label || seg;
-        if (n.site && n.site.leaves) {         // a shell: the name is ours, what it leads to is not
-          const a = document.createElement("a");
-          a.className = "place";
-          a.href = n.site.href;
-          a.textContent = name;
-          a.rel = "noopener";
-          li.append(a);
-          // Say it every time. Someone following a name in this namespace should never find out
-          // afterwards that they left it — being handed off is fine, being handed off quietly is not.
-          const out = document.createElement("small");
-          out.className = "leaves";
-          out.textContent = "leaves anecdote · " + new URL(n.site.href).hostname;
-          li.append(out);
-        } else if (n.site && n.site.served) {  // answering, and ours
-          const a = document.createElement("a");
-          a.className = "place";
-          a.href = `https://${n.host}/`;
-          a.textContent = name;
-          li.append(a);
-        } else if (n.site) {                   // listed, not answering yet — say so, do not link
-          const span = document.createElement("span");
-          span.className = "soon";
-          span.textContent = name;
-          li.append(span, Object.assign(document.createElement("small"), { textContent: "soon" }));
-        } else {                               // a level nobody serves — a category
-          const span = document.createElement("span");
-          span.className = "category";
-          span.textContent = seg;
-          li.append(span);
+        const { tail, chain } = collapse(n);
+        if (tail !== n) {
+          // one-of-a-kind the whole way down: fold the chain onto a single flush line
+          const prefix = chain.slice(0, -1).map((c) => c.host.split(".")[0]).join(" / ");
+          ul.append(entry(tail, (crumb ? crumb + " / " : "") + prefix));
+          if (tail.children.length) ul.append(list(tail.children));
+          continue;
         }
+        const li = n.site ? entry(n, crumb) : (() => {
+          const x = document.createElement("li");
+          x.append(Object.assign(document.createElement("span"),
+            { className: "category", textContent: n.host.split(".")[0] }));
+          return x;
+        })();
         if (n.children.length) li.append(list(n.children));
         ul.append(li);
       }
