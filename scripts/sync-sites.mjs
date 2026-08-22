@@ -24,10 +24,19 @@ import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, APEX, tokenEnv
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT = 15000;
 
-// The site describes itself: its own <title> is the label unless config overrides it.
+// The site describes itself: its own <title> IS the name. Not a fallback — the source.
+// Entities are decoded because a title is text, not markup, and Longmont's real one is
+// "Longmont Public Media &#8211; Longmont&#039;s Public Access TV".
+const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "—" };
+function decodeEntities(t) {
+  return t
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&([a-z]+);/gi, (m, n) => ENTITIES[n.toLowerCase()] ?? m);
+}
 function titleOf(html) {
   const m = /<title[^>]*>([^<]*)<\/title>/i.exec(html || "");
-  return m ? m[1].trim().replace(/\s+/g, " ").slice(0, 80) : "";
+  return m ? decodeEntities(m[1]).trim().replace(/\s+/g, " ").slice(0, 90) : "";
 }
 
 // Whether a target permits being framed. Recorded, never acted on: absence of a header is not
@@ -137,7 +146,14 @@ async function main() {
       draft: e.draft,
       system: e.system,
       served: p.served,
-      label: e.label || p.title || t?.title || e.host.split(".")[0],
+      // THE NAME COMES FROM THE THING ITSELF. A config label is an override for something we
+      // cannot read a title from — never a second copy of a name that already exists.
+      // Order matters. Our own host's title always wins — that is the thing naming itself. A config
+      // label comes next, because it is only ever written where the source is unusable, and it must
+      // beat the very title it was written to replace. The target's own title is the default for a
+      // shell; the leaf is the floor.
+      label: p.title || e.label || t?.title || e.host.split(".")[0],
+      labelFrom: p.title ? "its own title" : e.label ? "config" : t?.title ? "target title" : "leaf",
       note: "",
     };
     if (target) {

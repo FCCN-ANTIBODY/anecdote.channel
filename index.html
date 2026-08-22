@@ -205,15 +205,14 @@
 
       const seg = s?.leaf || node.host.split(".")[0];
       const name = s?.label || seg;
-      // Where the label already IS the leaf (ANTIBODY at `antibody`), printing both says it twice.
-      // The leaf line exists to show what is otherwise invisible, not to pad.
-      const leafText = (crumb ? crumb + " / " : "") + seg;
-      if (crumb || seg.toLowerCase() !== name.toLowerCase()) {
-        const leaf = document.createElement("span");
-        leaf.className = "leaf";
-        leaf.textContent = leafText;
-        li.append(leaf);
-      }
+      // ALWAYS the leaf, with no exception for it happening to match the title. `antibody` is the
+      // category and ANTIBODY is what sits in it; that they read alike is a coincidence of text,
+      // and suppressing one of them makes the listing erratic — present here, missing there, for
+      // no reason a reader can see. Same rendering for every row.
+      const leaf = document.createElement("span");
+      leaf.className = "leaf";
+      leaf.textContent = (crumb ? crumb + " / " : "") + seg;
+      li.append(leaf);
 
       if (s && (s.served || s.leaves)) {
         const a = document.createElement("a");

@@ -36,9 +36,9 @@ t("a shell's canonical name still needs TLS coverage — it is served from this 
 });
 
 t("type: marks what a thing is, and is optional", () => {
-  const [j] = parseSites("antibody.fort-collins.colorado.anecdote.channel type:journal = ANTIBODY\n");
+  const [j] = parseSites("antibody.fort-collins.colorado.anecdote.channel type:journal\n");
   assert.equal(j.kind, "journal");
-  assert.equal(j.label, "ANTIBODY", "written as the thing brands itself");
+  assert.equal(j.label, "", "a name is read from the thing, not written here");
   const [plain] = parseSites("media.fort-collins.colorado.anecdote.channel\n");
   assert.equal(plain.kind, "", "a platformed site is just a site");
 });
