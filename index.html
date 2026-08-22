@@ -92,6 +92,17 @@
   a.place:focus-visible { outline: var(--rule) solid var(--border); outline-offset: 4px; }
   /* Listed but not answering: shown, deliberately not a link. */
   .soon { color: var(--text-muted); }
+  /* Outbound: stated plainly, in mono, under the name. Not a warning — a courtesy. */
+  .leaves {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--mono-caption);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: calc(var(--space-1) * -1);
+    padding-bottom: var(--space-3);
+  }
   .soon small {
     font-family: var(--font-mono);
     font-size: var(--mono-caption);
@@ -143,7 +154,10 @@
 
     // System hosts are machinery other software talks to, not somewhere to send a person.
     // A destination that is not answering yet still lists, unlinked — "soon" is honest.
-    const published = (data.sites || []).filter((s) => !s.draft && !s.system);
+    const published = (data.sites || []).filter((s) => !s.draft && !s.system)
+      // A shell with a dead target is not a destination; drop it rather than hand someone a
+      // broken handoff under our own name.
+      .filter((s) => !s.leaves || s.targetLive);
     // At the apex, list from the configured root: the memorable name should show destinations,
     // not the top of the tree. Deeper in, a level always lists beneath itself.
     const from = (here === (data.apex || APEX) && data.root) ? data.root : here;
@@ -156,7 +170,20 @@
         const li = document.createElement("li");
         const seg = n.host.split(".")[0];
         const name = n.site?.label || seg;
-        if (n.site && n.site.served) {         // answering: a place you can go
+        if (n.site && n.site.leaves) {         // a shell: the name is ours, what it leads to is not
+          const a = document.createElement("a");
+          a.className = "place";
+          a.href = n.site.href;
+          a.textContent = name;
+          a.rel = "noopener";
+          li.append(a);
+          // Say it every time. Someone following a name in this namespace should never find out
+          // afterwards that they left it — being handed off is fine, being handed off quietly is not.
+          const out = document.createElement("small");
+          out.className = "leaves";
+          out.textContent = "leaves anecdote · " + new URL(n.site.href).hostname;
+          li.append(out);
+        } else if (n.site && n.site.served) {  // answering, and ours
           const a = document.createElement("a");
           a.className = "place";
           a.href = `https://${n.host}/`;

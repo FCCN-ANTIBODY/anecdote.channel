@@ -8,8 +8,8 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 t("parseSites reads hostnames, flags, repo hints and labels", () => {
   const got = parseSites("# hi\n@root x.anecdote.channel\n\na.anecdote.channel\nb.anecdote.channel draft repo:O/r = Voices  # trailing\n");
   assert.deepEqual(got, [
-    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "" },
-    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r" },
+    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "" },
+    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "" },
   ]);
 });
 
@@ -17,6 +17,22 @@ t("a @root directive is a directive, not a site", () => {
   assert.equal(parseRoot("@root colorado.anecdote.channel\n"), "colorado.anecdote.channel");
   assert.equal(parseRoot("# none here\n"), APEX, "defaults to the apex");
   assert.equal(parseSites("@root colorado.anecdote.channel\n").length, 0);
+});
+
+t("a shell carries its target, and is never mistaken for something we host", () => {
+  const [shell] = parseSites("media.longmont.colorado.anecdote.channel to:https://lpm.example = LPM\n");
+  assert.equal(shell.to, "https://lpm.example");
+  assert.equal(shell.label, "LPM");
+  assert.equal(shell.system, false);
+  assert.equal(shell.draft, false);
+  const [ours] = parseSites("voices.north.colorado.anecdote.channel\n");
+  assert.equal(ours.to, "", "a hosted entry has no target — that is the whole distinction");
+});
+
+t("a shell's canonical name still needs TLS coverage — it is served from this zone", () => {
+  const san = parseSan("*.longmont.colorado.anecdote.channel\n");
+  assert.equal(coveredBy("media.longmont.colorado.anecdote.channel", san), true);
+  assert.equal(coveredBy("media.boulder.colorado.anecdote.channel", san), false);
 });
 
 t("system marks machinery: validated, never a destination", () => {
