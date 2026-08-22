@@ -9,6 +9,8 @@
 #   system     — verify it (TLS, liveness) but NEVER publish it. Infrastructure other software
 #                talks to, not a place to send a person.
 #   draft      — hold it back from the directory entirely.
+#   to:<url>   — a SHELL. We assert this canonical name; what it leads to is run by someone else.
+#                The listing always says it leaves. Naming someone is not hosting them.
 #   = <label>  — override the label; default is the site's own <title>.
 #
 # A listed site that is not answering yet still appears, unlinked — saying "soon" is honest and
@@ -24,7 +26,20 @@
 tell.anecdote.channel                            system
 atlas.anecdote.channel                           system
 
-# --- destinations --------------------------------------------------------------------
+# --- destinations we run ---------------------------------------------------------------
 # `north` is a region label sitting at city level.
 antibody.fort-collins.colorado.anecdote.channel  = Antibody
 voices.north.colorado.anecdote.channel           = Voices
+
+# --- shells: names we assert over things we do not run ----------------------------------
+# The name is the claim. Putting a neighbour in the same predictable place as our own nodes
+# says this is a directory ON PURPOSE rather than a list of what we happen to own. Each one
+# announces that it leaves — being handed off is fine, being handed off silently is not.
+#
+# FCPM: ours to mount eventually (FC-Public-Media/fcpublicmedia.org). A shell until then;
+# drop the `to:` on the day the canonical name serves it and nothing else changes.
+media.fort-collins.colorado.anecdote.channel  to:https://www.fcpublicmedia.org  = Fort Collins Public Media
+
+# Longmont Public Media: not ours in any sense, and not rehosted. The canonical name exists so
+# the chain is predictable; it leads out to them, and it says so.
+media.longmont.colorado.anecdote.channel  to:https://longmontpublicmedia.org  = Longmont Public Media

@@ -30,6 +30,20 @@ function titleOf(html) {
   return m ? m[1].trim().replace(/\s+/g, " ").slice(0, 80) : "";
 }
 
+// Whether a target permits being framed. Recorded, never acted on: absence of a header is not
+// consent, and a site that happens to be frameable today can forbid it tomorrow without telling
+// anyone. If framing is ever offered to a neighbour, the artifact that makes it real is THEIR
+// header naming this origin — a grant they publish and can revoke by editing, the same shape as
+// every other consent in the constellation.
+function framePolicy(headers) {
+  const xfo = (headers.get("x-frame-options") || "").trim().toLowerCase();
+  const csp = headers.get("content-security-policy") || "";
+  const fa = /frame-ancestors([^;]*)/i.exec(csp);
+  if (xfo) return xfo;                                  // deny / sameorigin
+  if (fa) return `frame-ancestors:${fa[1].trim()}`;
+  return "unset";                                       // permitted by silence — NOT by agreement
+}
+
 async function probe(host) {
   try {
     const res = await fetch(`https://${host}/`, {
@@ -38,7 +52,8 @@ async function probe(host) {
       headers: { "user-agent": "anecdote-directory (+https://anecdote.channel)" },
     });
     if (!res.ok) return { served: false, status: res.status };
-    return { served: true, status: res.status, title: titleOf(await res.text()) };
+    return { served: true, status: res.status, title: titleOf(await res.text()),
+             frames: framePolicy(res.headers) };
   } catch (e) {
     return { served: false, status: 0, error: e.name === "TimeoutError" ? "timeout" : "unreachable" };
   }
@@ -72,21 +87,35 @@ async function main() {
   const sites = [];
   for (const e of entries) {
     const p = await probe(e.host);
+    // A shell is judged by its TARGET: the canonical name may not exist yet, and the thing at the
+    // end of it is not ours to keep alive either way.
+    const t = e.to ? await probe(new URL(e.to).hostname) : null;
     const site = {
       host: e.host,
       draft: e.draft,
       system: e.system,
       served: p.served,
-      label: e.label || p.title || e.host.split(".")[0],
+      label: e.label || p.title || t?.title || e.host.split(".")[0],
       note: "",
     };
+    if (e.to) {
+      site.to = e.to;
+      site.leaves = true;                     // the renderer must say so, every time
+      site.targetLive = Boolean(t && t.served);
+      site.targetFrames = t?.frames || "unknown";
+      // Link the canonical name once it answers (it redirects out); until then, link the target
+      // directly so the listing is useful before the DNS chain exists.
+      site.href = p.served ? `https://${e.host}/` : e.to;
+      if (!t?.served) site.note = "target not answering";
+      else if (!p.served) site.note = "no canonical name yet — links out directly";
+    }
     if (!p.served && e.repo) {
       const c = await confirmViaRepo(e);
       if (!c.checked) site.note = "not serving yet (no credential for a look-ahead)";
       else if (c.cname === e.host) site.note = "configured, not yet serving";
       else if (c.cname) site.note = `repo declares ${c.cname} — config says ${e.host}`;
       else site.note = "repo serves no hostname";
-    } else if (!p.served) {
+    } else if (!p.served && !e.to) {
       site.note = p.error || `HTTP ${p.status}`;
     }
     sites.push(site);
@@ -98,7 +127,7 @@ async function main() {
   const uncovered = sites.filter((s) => !coveredBy(s.host, san));
 
   for (const s of sites) {
-    const mark = s.served ? "ok" : "—";
+    const mark = s.leaves ? (s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
     const tail = [s.system ? "(system)" : "", s.draft ? "(draft)" : "", s.note].filter(Boolean).join("  ");
     console.log(`  ${mark.padEnd(3)} ${s.host.padEnd(48)} ${s.label}${tail ? "   " + tail : ""}`);
   }

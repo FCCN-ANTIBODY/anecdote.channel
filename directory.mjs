@@ -24,13 +24,15 @@ export function parseSites(text) {
     const host = parts.shift();
     if (!host.includes(".")) throw new Error(`sites.txt: expected a hostname, got "${host}"`);
     const repo = (parts.find((p) => p.startsWith("repo:")) || "").slice(5);
-    const flags = parts.filter((p) => !p.startsWith("repo:"));
+    const to = (parts.find((p) => p.startsWith("to:")) || "").slice(3);
+    const flags = parts.filter((p) => !p.startsWith("repo:") && !p.startsWith("to:"));
     out.push({
       host: host.toLowerCase(),
       draft: flags.includes("draft"),       // held back entirely
       system: flags.includes("system"),     // validated, never published — infrastructure, not a destination
       label: label || "",
       repo,
+      to,                                   // a SHELL: we assert the name, it points somewhere we do not run
     });
   }
   return out;
@@ -91,6 +93,20 @@ export function treeUnder(root, sites) {
     children: treeUnder(host, sites),
   }));
 }
+
+// THREE KINDS OF ENTRY, and the difference is who runs the thing at the end of the name.
+//
+//   hosted   we serve it. The name is ours and so is what answers.
+//   shell    we assert a canonical name in the chain (`to:`), and it leads somewhere we do not
+//            run. The name is the claim: putting media.longmont.colorado… in the same predictable
+//            place as media.fort-collins.colorado… says the directory is a directory ON PURPOSE,
+//            not a list of things we happen to own. Naming someone is not hosting them, and it
+//            must never read as though it were.
+//   external the same, before any name in the chain exists yet — it just links out.
+//
+// A shell always announces that it leaves. Someone following a name in this namespace should
+// never discover afterwards that they left it; being handed off is fine, being handed off
+// silently is not.
 
 // `@root <host>` — which level the APEX lists. The apex is the name people can remember and say
 // out loud, so it should show the places worth going, not the top of the tree. Today everything

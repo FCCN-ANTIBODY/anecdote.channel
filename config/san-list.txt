@@ -41,3 +41,6 @@ anecdote.channel
 # (e.g. voices.north.colorado...) needs its own wildcard.
 *.fort-collins.colorado.anecdote.channel
 *.north.colorado.anecdote.channel
+# A shell's canonical name needs coverage exactly like our own: it is served from this zone
+# (as a redirect out), so a visitor reaching it meets this certificate first.
+*.longmont.colorado.anecdote.channel
