@@ -123,11 +123,39 @@ export function treeUnder(root, sites) {
 //
 // So a node under a place yields one row: its leaf on the left, and on the right either its own
 // name (it is a site) or the names of what it holds (it is a grouping).
+// The category is WHAT A THING IS, and a thing says what it is: each role in the constellation
+// declares itself at a fetchable path, so `journal` is read off the site rather than off the DNS
+// label or a word typed into config. A moniker — some code or name a misc site goes by — is not a
+// category, so where nothing is declared the DNS label stands in and the row is honest about
+// being uncategorised rather than inventing a type for it.
+//
+// Roles are not exclusive. A node running several declares several; the first in ROLE_ORDER is the
+// one it files under, and the rest travel with the entry so nothing is hidden.
+export const ROLE_ORDER = ["journal", "tell", "atlas", "antidote"];
+
+export function categoryOf(site) {
+  const roles = site?.roles || [];
+  for (const r of ROLE_ORDER) if (roles.includes(r)) return r;
+  return site?.leaf || "";
+}
+
 export function rowsUnder(placeNode) {
-  return placeNode.children.map((n) => ({
-    category: n.host.split(".")[0],
-    entries: n.site ? [n] : flatten(n),
-  })).filter((r) => r.entries.length);
+  const entries = [];
+  for (const child of placeNode.children) entries.push(...flatten(child));
+  const byCategory = new Map();
+  for (const e of entries) {
+    const c = categoryOf(e.site);
+    if (!byCategory.has(c)) byCategory.set(c, []);
+    byCategory.get(c).push(e);
+  }
+  return [...byCategory.entries()]
+    .sort((a, b) => {
+      // Declared roles first, in their own order; everything uncategorised after, alphabetically.
+      const ra = ROLE_ORDER.indexOf(a[0]), rb = ROLE_ORDER.indexOf(b[0]);
+      if (ra !== -1 || rb !== -1) return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+      return a[0].localeCompare(b[0]);
+    })
+    .map(([category, es]) => ({ category, entries: es }));
 }
 
 function flatten(node) {

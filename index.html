@@ -109,14 +109,15 @@
   a.place:focus-visible { outline: var(--rule) solid var(--border); outline-offset: 4px; }
   .soon { color: var(--text-muted); }
 
-  .note, .out {
+  .note, .out, .also {
     display: block;
     font-family: var(--font-mono);
     font-size: var(--mono-caption);
     color: var(--text-muted);
     margin-top: var(--space-1);
   }
-  .note { letter-spacing: var(--tracking-caps); text-transform: uppercase; }
+  .note, .also { letter-spacing: var(--tracking-caps); text-transform: uppercase; }
+  .also { color: var(--ink-faint); }
 
   @media (max-width: 34rem) {
     /* Too narrow for two columns: the category becomes a heading over its names, which keeps
@@ -155,7 +156,7 @@
   // becomes a listing of its leaves the moment a host is arranged for it — no new page.
   // Levels nobody serves still render, as categories. Offline-safe: sites.json rides in the
   // shell (sw.js), and a failed fetch simply leaves the standing-by heading alone.
-  import { APEX, treeUnder, rowsUnder, placeName } from "/directory.mjs";
+  import { APEX, treeUnder, rowsUnder, placeName, categoryOf } from "/directory.mjs";
 
   (async () => {
     const here = location.hostname.endsWith(APEX) ? location.hostname : APEX;
@@ -198,6 +199,14 @@
         wrap.append(Object.assign(document.createElement("small"),
           { className: "note", textContent: "soon" }));
       }
+      // A node running several roles files under one and carries the rest, so nothing is hidden by
+      // the filing. Only ever roles it declared — never a guess about what else it might be.
+      const also = (s.roles || []).filter((r) => r !== categoryOf(s));
+      if (also.length) {
+        wrap.append(Object.assign(document.createElement("small"),
+          { className: "also", textContent: "also " + also.join(" · ") }));
+      }
+
       // Where it goes, and for something genuinely foreign, who answers for it.
       if (s.leaves) {
         const dest = new URL(s.href).hostname;

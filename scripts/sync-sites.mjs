@@ -64,6 +64,39 @@ function providerOf(headers) {
   return origin || edge || "unknown";
 }
 
+// WHAT A SITE IS, read from what it says it is. Each role in the constellation declares itself
+// at a fetchable path — atlas.yml, tell.yml, antidote.yml, and now journal.yml. So this asks the
+// site rather than inferring from markup, a URL shape, or a list somebody maintains here.
+// "Declared, never computed" is the archivist's own rule; this is it applied to identity.
+//
+// Roles are NOT exclusive. A civic node self-hosting several answers for several, and reporting
+// all of them is the honest description — antibody is an atlas AND an antidote AND a journal.
+// An unrecognised site simply has no roles, which is a fact about it and not a failure.
+const ROLES = ["journal", "tell", "atlas", "antidote"];
+
+async function rolesOf(host) {
+  const found = [];
+  await Promise.all(ROLES.map(async (role) => {
+    try {
+      const res = await fetch(`https://${host}/${role}.yml`, {
+        method: "GET",
+        signal: AbortSignal.timeout(TIMEOUT),
+        headers: { "user-agent": "anecdote-directory (+https://anecdote.channel)" },
+      });
+      if (!res.ok) return;
+      // A site that answers everything with a soft 404 page would otherwise read as every role at
+      // once. The declaration is YAML; an HTML page is a miss however it is dressed up.
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      if (ct.includes("html")) return;
+      const body = (await res.text()).slice(0, 4000).trimStart();
+      if (body.startsWith("<")) return;
+      if (!/^\s*[a-z_][a-z0-9_-]*\s*:/mi.test(body)) return;   // must look like the declaration it claims to be
+      found.push(role);
+    } catch { /* unreachable or timed out — no claim, no role */ }
+  }));
+  return ROLES.filter((r) => found.includes(r));   // stable order, not resolution order
+}
+
 function framePolicy(headers) {
   const xfo = (headers.get("x-frame-options") || "").trim().toLowerCase();
   const csp = headers.get("content-security-policy") || "";
@@ -128,6 +161,7 @@ async function main() {
   const sites = [];
   for (const e of entries) {
     const p = await probe(e.host);
+    const roles = p.served ? await rolesOf(e.host) : [];
     // A shell is judged by its TARGET: the canonical name may not exist yet, and the thing at the
     // end of it is not ours to keep alive either way. `repo:` resolves the target from the
     // repository; an explicit `to:` overrides it for something with no repo at all.
@@ -142,6 +176,7 @@ async function main() {
     const site = {
       host: e.host,
       leaf: e.host.split(".")[0],           // the label at this level — a category with one thing in it
+      roles,                                // what it says it is; [] is a fact, not a failure
       draft: e.draft,
       system: e.system,
       served: p.served,

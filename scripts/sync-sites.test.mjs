@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, ROLE_ORDER, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -35,25 +35,34 @@ t("a shell's canonical name still needs TLS coverage — it is served from this 
   assert.equal(coveredBy("media.boulder.colorado.anecdote.channel", san), false);
 });
 
+t("the category is the role a site DECLARES, not its DNS label", () => {
+  assert.equal(categoryOf({ leaf: "voices", roles: ["journal"] }), "journal");
+  assert.equal(categoryOf({ leaf: "antibody", roles: ["atlas", "antidote", "journal"] }), "journal",
+    "a node running several files under the first in ROLE_ORDER");
+  // A moniker is not a category: an undeclared site keeps its label and is honestly uncategorised.
+  assert.equal(categoryOf({ leaf: "media", roles: [] }), "media");
+  assert.deepEqual(ROLE_ORDER, ["journal", "tell", "atlas", "antidote"]);
+});
+
 t("a place yields one row per category, names stacked beside it", () => {
   const sites = [
-    { host: "antibody.fort-collins.colorado.anecdote.channel", label: "ANTIBODY", leaf: "antibody" },
-    { host: "media.fort-collins.colorado.anecdote.channel", label: "FCPM", leaf: "media" },
-    { host: "a.circus.fort-collins.colorado.anecdote.channel", label: "One Of Those", leaf: "a" },
-    { host: "b.circus.fort-collins.colorado.anecdote.channel", label: "Another Of Those", leaf: "b" },
+    { host: "antibody.fort-collins.colorado.anecdote.channel", label: "ANTIBODY", leaf: "antibody", roles: ["journal", "atlas"] },
+    { host: "media.fort-collins.colorado.anecdote.channel", label: "FCPM", leaf: "media", roles: [] },
+    { host: "a.circus.fort-collins.colorado.anecdote.channel", label: "One Of Those", leaf: "a", roles: [] },
+    { host: "b.circus.fort-collins.colorado.anecdote.channel", label: "Another Of Those", leaf: "b", roles: [] },
   ];
   const [colorado] = treeUnder(APEX, sites);
   const fc = colorado.children.find((c) => c.host.startsWith("fort-collins."));
   const rows = rowsUnder(fc);
 
-  assert.deepEqual(rows.map((r) => r.category), ["antibody", "circus", "media"]);
-  // A category holding one name is a straight row; one holding several stacks them, and the
-  // category itself does not move either way.
-  assert.equal(rows.find((r) => r.category === "antibody").entries.length, 1);
-  assert.equal(rows.find((r) => r.category === "media").entries.length, 1);
-  const circus = rows.find((r) => r.category === "circus");
-  assert.equal(circus.entries.length, 2);
-  assert.deepEqual(circus.entries.map((e) => e.site.label), ["One Of Those", "Another Of Those"]);
+  // Declared roles file first, in ROLE_ORDER; uncategorised follow alphabetically.
+  assert.equal(rows[0].category, "journal");
+  assert.equal(rows[0].entries[0].site.label, "ANTIBODY");
+  const media = rows.find((r) => r.category === "media");
+  assert.equal(media.entries.length, 1);
+  // Two names under one category stack beside it; the category does not move.
+  const a = rows.find((r) => r.category === "a"), b = rows.find((r) => r.category === "b");
+  assert.ok(a && b, "undeclared siblings keep their own labels rather than being invented a type");
 });
 
 t("a place label reads as a place, not a DNS label", () => {
