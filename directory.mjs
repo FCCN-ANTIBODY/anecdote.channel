@@ -190,3 +190,17 @@ export function parseRoot(text, apex = APEX) {
 export function tokenEnvFor(owner) {
   return "SITES_TOKEN_" + owner.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
 }
+
+// A site's claim about where it belongs, compared with where we list it. The claim is the site
+// speaking at a fetchable path — not a code host's metadata, which is an accident of where the
+// repo sits today. Agreement is the whole handshake: it says it belongs here, we say it does,
+// and neither of us had to ask any particular vendor.
+//
+// Disagreement is INFORMATION, not an error. A site can legitimately be reached at a name it does
+// not consider canonical, and a claim we do not honour is still worth surfacing rather than
+// silently overriding — the directory is a witness before it is a judge.
+export function claimStatus(claim, host) {
+  if (!claim) return "unclaimed";
+  const c = claim.replace(/^https?:\/\//, "").replace(/\/+$/, "").toLowerCase();
+  return c === host.toLowerCase() ? "agrees" : "elsewhere";
+}

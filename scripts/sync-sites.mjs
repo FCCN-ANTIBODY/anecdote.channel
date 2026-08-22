@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, APEX, tokenEnvFor } from "../directory.mjs";
+import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, claimStatus, APEX, tokenEnvFor } from "../directory.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT = 15000;
@@ -76,6 +76,7 @@ const ROLES = ["journal", "tell", "atlas", "antidote"];
 
 async function rolesOf(host) {
   const found = [];
+  const claims = new Set();
   await Promise.all(ROLES.map(async (role) => {
     try {
       const res = await fetch(`https://${host}/${role}.yml`, {
@@ -92,9 +93,18 @@ async function rolesOf(host) {
       if (body.startsWith("<")) return;
       if (!/^\s*[a-z_][a-z0-9_-]*\s*:/mi.test(body)) return;   // must look like the declaration it claims to be
       found.push(role);
+      // The declaration also carries the site's own claim about WHERE IT BELONGS. This is the
+      // field that lets the directory stop asking a code host anything: a host API answer is an
+      // accident of where the repo sits today, while this is the site speaking, at a path anyone
+      // can fetch, on any substrate.
+      const m = /^\s*url:\s*["']?([^"'\s#]+)/mi.exec(body);
+      if (m && m[1]) claims.add(m[1].replace(/\/+$/, ""));
     } catch { /* unreachable or timed out — no claim, no role */ }
   }));
-  return ROLES.filter((r) => found.includes(r));   // stable order, not resolution order
+  return {
+    roles: ROLES.filter((r) => found.includes(r)),   // stable order, not resolution order
+    claim: [...claims][0] || "",
+  };
 }
 
 function framePolicy(headers) {
@@ -161,7 +171,8 @@ async function main() {
   const sites = [];
   for (const e of entries) {
     const p = await probe(e.host);
-    const roles = p.served ? await rolesOf(e.host) : [];
+    const decl = p.served ? await rolesOf(e.host) : { roles: [], claim: "" };
+    const roles = decl.roles;
     // A shell is judged by its TARGET: the canonical name may not exist yet, and the thing at the
     // end of it is not ours to keep alive either way. `repo:` resolves the target from the
     // repository; an explicit `to:` overrides it for something with no repo at all.
@@ -173,10 +184,15 @@ async function main() {
       else if (r.ok) via = r.via;
     }
     const t = target ? await probe(new URL(target).hostname) : null;
+    // A shell's target can declare the canonical name it is heading for. When it does, that
+    // claim — not a code host's metadata — is what says it is ready to be mounted here.
+    const tDecl = t?.served ? await rolesOf(new URL(target).hostname) : { roles: [], claim: "" };
     const site = {
       host: e.host,
       leaf: e.host.split(".")[0],           // the label at this level — a category with one thing in it
       roles,                                // what it says it is; [] is a fact, not a failure
+      claim: decl.claim,                    // where it says it belongs
+      claimStatus: claimStatus(decl.claim, e.host),
       draft: e.draft,
       system: e.system,
       served: p.served,
@@ -197,6 +213,15 @@ async function main() {
       site.targetLive = Boolean(t && t.served);
       site.targetFrames = t?.frames || "unknown";
       site.targetProvider = t?.provider || "unknown";
+      site.targetRoles = tDecl.roles;
+      site.targetClaim = tDecl.claim;
+      // The site claiming the very name we list it under is the handshake: it says it belongs
+      // here, we say it does, and neither of us had to ask GitHub.
+      if (tDecl.claim) {
+        const claimed = tDecl.claim.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+        site.claimsThisName = claimed === e.host;
+        if (!site.claimsThisName) site.note = `declares ${claimed} — listed at ${e.host}`;
+      }
       // Link the canonical name once it answers (it redirects out); until then, link the target
       // directly so the listing is useful before the DNS chain exists.
       site.href = p.served ? `https://${e.host}/` : target;
@@ -216,8 +241,9 @@ async function main() {
 
   for (const s of sites) {
     const mark = s.leaves ? (s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
+    const cl = s.claimStatus === "agrees" ? "✓claim" : s.claimStatus === "elsewhere" ? "!claim" : "";
     const tail = [s.system ? "(system)" : "", s.draft ? "(draft)" : "",
-                  s.via && s.via !== "config" ? `via ${s.via}` : "", s.note].filter(Boolean).join("  ");
+                  cl, s.via && s.via !== "config" ? `via ${s.via}` : "", s.note].filter(Boolean).join("  ");
     console.log(`  ${mark.padEnd(3)} ${s.host.padEnd(48)} ${s.label}${tail ? "   " + tail : ""}`);
   }
 

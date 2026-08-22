@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, ROLE_ORDER, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, ROLE_ORDER, claimStatus, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -33,6 +33,15 @@ t("a shell's canonical name still needs TLS coverage — it is served from this 
   const san = parseSan("*.longmont.colorado.anecdote.channel\n");
   assert.equal(coveredBy("media.longmont.colorado.anecdote.channel", san), true);
   assert.equal(coveredBy("media.boulder.colorado.anecdote.channel", san), false);
+});
+
+t("a site's own claim about where it belongs is checked, not assumed", () => {
+  const host = "antibody.fort-collins.colorado.anecdote.channel";
+  assert.equal(claimStatus(`https://${host}`, host), "agrees", "the handshake: it says it belongs here");
+  assert.equal(claimStatus(`https://${host}/`, host), "agrees", "a trailing slash is not a disagreement");
+  assert.equal(claimStatus("https://elsewhere.example", host), "elsewhere");
+  // Unclaimed is a fact about a site, not a failure of one.
+  assert.equal(claimStatus("", host), "unclaimed");
 });
 
 t("the category is the role a site DECLARES, not its DNS label", () => {
