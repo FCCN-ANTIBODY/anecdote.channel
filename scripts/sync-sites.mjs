@@ -35,6 +35,26 @@ function titleOf(html) {
 // anyone. If framing is ever offered to a neighbour, the artifact that makes it real is THEIR
 // header naming this origin — a grant they publish and can revoke by editing, the same shape as
 // every other consent in the constellation.
+// Who actually answers for a name. Read from the response, never guessed — and read HERE rather
+// than in the page, because a browser cannot: a cross-origin fetch is opaque and exposes no
+// headers at all (Longmont sends no access-control-allow-origin, so there is nothing to read even
+// with permission). Printed for externals, where "who is this really served by" is honest
+// information a directory owes a reader; our own nodes do not need announcing.
+function providerOf(headers) {
+  const server = (headers.get("server") || "").toLowerCase();
+  const timing = (headers.get("server-timing") || "").toLowerCase();
+  const edge = server.includes("cloudflare") ? "cloudflare" : server.split("/")[0] || "";
+  // The edge is not always the origin: our own nodes are Cloudflare in front of GitHub Pages, and
+  // saying only "cloudflare" would hide who is really holding the bytes.
+  const origin =
+    headers.get("x-github-request-id") ? "github" :
+    headers.get("x-vercel-id") ? "vercel" :
+    headers.get("x-nf-request-id") ? "netlify" :
+    timing.includes("fastly") ? "fastly" : "";
+  if (origin && edge && origin !== edge) return `${edge} → ${origin}`;
+  return origin || edge || "unknown";
+}
+
 function framePolicy(headers) {
   const xfo = (headers.get("x-frame-options") || "").trim().toLowerCase();
   const csp = headers.get("content-security-policy") || "";
@@ -53,7 +73,7 @@ async function probe(host) {
     });
     if (!res.ok) return { served: false, status: res.status };
     return { served: true, status: res.status, title: titleOf(await res.text()),
-             frames: framePolicy(res.headers) };
+             frames: framePolicy(res.headers), provider: providerOf(res.headers) };
   } catch (e) {
     return { served: false, status: 0, error: e.name === "TimeoutError" ? "timeout" : "unreachable" };
   }
@@ -112,6 +132,8 @@ async function main() {
     const t = target ? await probe(new URL(target).hostname) : null;
     const site = {
       host: e.host,
+      leaf: e.host.split(".")[0],           // the label at this level — a category with one thing in it
+      kind: e.kind,
       draft: e.draft,
       system: e.system,
       served: p.served,
@@ -124,6 +146,7 @@ async function main() {
       site.leaves = true;                     // the renderer must say so, every time
       site.targetLive = Boolean(t && t.served);
       site.targetFrames = t?.frames || "unknown";
+      site.targetProvider = t?.provider || "unknown";
       // Link the canonical name once it answers (it redirects out); until then, link the target
       // directly so the listing is useful before the DNS chain exists.
       site.href = p.served ? `https://${e.host}/` : target;
