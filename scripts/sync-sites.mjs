@@ -59,22 +59,34 @@ async function probe(host) {
   }
 }
 
-// Only reached when the probe found nothing and the entry named a repo. Confirms the hostname the
-// repo INTENDS to serve, so a configured-but-not-yet-live site can be validated before it exists.
-async function confirmViaRepo(entry) {
-  const [owner] = entry.repo.split("/");
+// Where a shell POINTS, resolved from the repository rather than typed here.
+//
+// Deliberately NOT the Pages API. A repo we list may be served from anywhere — FC Public Media's
+// is on Cloudflare, not Pages — and hardcoding a URL in config invents a second truth that goes
+// stale the day they move. The repo's own `homepage` field is the substrate-agnostic pointer: the
+// owner controls it, it survives changing hosts, and on a public repo it reads with no credential.
+//
+// Order: the Pages cname when the repo actually serves from Pages (most precise), else `homepage`.
+// A token is consulted only for a private repo, per owner (tokenEnvFor).
+async function resolveFromRepo(repo) {
+  const [owner] = repo.split("/");
   const token = process.env[tokenEnvFor(owner)] || process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!token) return { checked: false };
-  try {
-    const res = await fetch(`https://api.github.com/repos/${entry.repo}/pages`, {
-      signal: AbortSignal.timeout(TIMEOUT),
-      headers: { accept: "application/vnd.github+json", authorization: `Bearer ${token}`,
-                 "user-agent": "anecdote-directory" },
-    });
-    if (!res.ok) return { checked: true, cname: null };
-    const { cname } = await res.json();
-    return { checked: true, cname: cname || null };
-  } catch { return { checked: false }; }
+  const headers = { accept: "application/vnd.github+json", "user-agent": "anecdote-directory" };
+  if (token) headers.authorization = `Bearer ${token}`;
+  const get = async (path) => {
+    try {
+      const res = await fetch(`https://api.github.com${path}`, { headers, signal: AbortSignal.timeout(TIMEOUT) });
+      return res.ok ? await res.json() : null;
+    } catch { return null; }
+  };
+  const meta = await get(`/repos/${repo}`);
+  if (!meta) return { ok: false };
+  if (meta.has_pages) {
+    const pages = await get(`/repos/${repo}/pages`);
+    if (pages?.cname) return { ok: true, url: `https://${pages.cname}/`, via: "pages cname" };
+  }
+  if (meta.homepage) return { ok: true, url: meta.homepage, via: "repo homepage" };
+  return { ok: true, url: "", via: "repo names no homepage" };
 }
 
 async function main() {
@@ -88,8 +100,16 @@ async function main() {
   for (const e of entries) {
     const p = await probe(e.host);
     // A shell is judged by its TARGET: the canonical name may not exist yet, and the thing at the
-    // end of it is not ours to keep alive either way.
-    const t = e.to ? await probe(new URL(e.to).hostname) : null;
+    // end of it is not ours to keep alive either way. `repo:` resolves the target from the
+    // repository; an explicit `to:` overrides it for something with no repo at all.
+    let target = e.to;
+    let via = e.to ? "config" : "";
+    if (!target && e.repo) {
+      const r = await resolveFromRepo(e.repo);
+      if (r.ok && r.url) { target = r.url; via = r.via; }
+      else if (r.ok) via = r.via;
+    }
+    const t = target ? await probe(new URL(target).hostname) : null;
     const site = {
       host: e.host,
       draft: e.draft,
@@ -98,24 +118,19 @@ async function main() {
       label: e.label || p.title || t?.title || e.host.split(".")[0],
       note: "",
     };
-    if (e.to) {
-      site.to = e.to;
+    if (target) {
+      site.to = target;
+      site.via = via;
       site.leaves = true;                     // the renderer must say so, every time
       site.targetLive = Boolean(t && t.served);
       site.targetFrames = t?.frames || "unknown";
       // Link the canonical name once it answers (it redirects out); until then, link the target
       // directly so the listing is useful before the DNS chain exists.
-      site.href = p.served ? `https://${e.host}/` : e.to;
+      site.href = p.served ? `https://${e.host}/` : target;
       if (!t?.served) site.note = "target not answering";
       else if (!p.served) site.note = "no canonical name yet — links out directly";
     }
-    if (!p.served && e.repo) {
-      const c = await confirmViaRepo(e);
-      if (!c.checked) site.note = "not serving yet (no credential for a look-ahead)";
-      else if (c.cname === e.host) site.note = "configured, not yet serving";
-      else if (c.cname) site.note = `repo declares ${c.cname} — config says ${e.host}`;
-      else site.note = "repo serves no hostname";
-    } else if (!p.served && !e.to) {
+    if (!p.served && !target) {
       site.note = p.error || `HTTP ${p.status}`;
     }
     sites.push(site);
@@ -128,7 +143,8 @@ async function main() {
 
   for (const s of sites) {
     const mark = s.leaves ? (s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
-    const tail = [s.system ? "(system)" : "", s.draft ? "(draft)" : "", s.note].filter(Boolean).join("  ");
+    const tail = [s.system ? "(system)" : "", s.draft ? "(draft)" : "",
+                  s.via && s.via !== "config" ? `via ${s.via}` : "", s.note].filter(Boolean).join("  ");
     console.log(`  ${mark.padEnd(3)} ${s.host.padEnd(48)} ${s.label}${tail ? "   " + tail : ""}`);
   }
 

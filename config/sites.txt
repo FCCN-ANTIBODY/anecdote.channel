@@ -9,8 +9,11 @@
 #   system     — verify it (TLS, liveness) but NEVER publish it. Infrastructure other software
 #                talks to, not a place to send a person.
 #   draft      — hold it back from the directory entirely.
-#   to:<url>   — a SHELL. We assert this canonical name; what it leads to is run by someone else.
-#                The listing always says it leaves. Naming someone is not hosting them.
+#   repo:<o/n> — resolve where this points FROM THE REPOSITORY (its Pages cname if it serves from
+#                Pages, else its `homepage` field). Preferred over a typed URL: the owner controls
+#                it, it survives them changing hosts, and a public repo needs no credential.
+#   to:<url>    — a SHELL pointed at a literal URL, for something with no repo to read.
+#                Either way the listing says it leaves. Naming someone is not hosting them.
 #   = <label>  — override the label; default is the site's own <title>.
 #
 # A listed site that is not answering yet still appears, unlinked — saying "soon" is honest and
@@ -36,9 +39,10 @@ voices.north.colorado.anecdote.channel           = Voices
 # says this is a directory ON PURPOSE rather than a list of what we happen to own. Each one
 # announces that it leaves — being handed off is fine, being handed off silently is not.
 #
-# FCPM: ours to mount eventually (FC-Public-Media/fcpublicmedia.org). A shell until then;
-# drop the `to:` on the day the canonical name serves it and nothing else changes.
-media.fort-collins.colorado.anecdote.channel  to:https://www.fcpublicmedia.org  = Fort Collins Public Media
+# FCPM: an org repo, already served — on Cloudflare rather than Pages, which is exactly why the
+# target is read from the repo's `homepage` rather than typed. They move hosts, this follows.
+# Drop the `repo:` on the day the canonical name serves it directly; nothing else changes.
+media.fort-collins.colorado.anecdote.channel  repo:FC-Public-Media/fcpublicmedia.org  = Fort Collins Public Media
 
 # Longmont Public Media: not ours in any sense, and not rehosted. The canonical name exists so
 # the chain is predictable; it leads out to them, and it says so.
