@@ -25,8 +25,7 @@ export function parseSites(text) {
     if (!host.includes(".")) throw new Error(`sites.txt: expected a hostname, got "${host}"`);
     const repo = (parts.find((p) => p.startsWith("repo:")) || "").slice(5);
     const to = (parts.find((p) => p.startsWith("to:")) || "").slice(3);
-    const kind = (parts.find((p) => p.startsWith("type:")) || "").slice(5);
-    const flags = parts.filter((p) => !/^(repo|to|type):/.test(p));
+    const flags = parts.filter((p) => !/^(repo|to):/.test(p));
     out.push({
       host: host.toLowerCase(),
       draft: flags.includes("draft"),       // held back entirely
@@ -34,7 +33,6 @@ export function parseSites(text) {
       label: label || "",
       repo,
       to,                                   // a SHELL: we assert the name, it points somewhere we do not run
-      kind,                                 // what sort of thing it is — `journal`, etc. Empty = undecorated.
     });
   }
   return out;
@@ -110,16 +108,37 @@ export function treeUnder(root, sites) {
 // never discover afterwards that they left it; being handed off is fine, being handed off
 // silently is not.
 
-// THE LEAF IS A CATEGORY TOO. Every label in the chain is one, including the last: `media` is the
-// category, and what currently sits in it is one provider. So the leaf label is shown, not just the
-// human name — a reader standing in fort-collins should be able to see that `media` is the thing
-// they are looking at. Where a category holds exactly ONE entry there is nothing to choose between,
-// so it collapses flush against its parent rather than indenting a list of one.
-export function collapse(node) {
-  const chain = [node];
-  let cur = node;
-  while (!cur.site && cur.children.length === 1) { cur = cur.children[0]; chain.push(cur); }
-  return { chain, tail: cur };
+// HOW A LISTING IS LAID OUT. A place heading sits flush left; beneath it every CATEGORY occupies
+// a fixed left column and never moves, and the names it holds occupy the column beside it. A
+// category with one name reads as a straight row across; a category with several stacks them in
+// the right column while the category itself stays put. Nothing is ever folded away or indented
+// out of line — the left column is the same left column on every row, which is the whole point of
+// having one.
+//
+//   Fort Collins
+//   ANTIBODY   ANTIBODY
+//   CIRCUS     One Of Those
+//              Another Of Those
+//   MEDIA      FC Public Media
+//
+// So a node under a place yields one row: its leaf on the left, and on the right either its own
+// name (it is a site) or the names of what it holds (it is a grouping).
+export function rowsUnder(placeNode) {
+  return placeNode.children.map((n) => ({
+    category: n.host.split(".")[0],
+    entries: n.site ? [n] : flatten(n),
+  })).filter((r) => r.entries.length);
+}
+
+function flatten(node) {
+  const out = node.site ? [node] : [];
+  for (const c of node.children) out.push(...flatten(c));
+  return out;
+}
+
+// A place label as a person writes it: `fort-collins` is a DNS label, "Fort Collins" is a place.
+export function placeName(host) {
+  return host.split(".")[0].split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
 // `@root <host>` — which level the APEX lists. The apex is the name people can remember and say

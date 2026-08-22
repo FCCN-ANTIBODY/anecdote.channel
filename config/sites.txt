@@ -14,8 +14,9 @@
 #                it, it survives them changing hosts, and a public repo needs no credential.
 #   to:<url>    — a SHELL pointed at a literal URL, for something with no repo to read.
 #                Either way the listing says it leaves. Naming someone is not hosting them.
-#   type:<kind> — what sort of thing it is (`journal`). Shown beside the name. Leave it off for
-#                something that does not want a category — a platformed site is just a site.
+# There is no `type:` flag, on purpose. What a thing IS reads off the category it sits in —
+# ANTIBODY at `antibody`, Voices at `voices`, FCPM at `media` — so a second word saying "journal"
+# beside the name is noise that can also disagree with the name above it.
 #   = <label>  — LAST RESORT ONLY. A name is taken from the thing itself (its <title>); a label
 #                here is a second copy of a name that already exists, and it goes stale the day
 #                they rename. Use it only where the source is unusable — e.g. a title carrying a
@@ -36,8 +37,8 @@ atlas.anecdote.channel                           system
 
 # --- destinations we run ---------------------------------------------------------------
 # `north` is a region label sitting at city level.
-antibody.fort-collins.colorado.anecdote.channel  type:journal
-voices.north.colorado.anecdote.channel           type:journal
+antibody.fort-collins.colorado.anecdote.channel
+voices.north.colorado.anecdote.channel
 
 # --- shells: names we assert over things we do not run ----------------------------------
 # The name is the claim. Putting a neighbour in the same predictable place as our own nodes

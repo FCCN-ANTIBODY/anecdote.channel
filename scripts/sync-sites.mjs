@@ -142,7 +142,6 @@ async function main() {
     const site = {
       host: e.host,
       leaf: e.host.split(".")[0],           // the label at this level — a category with one thing in it
-      kind: e.kind,
       draft: e.draft,
       system: e.system,
       served: p.served,

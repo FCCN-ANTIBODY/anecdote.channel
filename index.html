@@ -64,83 +64,66 @@
   }
 
   /* ---- the directory ----------------------------------------------------------------- */
+  /* A place heading flush left; categories in a fixed left column that never moves; the names
+     they hold in the column beside it. One name reads as a row across, several stack on the
+     right while the category stays put. */
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
   #directory[hidden] { display: none; }
-  #directory ul { list-style: none; margin: 0; padding: 0; }
-  #directory > ul > li + li { margin-top: var(--space-7); }
-  #directory ul ul { margin-top: var(--space-3); }
-  #directory ul ul li + li { border-top: 1px solid var(--border-faint); }
 
-  /* The leaf label — the category you are actually standing in. Mono, quiet, above the name. */
-  .leaf {
-    display: block;
+  .place-block + .place-block { margin-top: var(--space-7); }
+  .place-name {
+    margin: 0 0 var(--space-4);
+    font-family: var(--font-display);
+    font-weight: var(--weight-display);
+    font-size: var(--display-3);
+    line-height: var(--leading-snug);
+    color: var(--text-strong);
+  }
+
+  .rows {
+    display: grid;
+    grid-template-columns: minmax(7rem, max-content) 1fr;
+    column-gap: var(--space-6);
+    row-gap: var(--space-4);
+    align-items: baseline;
+  }
+  /* The category. Mono, small-caps, and the same left edge on every row in the block. */
+  .cat {
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
     color: var(--text-muted);
+    padding-top: .35em;              /* optical: sit the caps on the serif's baseline */
   }
-  /* What sort of thing it is. Only where it has one; a platformed site is just a site. */
-  .kind {
-    font-family: var(--font-mono);
-    font-size: var(--mono-caption);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    border: 1px solid var(--border-faint);
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-full);
-    vertical-align: middle;
-  }
-  .note {
-    font-family: var(--font-mono);
-    font-size: var(--mono-caption);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-left: var(--space-3);
-  }
+  .items { display: flex; flex-direction: column; gap: var(--space-4); }
+  .item { display: block; }
 
-  /* A level nobody serves is a category, not a destination: mono, small, set as an eyebrow. */
-  .category {
-    display: block;
-    font-size: var(--text-eyebrow);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-  /* A destination carries the serif — it is a place, and it is meant to be read as one. */
   .place, .soon {
-    display: inline-block;
     font-family: var(--font-display);
     font-size: var(--display-3);
     line-height: var(--leading-snug);
-    padding: var(--space-3) 0;
   }
   a.place { color: var(--text-strong); text-decoration: none; }
   a.place:hover { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: var(--rule); }
   a.place:focus-visible { outline: var(--rule) solid var(--border); outline-offset: 4px; }
-  /* Listed but not answering: shown, deliberately not a link. */
   .soon { color: var(--text-muted); }
-  /* Outbound: stated plainly, in mono, under the name. Not a warning — a courtesy. */
-  .out {
+
+  .note, .out {
     display: block;
     font-family: var(--font-mono);
     font-size: var(--mono-caption);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
     color: var(--text-muted);
-    padding-bottom: var(--space-3);
-    text-transform: none;
-    letter-spacing: 0;
+    margin-top: var(--space-1);
   }
-  .soon small {
-    font-family: var(--font-mono);
-    font-size: var(--mono-caption);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-    margin-left: var(--space-3);
-    vertical-align: middle;
+  .note { letter-spacing: var(--tracking-caps); text-transform: uppercase; }
+
+  @media (max-width: 34rem) {
+    /* Too narrow for two columns: the category becomes a heading over its names, which keeps
+       the same reading order rather than inventing a second layout. */
+    .rows { grid-template-columns: 1fr; row-gap: var(--space-2); }
+    .cat { padding-top: var(--space-3); }
+    .items { margin-bottom: var(--space-3); }
   }
 
   /* ---- the standing-by fallback + ?diag readout -------------------------------------- */
@@ -172,7 +155,7 @@
   // becomes a listing of its leaves the moment a host is arranged for it — no new page.
   // Levels nobody serves still render, as categories. Offline-safe: sites.json rides in the
   // shell (sw.js), and a failed fetch simply leaves the standing-by heading alone.
-  import { APEX, treeUnder, collapse } from "/directory.mjs";
+  import { APEX, treeUnder, rowsUnder, placeName } from "/directory.mjs";
 
   (async () => {
     const here = location.hostname.endsWith(APEX) ? location.hostname : APEX;
@@ -195,84 +178,63 @@
     const tree = treeUnder(from, published);
     if (!tree.length) return;                 // nothing beneath this level yet
 
-    // Every label in the chain is a category, the leaf included: `media` is the category and what
-    // sits in it is one provider. So the leaf is shown, not only the human name. A category holding
-    // exactly ONE entry has nothing to choose between, so it collapses flush against its parent
-    // instead of indenting a list of one.
-    const entry = (node, crumb) => {
-      const li = document.createElement("li");
+    // A place heading flush left; beneath it, categories in a fixed left column with the names
+    // they hold beside them. The left column never moves — a category with one name reads as a
+    // straight row across, a category with several stacks them on the right while the category
+    // stays put. Nothing folds away and nothing indents out of line.
+    const nameOf = (node) => {
       const s = node.site;
-
-      const seg = s?.leaf || node.host.split(".")[0];
-      const name = s?.label || seg;
-      // ALWAYS the leaf, with no exception for it happening to match the title. `antibody` is the
-      // category and ANTIBODY is what sits in it; that they read alike is a coincidence of text,
-      // and suppressing one of them makes the listing erratic — present here, missing there, for
-      // no reason a reader can see. Same rendering for every row.
-      const leaf = document.createElement("span");
-      leaf.className = "leaf";
-      leaf.textContent = (crumb ? crumb + " / " : "") + seg;
-      li.append(leaf);
-
-      if (s && (s.served || s.leaves)) {
-        const a = document.createElement("a");
-        a.className = "place";
-        a.href = s.leaves ? s.href : `https://${node.host}/`;
-        a.textContent = name;
-        if (s.leaves) a.rel = "noopener";
-        li.append(a);
-      } else {
-        const span = document.createElement("span");
-        span.className = "soon";
-        span.textContent = name;
-        li.append(span, Object.assign(document.createElement("small"),
+      const el = document.createElement(s.served || s.leaves ? "a" : "span");
+      el.className = s.served || s.leaves ? "place" : "soon";
+      el.textContent = s.label || s.leaf;
+      if (el.tagName === "A") {
+        el.href = s.leaves ? s.href : `https://${node.host}/`;
+        if (s.leaves) el.rel = "noopener";
+      }
+      const wrap = document.createElement("div");
+      wrap.className = "item";
+      wrap.append(el);
+      if (!(s.served || s.leaves)) {
+        wrap.append(Object.assign(document.createElement("small"),
           { className: "note", textContent: "soon" }));
       }
-
-      if (s?.kind) li.append(Object.assign(document.createElement("small"),
-        { className: "kind", textContent: s.kind }));
-
-      // Where it actually goes, and — for something genuinely foreign — who answers for it. A
-      // directory owes a reader that much before handing them off. Our own names, and a repo we
-      // can read (something on its way to being platformed here), do not need announcing.
-      if (s?.leaves) {
-        const foreign = s.via === "config";
+      // Where it goes, and for something genuinely foreign, who answers for it.
+      if (s.leaves) {
         const dest = new URL(s.href).hostname;
-        li.append(Object.assign(document.createElement("small"), {
+        const foreign = s.via === "config";
+        wrap.append(Object.assign(document.createElement("small"), {
           className: "out",
           textContent: foreign && s.targetProvider && s.targetProvider !== "unknown"
             ? `${dest} · served by ${s.targetProvider}`
             : dest,
         }));
       }
-      return li;
+      return wrap;
     };
 
-    const list = (nodes, crumb = "") => {
-      const ul = document.createElement("ul");
-      for (const n of nodes) {
-        const { tail, chain } = collapse(n);
-        if (tail !== n) {
-          // one-of-a-kind the whole way down: fold the chain onto a single flush line
-          const prefix = chain.slice(0, -1).map((c) => c.host.split(".")[0]).join(" / ");
-          ul.append(entry(tail, (crumb ? crumb + " / " : "") + prefix));
-          if (tail.children.length) ul.append(list(tail.children));
-          continue;
-        }
-        const li = n.site ? entry(n, crumb) : (() => {
-          const x = document.createElement("li");
-          x.append(Object.assign(document.createElement("span"),
-            { className: "category", textContent: n.host.split(".")[0] }));
-          return x;
-        })();
-        if (n.children.length) li.append(list(n.children));
-        ul.append(li);
+    const section = (place) => {
+      const rows = rowsUnder(place);
+      if (!rows.length) return null;
+      const sec = document.createElement("section");
+      sec.className = "place-block";
+      sec.append(Object.assign(document.createElement("h2"),
+        { className: "place-name", textContent: placeName(place.host) }));
+      const grid = document.createElement("div");
+      grid.className = "rows";
+      for (const row of rows) {
+        grid.append(Object.assign(document.createElement("div"),
+          { className: "cat", textContent: row.category }));
+        const items = document.createElement("div");
+        items.className = "items";
+        for (const e of row.entries) items.append(nameOf(e));
+        grid.append(items);
       }
-      return ul;
+      sec.append(grid);
+      return sec;
     };
 
     const nav = document.getElementById("directory");
-    nav.append(list(tree));
+    for (const place of tree) { const sec = section(place); if (sec) nav.append(sec); }
     nav.hidden = false;
     // The wordmark is the name you say out loud; the host is the small true thing under it.
     document.getElementById("eyebrow").textContent = here;

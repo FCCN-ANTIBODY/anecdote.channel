@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, collapse, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -8,8 +8,8 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 t("parseSites reads hostnames, flags, repo hints and labels", () => {
   const got = parseSites("# hi\n@root x.anecdote.channel\n\na.anecdote.channel\nb.anecdote.channel draft repo:O/r = Voices  # trailing\n");
   assert.deepEqual(got, [
-    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "", kind: "" },
-    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "", kind: "" },
+    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "" },
+    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "" },
   ]);
 });
 
@@ -35,31 +35,30 @@ t("a shell's canonical name still needs TLS coverage — it is served from this 
   assert.equal(coveredBy("media.boulder.colorado.anecdote.channel", san), false);
 });
 
-t("type: marks what a thing is, and is optional", () => {
-  const [j] = parseSites("antibody.fort-collins.colorado.anecdote.channel type:journal\n");
-  assert.equal(j.kind, "journal");
-  assert.equal(j.label, "", "a name is read from the thing, not written here");
-  const [plain] = parseSites("media.fort-collins.colorado.anecdote.channel\n");
-  assert.equal(plain.kind, "", "a platformed site is just a site");
-});
-
-t("a category of one collapses; a category of several does not", () => {
+t("a place yields one row per category, names stacked beside it", () => {
   const sites = [
-    { host: "voices.north.colorado.anecdote.channel", label: "Voices" },
-    { host: "antibody.fort-collins.colorado.anecdote.channel", label: "ANTIBODY" },
-    { host: "media.fort-collins.colorado.anecdote.channel", label: "FCPM" },
+    { host: "antibody.fort-collins.colorado.anecdote.channel", label: "ANTIBODY", leaf: "antibody" },
+    { host: "media.fort-collins.colorado.anecdote.channel", label: "FCPM", leaf: "media" },
+    { host: "a.circus.fort-collins.colorado.anecdote.channel", label: "One Of Those", leaf: "a" },
+    { host: "b.circus.fort-collins.colorado.anecdote.channel", label: "Another Of Those", leaf: "b" },
   ];
   const [colorado] = treeUnder(APEX, sites);
-  const north = colorado.children.find((c) => c.host.startsWith("north."));
   const fc = colorado.children.find((c) => c.host.startsWith("fort-collins."));
+  const rows = rowsUnder(fc);
 
-  const one = collapse(north);
-  assert.equal(one.tail.site.label, "Voices", "nothing to choose between — folds to the entry");
-  assert.equal(one.chain.length, 2);
+  assert.deepEqual(rows.map((r) => r.category), ["antibody", "circus", "media"]);
+  // A category holding one name is a straight row; one holding several stacks them, and the
+  // category itself does not move either way.
+  assert.equal(rows.find((r) => r.category === "antibody").entries.length, 1);
+  assert.equal(rows.find((r) => r.category === "media").entries.length, 1);
+  const circus = rows.find((r) => r.category === "circus");
+  assert.equal(circus.entries.length, 2);
+  assert.deepEqual(circus.entries.map((e) => e.site.label), ["One Of Those", "Another Of Those"]);
+});
 
-  const many = collapse(fc);
-  assert.equal(many.tail, fc, "two entries is a real choice — stays a category");
-  assert.equal(many.chain.length, 1);
+t("a place label reads as a place, not a DNS label", () => {
+  assert.equal(placeName("fort-collins.colorado.anecdote.channel"), "Fort Collins");
+  assert.equal(placeName("longmont.colorado.anecdote.channel"), "Longmont");
 });
 
 t("system marks machinery: validated, never a destination", () => {
