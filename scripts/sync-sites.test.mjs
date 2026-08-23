@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, monikerOf, ROLE_ORDER, claimStatus, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, monikerOf, ROLE_ORDER, claimStatus, entryParts, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -199,6 +199,35 @@ t("a served intermediate level is both a link and a parent", () => {
 
 t("sites with no host at all are skipped by the tree", () => {
   assert.deepEqual(treeUnder(APEX, [{ host: null, label: "unserved" }]), []);
+});
+
+t("a linked entry never renders SOON, and an unlinked one has no link", () => {
+  const linked = entryParts({ linked: true, leaves: true, also: "atlas" });
+  assert.equal(linked.link, true);
+  assert.equal(linked.soon, false, "a site that answers must never say SOON");
+  assert.equal(linked.out, true);
+  assert.equal(linked.also, true);
+
+  const waiting = entryParts({ linked: false, leaves: false, also: "" });
+  assert.equal(waiting.link, false, "nothing to click at a name that does not answer");
+  assert.equal(waiting.soon, true);
+  assert.equal(waiting.out, false);
+
+  // The two are exclusive. Every listed entry is exactly one of them — the live bug was both at
+  // once, because hiding is a suggestion a stylesheet can override and removal is not.
+  for (const e of [{ linked: true }, { linked: false }, {}]) {
+    const p = entryParts(e);
+    assert.notEqual(p.link, p.soon, "link and soon are mutually exclusive, always");
+  }
+});
+
+t("every entry the resolver publishes as served is renderable as a link", () => {
+  // Guards the shape the renderer depends on: served or shell => linked, never SOON.
+  const sample = [
+    { linked: true, leaves: false }, { linked: true, leaves: true }, { linked: false, leaves: false },
+  ];
+  const soon = sample.filter((e) => entryParts(e).soon);
+  assert.equal(soon.length, 1, "only the entry that does not answer says SOON");
 });
 
 console.log(`\n${n}/${n} passed`);
