@@ -99,11 +99,11 @@
   .place-name::before {
     content: "";
     display: inline-block;
-    width: 4px;
-    height: .8em;
+    width: 4px;                 /* the width is the whole message */
+    height: 1em;                /* as tall as the text, both ranks the same */
     margin-right: .5rem;
     background: var(--ink);
-    vertical-align: baseline;
+    vertical-align: text-bottom;
   }
 
   .rows {
@@ -127,12 +127,12 @@
   .cat::before {
     content: "";
     display: inline-block;
-    width: 1.4rem;
-    height: .7em;
+    width: 1.4rem;              /* longer, because it is further in */
+    height: 1em;                /* identical height — same object, different width */
     margin-left: calc((1.4rem + .5rem + .5ch) * -1);
     margin-right: .5rem;
     background: var(--ink);
-    vertical-align: baseline;
+    vertical-align: text-bottom;
   }
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
