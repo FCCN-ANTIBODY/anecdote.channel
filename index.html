@@ -84,6 +84,11 @@
     margin: 0 0 var(--space-5);
     /* Out of the gutter entirely — hugging the page, not the column. */
     margin-left: calc(var(--gutter) * -1);
+    /* THE BLACK IS THIS HEADER'S OWN LEFT GUTTER, drawn as its border. Its height is this
+       element's line box — not a number, not aligned to anything, and it cannot slip off the
+       text because it is the same box as the text. */
+    border-left: .75rem solid var(--ink);
+    padding-left: .5rem;
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
     font-size: var(--mono-lead);
@@ -93,18 +98,6 @@
   }
   /* A solid rule hanging left of the label. The longer the bar, the higher the header — the
      hierarchy is a length you can see at a glance rather than a font size you have to compare. */
-  /* THE TAB IS THE INDENT. Its width is how far the text starts from the left, so the smaller a
-     header is the longer its tab and the further in it sits. The place is the outermost thing on
-     the page: a 4px nub against the very edge, text immediately right of it. */
-  .place-name::before {
-    content: "";
-    display: inline-block;
-    width: 4px;                 /* the width is the whole message */
-    height: 1em;                /* as tall as the text, both ranks the same */
-    margin-right: .5rem;
-    background: var(--ink);
-    vertical-align: text-bottom;
-  }
 
   .rows {
     display: grid;
@@ -115,24 +108,18 @@
   }
   /* The category. Mono, small-caps, and the same left edge on every row in the block. */
   .cat {
+    /* Smaller text, so a WIDER gutter — and that falls out on its own: the black runs from the
+       screen edge to wherever this header's text already sits, which is further in than the
+       city's. Pull the box to x=0 and give back exactly what was taken, so THE TEXT DOES NOT
+       MOVE. */
+    margin-left: calc(var(--gutter) * -1);
+    border-left: calc(var(--gutter) - .5rem) solid var(--ink);
+    padding-left: .5rem;
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
     color: var(--text-muted);
-    padding-top: .35em;              /* optical: sit the caps on the serif's baseline */
-  }
-  /* One rank in, so a LONGER tab. Its text lands half a character left of the names below it —
-     enough to read as a header, not enough to open a second column. */
-  .cat::before {
-    content: "";
-    display: inline-block;
-    width: 1.4rem;              /* longer, because it is further in */
-    height: 1em;                /* identical height — same object, different width */
-    margin-left: calc((1.4rem + .5rem + .5ch) * -1);
-    margin-right: .5rem;
-    background: var(--ink);
-    vertical-align: text-bottom;
   }
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
