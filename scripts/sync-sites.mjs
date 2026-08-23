@@ -16,7 +16,7 @@
 // Exits non-zero when a listed host is not covered by config/san-list.txt: an uncovered deep leaf
 // is a TLS error for visitors, and nothing else in the pipeline catches it.
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, claimStatus,
@@ -342,13 +342,7 @@ async function main() {
     }));
 
   const payload = { apex: APEX, root, places, sites, listing };
-  // _data/ is what the build reads. The root copy is what the service worker holds and what a
-  // runtime refresh fetches — same writer, same run, so it cannot drift from the rendered page.
-  mkdirSync(join(ROOT, "_data"), { recursive: true });
-  // _data/<name>.json lands at site.data.<name>, so the listing gets its own file and the
-  // template reads site.data.listing rather than reaching through the whole payload.
-  writeFileSync(join(ROOT, "_data/listing.json"), JSON.stringify(listing, null, 2) + "\n");
-  writeFileSync(join(ROOT, "_data/sites.json"), JSON.stringify(payload, null, 2) + "\n");
+  // One file, fetched by the page at runtime. There is no build to feed.
   writeFileSync(join(ROOT, "sites.json"), JSON.stringify(payload, null, 2) + "\n");
 
   // What this actually costs, every run. Places are the unit that scales: one wildcard holds a

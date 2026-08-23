@@ -27,7 +27,7 @@ const VERSION = "anecdote-shell-v4";
 // be checked offline too.
 const FALLBACK_SHELL = [
   "/", "/index.html", "/poll.html", "/manifest.webmanifest", "/icon.svg",
-  "/directory.mjs", "/listing.liquid", "/jekyll-enough/liquid.mjs",   // the runtime renderer and its template                             // the directory renders offline like everything else
+  "/directory.mjs",                             // the directory renders offline like everything else
   "/assets/ds/colors.css", "/assets/ds/spacing.css", "/assets/ds/typography.css",
   "/assets/ds/fonts.css",                       // the design system is vendored, so it boots dark-origin too
   "/assets/fonts/playfair-display.regular.ttf", "/assets/fonts/SpaceMono-Regular.woff2",

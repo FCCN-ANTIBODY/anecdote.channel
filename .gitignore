@@ -11,11 +11,6 @@ vendor/
 node_modules/
 package-lock.json
 
-# Generated during deploy (pages.yml): sync-sites.mjs writes these, render.mjs folds the listing
-# into the page. Resolved at publish time so they cannot drift from what is actually served.
+# Resolved at publish time by sync-sites.mjs and fetched by the page at runtime. Not carried in
+# the repo, so it cannot drift from what is actually being served.
 sites.json
-_data/sites.json
-_data/listing.json
-
-# render.mjs preview output (the deploy renders --in-place instead)
-*.rendered.html

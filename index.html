@@ -1,8 +1,3 @@
----
-# Front matter marks this as a PAGE, which is what makes jekyll-enough render it rather than copy
-# it. THIS FILE IS THE SOURCE — `node scripts/render.mjs --in-place` overwrites it, and that is
-# what the deploy does to its own checkout. Do not run it in-place on yours.
----
 <!doctype html>
 <!-- Public holding page for anecdote.channel. The preflight demos (crunch / bench / composer) are
      no longer linked here — they were pulled down from the public surface and repurposed as build
@@ -190,45 +185,91 @@
   <h1 class="wordmark">anecdote</h1>
   <p class="eyebrow" id="eyebrow">Please Stand By.</p>
 </header>
-<nav id="directory">
-{%- comment -%}
-  THE LISTING. One template, rendered wherever it needs to be.
+<nav id="directory"></nav>
 
-  On the public web the deploy renders it in, so a crawler receives text. On a device holding the
-  repository — the offline origin — nothing is pre-rendered and the browser renders it here. Same
-  bytes, same renderer, two places that need it.
-{%- endcomment -%}
-{%- include_relative listing.liquid -%}
-</nav>
+<!-- THE LISTING, AS HTML FRAGMENTS. Not a Liquid loop and not a build product: these are ordinary
+     <template> elements, the browser's own template syntax, cloned once per row at runtime.
+
+     The point of this whole apparatus is that you can publish shitty source files and get a
+     website with no build. So this page IS the source. It is served exactly as committed, and it
+     interprets itself when it loads. Liquid's job here is includes — which is how an iframe gets
+     composed — and iteration is HTML's job, because HTML already has a way to say "this shape,
+     repeated". -->
+<template id="t-place">
+  <section class="place-block">
+    <h2 class="place-name"></h2>
+    <p class="reserved" hidden>reserved — nothing here yet</p>
+    <div class="rows"></div>
+  </section>
+</template>
+<template id="t-row">
+  <div class="cat"></div>
+  <div class="items"></div>
+</template>
+<template id="t-entry">
+  <div class="item">
+    <a class="place" hidden></a>
+    <span class="soon" hidden></span>
+    <small class="note" hidden>soon</small>
+    <small class="also" hidden></small>
+    <small class="out" hidden></small>
+  </div>
+</template>
 <code id="heading" hidden></code>
 
 <script type="module">
-  // THE RUNTIME RENDERER. This is what jekyll-enough is actually for: an UNBUILT project, served
-  // as-is, rendered page by narrow page in the browser. The deploy pre-renders this one page as an
-  // optimisation for readers who execute nothing — but if that did not happen, nothing is broken,
-  // because the mechanism is right here.
+  // BIND TO THE PAGE AND INTERPRET IT. That is the whole job. This file is served exactly as it
+  // was committed — no build ran, nothing was pre-rendered, and there is no artifact anywhere.
+  // Publishing here means committing a source file.
   //
-  // Same template, same data, same renderer. One source of truth rendered in two places rather
-  // than a build output and a client-side reimplementation that drift apart.
+  // Iteration is HTML's: <template> cloned per row. The data is data. Nothing here reimplements a
+  // templating language to do what the browser already does.
   const nav = document.getElementById("directory");
   const eyebrow = document.getElementById("eyebrow");
   eyebrow.textContent =
     location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
 
-  // Already rendered by the build? Then there is nothing to do — and nothing was needed.
-  if (!nav.querySelector(".place-block")) {
-    try {
-      const { render } = await import("/jekyll-enough/liquid.mjs");
-      const [tpl, listing] = await Promise.all([
-        fetch("/listing.liquid").then((r) => r.ok ? r.text() : Promise.reject()),
-        fetch("/_data/listing.json").then((r) => r.ok ? r.json() : Promise.reject()),
-      ]);
-      nav.innerHTML = render(tpl, { site: { data: { listing } } });
-    } catch {
-      // Origin unreachable, or the data is not there. The masthead stands by, which is what it has
-      // always been for — a page that says less rather than a page that lies.
-      eyebrow.textContent = "Please Stand By.";
+  const frag = (id) => document.getElementById(id).content.cloneNode(true);
+  const show = (el, text) => { el.hidden = false; if (text != null) el.textContent = text; };
+
+  try {
+    const res = await fetch("/sites.json", { cache: "no-cache" });
+    if (!res.ok) throw new Error();
+    const { listing = [] } = await res.json();
+
+    for (const place of listing) {
+      const p = frag("t-place");
+      p.querySelector(".place-name").textContent = place.name;
+      const rows = p.querySelector(".rows");
+      if (!place.rows.length) show(p.querySelector(".reserved"));
+
+      for (const row of place.rows) {
+        const r = frag("t-row");
+        r.querySelector(".cat").textContent = row.category;
+        const items = r.querySelector(".items");
+        for (const e of row.entries) {
+          const it = frag("t-entry");
+          if (e.linked) {
+            const a = it.querySelector(".place");
+            a.href = e.href;
+            if (e.leaves) a.rel = "noopener";
+            show(a, e.name);
+          } else {
+            show(it.querySelector(".soon"), e.name);
+            show(it.querySelector(".note"));
+          }
+          if (e.also) show(it.querySelector(".also"), e.also);
+          if (e.leaves) show(it.querySelector(".out"), e.dest + (e.shielded ? "  shielded" : ""));
+          items.append(it);
+        }
+        rows.append(r);
+      }
+      nav.append(p);
     }
+  } catch {
+    // Origin unreachable, or no data. The masthead stands by — a page that says less rather than
+    // a page that lies.
+    eyebrow.textContent = "Please Stand By.";
   }
 </script>
 
