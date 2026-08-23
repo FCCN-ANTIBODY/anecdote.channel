@@ -12,7 +12,45 @@ import { join, dirname } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const html = readFileSync(join(ROOT, "index.html"), "utf8");
-const data = JSON.parse(readFileSync(join(ROOT, "sites.json"), "utf8"));
+
+// A FIXTURE, not sites.json. That file is generated at deploy and gitignored, so reading it here
+// passes on a machine that has run the resolver and fails everywhere else — which is exactly what
+// it did: green locally, ENOENT in CI, red for five commits. A test that depends on an artifact
+// tests the artifact.
+//
+// This covers every shape the renderer branches on: a served name, a shell that leaves, a shell
+// that is shielded, a name that is not answering, a node with extra roles, and an empty place.
+const data = {
+  apex: "anecdote.channel",
+  root: "colorado.anecdote.channel",
+  listing: [
+    {
+      host: "fort-collins.colorado.anecdote.channel",
+      name: "Fort Collins",
+      rows: [
+        { category: "journal", entries: [
+          { host: "antibody.fort-collins.colorado.anecdote.channel", name: "ANTIBODY",
+            href: "https://antibody.fort-collins.colorado.anecdote.channel/",
+            linked: true, leaves: false, shielded: false, dest: "", also: "atlas · antidote" },
+        ] },
+        { category: "media", entries: [
+          { host: "public.media.fort-collins.colorado.anecdote.channel", name: "FC Public Media",
+            href: "https://new.fcpublicmedia.org", linked: true, leaves: true, shielded: false,
+            dest: "://new.fcpublicmedia.org", also: "" },
+          { host: "fcreport.media.fort-collins.colorado.anecdote.channel", name: "The FC Report",
+            href: "https://fcreport.org", linked: true, leaves: true, shielded: true,
+            dest: "://fcreport.org", also: "" },
+        ] },
+        { category: "voices", entries: [
+          { host: "north.voices.fort-collins.colorado.anecdote.channel", name: "north",
+            href: "https://north.voices.fort-collins.colorado.anecdote.channel/",
+            linked: false, leaves: false, shielded: false, dest: "", also: "" },
+        ] },
+      ],
+    },
+    { host: "wellington.colorado.anecdote.channel", name: "Wellington", rows: [] },
+  ],
+};
 
 // ---- the smallest DOM that can hold this page -------------------------------------------
 class El {
@@ -87,14 +125,14 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 
 t("the listing renders — a thrown helper would leave this empty", () => {
   const places = nav.all("place-block");
-  assert.ok(places.length >= 3, `expected places, got ${places.length}`);
+  assert.equal(places.length, data.listing.length, "every place in the data renders");
   assert.equal(eyebrow.textContent, "anecdote.channel", "standing-by means the render threw");
 });
 
 t("every place that has entries shows them", () => {
-  const expected = data.listing.filter((p) => p.rows.length).length;
-  assert.equal(nav.all("cat").length >= expected, true);
-  assert.ok(nav.all("item").length >= 5, "entries are missing");
+  const rows = data.listing.flatMap((p) => p.rows);
+  assert.equal(nav.all("cat").length, rows.length, "one category header per row");
+  assert.equal(nav.all("item").length, rows.flatMap((r) => r.entries).length, "one item per entry");
 });
 
 t("NO ENTRY SAYS SOON UNLESS IT IS GENUINELY NOT ANSWERING", () => {
