@@ -137,9 +137,13 @@ function framePolicy(headers) {
   return "unset";                                       // permitted by silence — NOT by agreement
 }
 
-async function probe(host) {
+// `where` is a full URL for a shell target (a project page lives at a PATH — probing only the
+// hostname would report discoverywritten.github.io/ instead of the site itself) and a bare host
+// for one of our own names.
+async function probe(where) {
+  const url = where.includes("://") ? where : `https://${where}/`;
   try {
-    const res = await fetch(`https://${host}/`, {
+    const res = await fetch(url, {
       redirect: "follow",
       signal: AbortSignal.timeout(TIMEOUT),
       headers: { "user-agent": "anecdote-directory (+https://anecdote.channel)" },
@@ -209,7 +213,7 @@ async function main() {
       if (r.ok && r.url) { target = r.url; via = r.via; }
       else if (r.ok) via = r.via;
     }
-    const t = target ? await probe(new URL(target).hostname) : null;
+    const t = target ? await probe(target) : null;
     // A shell's target can declare the canonical name it is heading for. When it does, that
     // claim — not a code host's metadata — is what says it is ready to be mounted here.
     const tDecl = t?.served ? await rolesOf(new URL(target).hostname) : { roles: [], claim: "" };

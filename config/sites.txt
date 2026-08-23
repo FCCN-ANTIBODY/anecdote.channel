@@ -40,6 +40,11 @@ atlas.anecdote.channel                           system
 antibody.fort-collins.colorado.anecdote.channel
 voices.north.colorado.anecdote.channel
 
+# --- trade: what you can buy here, what you can sell here -------------------------------
+# Naturally plural — nobody is THE business of a place — so it takes monikers from the start
+# rather than pretending to a canonical occupant.
+discoverywritten.trade.fort-collins.colorado.anecdote.channel  repo:DiscoveryWritten/discoverywritten.com
+
 # --- shells: names we assert over things we do not run ----------------------------------
 # The name is the claim. Putting a neighbour in the same predictable place as our own nodes
 # says this is a directory ON PURPOSE rather than a list of what we happen to own. Each one
@@ -49,6 +54,12 @@ voices.north.colorado.anecdote.channel
 # target is read from the repo's `homepage` rather than typed. They move hosts, this follows.
 # Drop the `repo:` on the day the canonical name serves it directly; nothing else changes.
 media.fort-collins.colorado.anecdote.channel  repo:FC-Public-Media/fcpublicmedia.org
+
+# Media has gone plural. FCPM keeps the short canonical name — it is the public media here — and
+# the newcomers take monikers beneath it. This is the extra DNS level arriving because plurality
+# actually showed up, which is the only reason it should ever arrive.
+fm.media.fort-collins.colorado.anecdote.channel               repo:tiliv/fm
+artist-lockers.media.fort-collins.colorado.anecdote.channel   repo:tiliv/artist-lockers
 
 # Longmont Public Media: not ours in any sense, and not rehosted. The canonical name exists so
 # the chain is predictable; it leads out to them, and it says so.
