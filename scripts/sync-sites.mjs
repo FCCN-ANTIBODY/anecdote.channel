@@ -148,6 +148,17 @@ async function probe(where) {
       signal: AbortSignal.timeout(TIMEOUT),
       headers: { "user-agent": "anecdote-directory (+https://anecdote.channel)" },
     });
+    // SHIELDED: live, but behind a bot challenge, so nothing about it can be read. This is not
+    // "not answering" — the site is there and a person reaches it fine. Reporting it as absent
+    // would be the directory lying about a neighbour because a robot was turned away, so it is
+    // listed and marked, with the label supplied by config since the title cannot be read.
+    if (res.status === 403 || res.status === 503) {
+      const body = (await res.text()).slice(0, 600).toLowerCase();
+      const cf = (res.headers.get("server") || "").toLowerCase().includes("cloudflare");
+      if (cf && /just a moment|checking your browser|cf-browser-verification|challenge/.test(body)) {
+        return { served: false, shielded: true, status: res.status, provider: providerOf(res.headers) };
+      }
+    }
     if (!res.ok) return { served: false, status: res.status };
     return { served: true, status: res.status, title: titleOf(await res.text()),
              frames: framePolicy(res.headers), provider: providerOf(res.headers) };
@@ -242,7 +253,8 @@ async function main() {
       site.to = target;
       site.via = via;
       site.leaves = true;                     // the renderer must say so, every time
-      site.targetLive = Boolean(t && t.served);
+      site.targetLive = Boolean(t && (t.served || t.shielded));
+      site.targetShielded = Boolean(t?.shielded);
       site.targetFrames = t?.frames || "unknown";
       site.targetProvider = t?.provider || "unknown";
       site.targetRoles = tDecl.roles;
@@ -257,7 +269,8 @@ async function main() {
       // Link the canonical name once it answers (it redirects out); until then, link the target
       // directly so the listing is useful before the DNS chain exists.
       site.href = p.served ? `https://${e.host}/` : target;
-      if (!t?.served) site.note = "target not answering";
+      if (t?.shielded) site.note = "shielded — live, but a challenge blocks reading it";
+      else if (!t?.served) site.note = "target not answering";
       else if (!p.served) site.note = "no canonical name yet — links out directly";
     }
     if (!p.served && !target) {
@@ -275,7 +288,7 @@ async function main() {
   const uncoveredPlaces = places.filter((p) => !san.includes(`*.${p}`));
 
   for (const s of sites) {
-    const mark = s.leaves ? (s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
+    const mark = s.leaves ? (s.targetShielded ? "shd" : s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
     const cl = s.claimStatus === "agrees" ? "✓claim" : s.claimStatus === "elsewhere" ? "!claim" : "";
     const tail = [s.system ? "(system)" : "", s.draft ? "(draft)" : "",
                   cl, s.via && s.via !== "config" ? `via ${s.via}` : "", s.note].filter(Boolean).join("  ");
@@ -314,10 +327,23 @@ async function main() {
   }
   const left = 50 - used;
   console.log(`\nwrote sites.json (${sites.length} entries across ${places.length} places)`);
-  console.log(`SAN: ${used}/50 — ${placeWildcards} place, ${categoryWildcards} plural-category, ` +
+  console.log(`SAN: ${used}/50 — ${placeWildcards} place, ${categoryWildcards} category, ` +
               `${used - placeWildcards - categoryWildcards} structural. ${left} left.`);
-  console.log(`     a place costs 1 whether it holds one site or forty; a category costs 1 more ` +
-              `only once it goes plural.`);
+  console.log(`     a place costs 1 whether it holds one site or forty. A CATEGORY costs 1 per` +
+              ` place it is used in — even with one occupant, because the five-part slot is`);
+  console.log(`     reserved for civic nodes and an occupant is therefore always at six. That is` +
+              ` the multiplicative term: places x categories-in-use.`);
+  // Say where the ceiling actually is, in the shape it will arrive in, rather than leaving it to
+  // be discovered when a wildcard silently cannot be added.
+  const cats = new Set();
+  for (const h of san) {
+    if (!h.startsWith("*.")) continue;
+    const rest = h.slice(2);
+    if (!placeSet.has(rest) && placeSet.has(rest.split(".").slice(1).join("."))) cats.add(rest.split(".")[0]);
+  }
+  const k = Math.max(1, cats.size);
+  console.log(`     at ${cats.size} distinct categor${cats.size === 1 ? "y" : "ies"} in use, ` +
+              `~${Math.floor(left / (1 + k))} more places fit.`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

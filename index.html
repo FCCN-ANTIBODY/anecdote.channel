@@ -67,17 +67,42 @@
   /* A place heading flush left; categories in a fixed left column that never moves; the names
      they hold in the column beside it. One name reads as a row across, several stack on the
      right while the category stays put. */
+  /* Content sits inboard of every header, so the headers lean out of the column rather than
+     starting it. */
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
+  /* Room for the rules to hang into. Every header's TEXT starts on the same left edge as the
+     content; only the bar leans out, and its length is the rank. */
+  .place-block { padding-left: 3.75rem; }
   #directory[hidden] { display: none; }
 
-  .place-block + .place-block { margin-top: var(--space-7); }
+  /* A city is a divider and a quiet label, not a headline. It was set in the display serif at
+     the same size as the site names, so it read as another clickable thing — and there is nothing
+     to click: we do not serve a directory per city yet. Mono, and it stops pretending. */
+  .place-block + .place-block {
+    margin-top: var(--space-7);
+    border-top: 1px solid var(--border-faint);
+    padding-top: var(--space-7);
+  }
   .place-name {
-    margin: 0 0 var(--space-4);
-    font-family: var(--font-display);
-    font-weight: var(--weight-display);
-    font-size: var(--display-3);
-    line-height: var(--leading-snug);
+    margin: 0 0 var(--space-5);
+    font-family: var(--font-mono);
+    font-weight: var(--weight-mono-bold);
+    font-size: var(--mono-lead);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
     color: var(--text-strong);
+  }
+  /* A solid rule hanging left of the label. The longer the bar, the higher the header — the
+     hierarchy is a length you can see at a glance rather than a font size you have to compare. */
+  .place-name::before {
+    content: "";
+    display: inline-block;
+    width: 3rem;
+    height: var(--rule);
+    margin-left: -3.75rem;
+    margin-right: .75rem;
+    background: var(--ink);
+    vertical-align: middle;
   }
 
   .rows {
@@ -95,6 +120,18 @@
     text-transform: uppercase;
     color: var(--text-muted);
     padding-top: .35em;              /* optical: sit the caps on the serif's baseline */
+  }
+  /* Shorter bar, lighter weight: one rank down, and it reads as one rank down without anyone
+     having to measure the type. */
+  .cat::before {
+    content: "";
+    display: inline-block;
+    width: 1.25rem;
+    height: 1px;
+    margin-left: -2rem;
+    margin-right: .75rem;
+    background: var(--ink-faint);
+    vertical-align: middle;
   }
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
@@ -204,18 +241,19 @@
       const also = (s.roles || []).filter((r) => r !== rowCategory);
       if (also.length) {
         wrap.append(Object.assign(document.createElement("small"),
-          { className: "also", textContent: "also " + also.join(" · ") }));
+          { className: "also", textContent: also.join(" · ") }));
       }
 
-      // Where it goes, and for something genuinely foreign, who answers for it.
       if (s.leaves) {
-        const dest = new URL(s.href).hostname;
-        const foreign = s.via === "config";
+        // The scheme is destroyed and the colon kept. Routing these needs no `://` — printing it
+        // anyway is the tell that this address was taken apart on purpose.
+        //
+        // What is NOT printed: who serves it. `server:` names the software sitting in front, not
+        // where a thing is hosted, and the software is not the question anyone was asking.
+        const dest = "://" + new URL(s.href).hostname;
         wrap.append(Object.assign(document.createElement("small"), {
           className: "out",
-          textContent: foreign && s.targetProvider && s.targetProvider !== "unknown"
-            ? `${dest} · served by ${s.targetProvider}`
-            : dest,
+          textContent: s.targetShielded ? dest + "  shielded" : dest,
         }));
       }
       return wrap;
