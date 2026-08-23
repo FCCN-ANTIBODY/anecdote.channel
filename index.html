@@ -69,6 +69,12 @@
      right while the category stays put. */
   /* The content keeps the full gutter. Headers reach OUT of it to the left; nothing pushes the
      names inward, because column width is the one thing here worth spending. */
+  /* THE TAB. `--tab-h` is the line box both headers are forced to, so their borders are the SAME
+     HEIGHT whatever the text size — and setting it as line-height centres the text inside it for
+     free, which is the whole reason not to do this with a pseudo-element.
+     `--ind` is where that header's text starts from the screen edge; the black fills it. */
+  :root { --tab-h: 1.6rem; }
+
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
   #directory[hidden] { display: none; }
 
@@ -84,10 +90,11 @@
     margin: 0 0 var(--space-5);
     /* Out of the gutter entirely — hugging the page, not the column. */
     margin-left: calc(var(--gutter) * -1);
-    /* THE BLACK IS THIS HEADER'S OWN LEFT GUTTER, drawn as its border. Its height is this
-       element's line box — not a number, not aligned to anything, and it cannot slip off the
-       text because it is the same box as the text. */
-    border-left: .75rem solid var(--ink);
+    /* THE BLACK IS THIS HEADER'S OWN LEFT GUTTER, drawn as its border — the same box as the
+       text, so it cannot slip off it. */
+    --ind: 1.25rem;
+    line-height: var(--tab-h);
+    border-left: calc(var(--ind) - .5rem) solid var(--ink);
     padding-left: .5rem;
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
@@ -108,12 +115,12 @@
   }
   /* The category. Mono, small-caps, and the same left edge on every row in the block. */
   .cat {
-    /* Smaller text, so a WIDER gutter — and that falls out on its own: the black runs from the
-       screen edge to wherever this header's text already sits, which is further in than the
-       city's. Pull the box to x=0 and give back exactly what was taken, so THE TEXT DOES NOT
-       MOVE. */
+    /* Smaller header, WIDER gutter. Stated outright rather than derived from --gutter, which is
+       24px on a phone and made this tab all but the same width as the city's. */
+    --ind: 3.25rem;
+    line-height: var(--tab-h);
     margin-left: calc(var(--gutter) * -1);
-    border-left: calc(var(--gutter) - .5rem) solid var(--ink);
+    border-left: calc(var(--ind) - .5rem) solid var(--ink);
     padding-left: .5rem;
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
@@ -123,6 +130,8 @@
   }
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
+
+  [hidden] { display: none !important; }
 
   .place, .soon {
     font-family: var(--font-display);
@@ -205,6 +214,8 @@
 <code id="heading" hidden></code>
 
 <script type="module">
+  import { entryParts } from "/directory.mjs";
+
   // BIND TO THE PAGE AND INTERPRET IT. That is the whole job. This file is served exactly as it
   // was committed — no build ran, nothing was pre-rendered, and there is no artifact anywhere.
   // Publishing here means committing a source file.
@@ -217,7 +228,10 @@
     location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
 
   const frag = (id) => document.getElementById(id).content.cloneNode(true);
-  const show = (el, text) => { el.hidden = false; if (text != null) el.textContent = text; };
+  // REMOVE, never hide. `hidden` is a UA display rule that any author `display:` outranks, which
+  // is how every entry came to show its link AND "soon" at the same time.
+  const drop = (r, sel) => { const el = r.querySelector(sel); if (el) el.remove(); };
+  const put = (r, sel, t) => { const el = r.querySelector(sel); if (el && t != null) el.textContent = t; return el; };
 
   try {
     const res = await fetch("/sites.json", { cache: "no-cache" });
@@ -236,17 +250,18 @@
         const items = r.querySelector(".items");
         for (const e of row.entries) {
           const it = frag("t-entry");
-          if (e.linked) {
-            const a = it.querySelector(".place");
+          const parts = entryParts(e);
+          if (parts.link) {
+            const a = put(it, ".place", e.name);
             a.href = e.href;
             if (e.leaves) a.rel = "noopener";
-            show(a, e.name);
           } else {
-            show(it.querySelector(".soon"), e.name);
-            show(it.querySelector(".note"));
+            put(it, ".soon", e.name);
           }
-          if (e.also) show(it.querySelector(".also"), e.also);
-          if (e.leaves) show(it.querySelector(".out"), e.dest + (e.shielded ? "  shielded" : ""));
+          if (!parts.link) drop(it, ".place");
+          if (!parts.soon) { drop(it, ".soon"); drop(it, ".note"); }
+          if (parts.also) put(it, ".also", e.also); else drop(it, ".also");
+          if (parts.out) put(it, ".out", e.dest + (e.shielded ? "  shielded" : "")); else drop(it, ".out");
           items.append(it);
         }
         rows.append(r);
