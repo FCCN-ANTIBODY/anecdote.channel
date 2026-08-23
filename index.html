@@ -67,12 +67,9 @@
   /* A place heading flush left; categories in a fixed left column that never moves; the names
      they hold in the column beside it. One name reads as a row across, several stack on the
      right while the category stays put. */
-  /* Content sits inboard of every header, so the headers lean out of the column rather than
-     starting it. */
+  /* The content keeps the full gutter. Headers reach OUT of it to the left; nothing pushes the
+     names inward, because column width is the one thing here worth spending. */
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
-  /* Room for the rules to hang into. Every header's TEXT starts on the same left edge as the
-     content; only the bar leans out, and its length is the rank. */
-  .place-block { padding-left: 3.75rem; }
   #directory[hidden] { display: none; }
 
   /* A city is a divider and a quiet label, not a headline. It was set in the display serif at
@@ -85,6 +82,8 @@
   }
   .place-name {
     margin: 0 0 var(--space-5);
+    /* Out of the gutter entirely — hugging the page, not the column. */
+    margin-left: calc(var(--gutter) * -1);
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
     font-size: var(--mono-lead);
@@ -94,15 +93,17 @@
   }
   /* A solid rule hanging left of the label. The longer the bar, the higher the header — the
      hierarchy is a length you can see at a glance rather than a font size you have to compare. */
+  /* THE TAB IS THE INDENT. Its width is how far the text starts from the left, so the smaller a
+     header is the longer its tab and the further in it sits. The place is the outermost thing on
+     the page: a 4px nub against the very edge, text immediately right of it. */
   .place-name::before {
     content: "";
     display: inline-block;
-    width: 3rem;
-    height: var(--rule);
-    margin-left: -3.75rem;
-    margin-right: .75rem;
+    width: 4px;
+    height: .8em;
+    margin-right: .5rem;
     background: var(--ink);
-    vertical-align: middle;
+    vertical-align: baseline;
   }
 
   .rows {
@@ -121,17 +122,17 @@
     color: var(--text-muted);
     padding-top: .35em;              /* optical: sit the caps on the serif's baseline */
   }
-  /* Shorter bar, lighter weight: one rank down, and it reads as one rank down without anyone
-     having to measure the type. */
+  /* One rank in, so a LONGER tab. Its text lands half a character left of the names below it —
+     enough to read as a header, not enough to open a second column. */
   .cat::before {
     content: "";
     display: inline-block;
-    width: 1.25rem;
-    height: 1px;
-    margin-left: -2rem;
-    margin-right: .75rem;
-    background: var(--ink-faint);
-    vertical-align: middle;
+    width: 1.4rem;
+    height: .7em;
+    margin-left: calc((1.4rem + .5rem + .5ch) * -1);
+    margin-right: .5rem;
+    background: var(--ink);
+    vertical-align: baseline;
   }
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
