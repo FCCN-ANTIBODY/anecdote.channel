@@ -35,7 +35,6 @@
 # cost of standing a place up is paid when it is claimed rather than when someone finally arrives.
 @place fort-collins.colorado.anecdote.channel
 @place longmont.colorado.anecdote.channel
-@place north.colorado.anecdote.channel
 # Loveland: a journal site and nothing else — no Atlas, no Tell, no Antidote. Another ANTIBODY
 # under different branding, the way Voices is. When it arrives it declares `journal` and files
 # itself; nothing here needs changing but the removal of this comment.

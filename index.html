@@ -69,6 +69,27 @@
      right while the category stays put. */
   /* The content keeps the full gutter. Headers reach OUT of it to the left; nothing pushes the
      names inward, because column width is the one thing here worth spending. */
+  /* The one knob for how thick the black is. */
+  :root { --hdr-h: .5rem; }
+
+  /* THE HEADER WRAPPER OWNS THE BOX.
+     .hdr sets the height — one number, every level, so every black box is the same height.
+     .hdr-N sets the left border — wider the smaller the header, which is what indents it.
+     The header element inside is not touched: no margins, no line-height, no alignment. */
+  .hdr {
+    height: var(--hdr-h);
+    display: flex;
+    align-items: center;
+    margin-left: calc(var(--gutter) * -1);   /* border starts at the screen edge */
+    padding-left: .5rem;
+  }
+  /* THE BLACK LIVES ENTIRELY IN THE GUTTER AND NEVER LEAVES IT. A header's text lands at most
+     on the content line, never past it — these hang LEFT of the content, they do not indent into
+     it. So the widest a border may be is the gutter itself, less the padding. */
+  .hdr-1 { border-left: 4px solid var(--ink); margin-bottom: var(--space-5); }
+  .hdr-2 { border-left: 10px solid var(--ink); }
+  .hdr > * { margin: 0; }
+
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
   #directory[hidden] { display: none; }
 
@@ -81,14 +102,6 @@
     padding-top: var(--space-7);
   }
   .place-name {
-    margin: 0 0 var(--space-5);
-    /* Out of the gutter entirely — hugging the page, not the column. */
-    margin-left: calc(var(--gutter) * -1);
-    /* THE BLACK IS THIS HEADER'S OWN LEFT GUTTER, drawn as its border. Its height is this
-       element's line box — not a number, not aligned to anything, and it cannot slip off the
-       text because it is the same box as the text. */
-    border-left: .75rem solid var(--ink);
-    padding-left: .5rem;
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
     font-size: var(--mono-lead);
@@ -108,13 +121,6 @@
   }
   /* The category. Mono, small-caps, and the same left edge on every row in the block. */
   .cat {
-    /* Smaller text, so a WIDER gutter — and that falls out on its own: the black runs from the
-       screen edge to wherever this header's text already sits, which is further in than the
-       city's. Pull the box to x=0 and give back exactly what was taken, so THE TEXT DOES NOT
-       MOVE. */
-    margin-left: calc(var(--gutter) * -1);
-    border-left: calc(var(--gutter) - .5rem) solid var(--ink);
-    padding-left: .5rem;
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
     letter-spacing: var(--tracking-caps);
@@ -184,27 +190,29 @@
      repeated". -->
 <template id="t-place">
   <section class="place-block">
-    <h2 class="place-name"></h2>
-    <p class="reserved" hidden>reserved — nothing here yet</p>
+    <div class="hdr hdr-1"><h2 class="place-name"></h2></div>
+    <p class="reserved">reserved — nothing here yet</p>
     <div class="rows"></div>
   </section>
 </template>
 <template id="t-row">
-  <div class="cat"></div>
+  <div class="hdr hdr-2"><div class="cat"></div></div>
   <div class="items"></div>
 </template>
 <template id="t-entry">
   <div class="item">
-    <a class="place" hidden></a>
-    <span class="soon" hidden></span>
-    <small class="note" hidden>soon</small>
-    <small class="also" hidden></small>
-    <small class="out" hidden></small>
+    <a class="place"></a>
+    <span class="soon"></span>
+    <small class="note">soon</small>
+    <small class="also"></small>
+    <small class="out"></small>
   </div>
 </template>
 <code id="heading" hidden></code>
 
 <script type="module">
+  import { entryParts } from "/directory.mjs";
+
   // BIND TO THE PAGE AND INTERPRET IT. That is the whole job. This file is served exactly as it
   // was committed — no build ran, nothing was pre-rendered, and there is no artifact anywhere.
   // Publishing here means committing a source file.
@@ -217,7 +225,9 @@
     location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
 
   const frag = (id) => document.getElementById(id).content.cloneNode(true);
-  const show = (el, text) => { el.hidden = false; if (text != null) el.textContent = text; };
+  // REMOVE, never hide: `hidden` is a UA display rule any author `display:` outranks.
+  const drop = (r, sel) => { const el = r.querySelector(sel); if (el) el.remove(); };
+  const put = (r, sel, t) => { const el = r.querySelector(sel); if (el && t != null) el.textContent = t; return el; };
 
   try {
     const res = await fetch("/sites.json", { cache: "no-cache" });
@@ -228,25 +238,25 @@
       const p = frag("t-place");
       p.querySelector(".place-name").textContent = place.name;
       const rows = p.querySelector(".rows");
-      if (!place.rows.length) show(p.querySelector(".reserved"));
-
+      if (place.rows.length) drop(p, ".reserved");
       for (const row of place.rows) {
         const r = frag("t-row");
         r.querySelector(".cat").textContent = row.category;
         const items = r.querySelector(".items");
         for (const e of row.entries) {
           const it = frag("t-entry");
-          if (e.linked) {
-            const a = it.querySelector(".place");
+          const parts = entryParts(e);
+          if (parts.link) {
+            const a = put(it, ".place", e.name);
             a.href = e.href;
             if (e.leaves) a.rel = "noopener";
-            show(a, e.name);
           } else {
-            show(it.querySelector(".soon"), e.name);
-            show(it.querySelector(".note"));
+            put(it, ".soon", e.name);
           }
-          if (e.also) show(it.querySelector(".also"), e.also);
-          if (e.leaves) show(it.querySelector(".out"), e.dest + (e.shielded ? "  shielded" : ""));
+          if (!parts.link) drop(it, ".place");
+          if (!parts.soon) { drop(it, ".soon"); drop(it, ".note"); }
+          if (parts.also) put(it, ".also", e.also); else drop(it, ".also");
+          if (parts.out) put(it, ".out", e.dest + (e.shielded ? "  shielded" : "")); else drop(it, ".out");
           items.append(it);
         }
         rows.append(r);
