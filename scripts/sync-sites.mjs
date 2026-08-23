@@ -16,10 +16,11 @@
 // Exits non-zero when a listed host is not covered by config/san-list.txt: an uncovered deep leaf
 // is a TLS error for visitors, and nothing else in the pipeline catches it.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, claimStatus, APEX, tokenEnvFor } from "../directory.mjs";
+import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, claimStatus,
+         treeUnder, rowsUnder, placeName, monikerOf, APEX, tokenEnvFor } from "../directory.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT = 15000;
@@ -311,7 +312,44 @@ async function main() {
 
   // No timestamp on purpose: an unchanged re-run must produce no diff, so the committing
   // workflow stays quiet (cadence, not chatter).
-  writeFileSync(join(ROOT, "sites.json"), JSON.stringify({ apex: APEX, root, places, sites }, null, 2) + "\n");
+  // SHAPE IT HERE, RENDER IT IN LIQUID. Liquid has no recursion, so the tree walk cannot live in
+  // the template — but it does not need to. The resolver already knows the shape; emitting it flat
+  // means the page is nested `for` loops over data, which is what a Jekyll site would be and what a
+  // crawler can read without executing anything.
+  const published = sites.filter((s) => !s.draft && !s.system).filter((s) => !s.leaves || s.targetLive);
+  const tree = treeUnder(root, published);
+  const seen = new Set(tree.map((p) => p.host));
+  const empty = places.filter((h) => !seen.has(h) && h.endsWith(`.${root}`))
+    .map((h) => ({ host: h, site: null, children: [] }));
+  const listing = [...tree, ...empty]
+    .sort((a, b) => a.host.localeCompare(b.host))
+    .map((place) => ({
+      host: place.host,
+      name: placeName(place.host),
+      rows: rowsUnder(place).map((row) => ({
+        category: row.category,
+        entries: row.entries.map((e) => ({
+          host: e.host,
+          name: e.site.label || monikerOf(e.site, place.host),
+          href: e.site.leaves ? e.site.href : `https://${e.host}/`,
+          linked: Boolean(e.site.served || e.site.leaves),
+          leaves: Boolean(e.site.leaves),
+          shielded: Boolean(e.site.targetShielded),
+          dest: e.site.leaves ? "://" + new URL(e.site.href).hostname : "",
+          also: (e.site.roles || []).filter((r) => r !== row.category).join(" · "),
+        })),
+      })),
+    }));
+
+  const payload = { apex: APEX, root, places, sites, listing };
+  // _data/ is what the build reads. The root copy is what the service worker holds and what a
+  // runtime refresh fetches — same writer, same run, so it cannot drift from the rendered page.
+  mkdirSync(join(ROOT, "_data"), { recursive: true });
+  // _data/<name>.json lands at site.data.<name>, so the listing gets its own file and the
+  // template reads site.data.listing rather than reaching through the whole payload.
+  writeFileSync(join(ROOT, "_data/listing.json"), JSON.stringify(listing, null, 2) + "\n");
+  writeFileSync(join(ROOT, "_data/sites.json"), JSON.stringify(payload, null, 2) + "\n");
+  writeFileSync(join(ROOT, "sites.json"), JSON.stringify(payload, null, 2) + "\n");
 
   // What this actually costs, every run. Places are the unit that scales: one wildcard holds a
   // place whether it has one site or forty, and only a category that genuinely went plural adds

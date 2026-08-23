@@ -46,6 +46,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/sync-sites.mjs
 
+      # Render the listing INTO the page, with this repo's own jekyll-enough. The directory used to
+      # be drawn by a fetch in the browser, which made it invisible to anything that does not run
+      # JavaScript and meant the first paint was always the holding page. The sites are data; a
+      # Jekyll site would loop over them in a template, and now this one does.
+      - name: Render the page
+        run: node scripts/render.mjs
+
       - name: Serve files as-is (no Jekyll)
         run: touch .nojekyll
       - uses: actions/configure-pages@v5

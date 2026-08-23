@@ -11,6 +11,8 @@ vendor/
 node_modules/
 package-lock.json
 
-# Generated during deploy (pages.yml, "Gather the directory") — resolved at publish time,
-# never carried in the repo, so it cannot drift from what is actually being served.
+# Generated during deploy (pages.yml): sync-sites.mjs writes these, render.mjs folds the listing
+# into the page. Resolved at publish time so they cannot drift from what is actually served.
 sites.json
+_data/sites.json
+_data/listing.json

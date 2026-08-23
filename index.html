@@ -1,3 +1,12 @@
+---
+# Front matter marks this file as a PAGE — jekyll-enough renders files that have it and copies
+# everything else verbatim. Empty is enough.
+#
+# scripts/render.mjs replaces this file with its rendered output at deploy, so what ships carries
+# no front matter and no Liquid. Served straight from the repo you are looking at the SOURCE:
+#
+#   node scripts/sync-sites.mjs && node scripts/render.mjs
+---
 <!doctype html>
 <!-- Public holding page for anecdote.channel. The preflight demos (crunch / bench / composer) are
      no longer linked here — they were pulled down from the public surface and repurposed as build
@@ -185,115 +194,49 @@
   <h1 class="wordmark">anecdote</h1>
   <p class="eyebrow" id="eyebrow">Please Stand By.</p>
 </header>
-<nav id="directory" hidden></nav>
+<nav id="directory">
+{%- comment -%}
+  THE LISTING, RENDERED AT BUILD TIME. Nested `for` loops over site.data.listing, which the
+  resolver shaped flat precisely so this could be Liquid — the page a crawler receives already
+  contains the directory instead of a script that will fetch one.
+
+  Liquid has no recursion, so the tree walk happens in scripts/sync-sites.mjs and lands in
+  _data/sites.json. What is left here is what a Jekyll site would have been all along.
+{%- endcomment -%}
+{%- for place in site.data.listing %}
+  <section class="place-block">
+    <h2 class="place-name">{{ place.name }}</h2>
+    {%- if place.rows.size == 0 %}
+    <p class="reserved">reserved — nothing here yet</p>
+    {%- else %}
+    <div class="rows">
+      {%- for row in place.rows %}
+      <div class="cat">{{ row.category }}</div>
+      <div class="items">
+        {%- for e in row.entries %}
+        <div class="item">
+          {%- if e.linked %}<a class="place" href="{{ e.href }}"{% if e.leaves %} rel="noopener"{% endif %}>{{ e.name }}</a>
+          {%- else %}<span class="soon">{{ e.name }}</span><small class="note">soon</small>
+          {%- endif %}
+          {%- if e.also != "" %}<small class="also">{{ e.also }}</small>{% endif %}
+          {%- if e.leaves %}<small class="out">{{ e.dest }}{% if e.shielded %}  shielded{% endif %}</small>{% endif %}
+        </div>
+        {%- endfor %}
+      </div>
+      {%- endfor %}
+    </div>
+    {%- endif %}
+  </section>
+{%- endfor %}
+</nav>
 <code id="heading" hidden></code>
 
 <script type="module">
-  // THE DIRECTORY. This same page is the listing at EVERY level: it reads its own
-  // location.hostname and renders what sits beneath it, so `north.colorado.anecdote.channel`
-  // becomes a listing of its leaves the moment a host is arranged for it — no new page.
-  // Levels nobody serves still render, as categories. Offline-safe: sites.json rides in the
-  // shell (sw.js), and a failed fetch simply leaves the standing-by heading alone.
-  import { APEX, treeUnder, rowsUnder, placeName } from "/directory.mjs";
-
-  (async () => {
-    const here = location.hostname.endsWith(APEX) ? location.hostname : APEX;
-    let data;
-    try {
-      const res = await fetch("/sites.json", { cache: "no-cache" });
-      if (!res.ok) return;
-      data = await res.json();
-    } catch { return; }                       // origin unreachable — stand by, as before
-
-    // System hosts are machinery other software talks to, not somewhere to send a person.
-    // A destination that is not answering yet still lists, unlinked — "soon" is honest.
-    const published = (data.sites || []).filter((s) => !s.draft && !s.system)
-      // A shell with a dead target is not a destination; drop it rather than hand someone a
-      // broken handoff under our own name.
-      .filter((s) => !s.leaves || s.targetLive);
-    // At the apex, list from the configured root: the memorable name should show destinations,
-    // not the top of the tree. Deeper in, a level always lists beneath itself.
-    const from = (here === (data.apex || APEX) && data.root) ? data.root : here;
-    const tree = treeUnder(from, published);
-    if (!tree.length) return;                 // nothing beneath this level yet
-
-    // A place heading flush left; beneath it, categories in a fixed left column with the names
-    // they hold beside them. The left column never moves — a category with one name reads as a
-    // straight row across, a category with several stacks them on the right while the category
-    // stays put. Nothing folds away and nothing indents out of line.
-    const nameOf = (node, rowCategory) => {
-      const s = node.site;
-      const el = document.createElement(s.served || s.leaves ? "a" : "span");
-      el.className = s.served || s.leaves ? "place" : "soon";
-      el.textContent = s.label || s.leaf;
-      if (el.tagName === "A") {
-        el.href = s.leaves ? s.href : `https://${node.host}/`;
-        if (s.leaves) el.rel = "noopener";
-      }
-      const wrap = document.createElement("div");
-      wrap.className = "item";
-      wrap.append(el);
-      if (!(s.served || s.leaves)) {
-        wrap.append(Object.assign(document.createElement("small"),
-          { className: "note", textContent: "soon" }));
-      }
-      // A node running several roles files under one and carries the rest, so nothing is hidden by
-      // the filing. Only ever roles it declared — never a guess about what else it might be.
-      const also = (s.roles || []).filter((r) => r !== rowCategory);
-      if (also.length) {
-        wrap.append(Object.assign(document.createElement("small"),
-          { className: "also", textContent: also.join(" · ") }));
-      }
-
-      if (s.leaves) {
-        // The scheme is destroyed and the colon kept. Routing these needs no `://` — printing it
-        // anyway is the tell that this address was taken apart on purpose.
-        //
-        // What is NOT printed: who serves it. `server:` names the software sitting in front, not
-        // where a thing is hosted, and the software is not the question anyone was asking.
-        const dest = "://" + new URL(s.href).hostname;
-        wrap.append(Object.assign(document.createElement("small"), {
-          className: "out",
-          textContent: s.targetShielded ? dest + "  shielded" : dest,
-        }));
-      }
-      return wrap;
-    };
-
-    const section = (place) => {
-      const rows = rowsUnder(place);
-      if (!rows.length) return null;
-      const sec = document.createElement("section");
-      sec.className = "place-block";
-      sec.append(Object.assign(document.createElement("h2"),
-        { className: "place-name", textContent: placeName(place.host) }));
-      const grid = document.createElement("div");
-      grid.className = "rows";
-      for (const row of rows) {
-        grid.append(Object.assign(document.createElement("div"),
-          { className: "cat", textContent: row.category }));
-        const items = document.createElement("div");
-        items.className = "items";
-        for (const e of row.entries) items.append(nameOf(e, row.category));
-        grid.append(items);
-      }
-      sec.append(grid);
-      return sec;
-    };
-
-    const nav = document.getElementById("directory");
-    // Places come from the sites in them, plus any RESERVED before anything arrives. Sorted
-    // together so a held name sits among the occupied ones rather than in a leftovers bin.
-    const seen = new Set(tree.map((p) => p.host));
-    const reserved = (data.places || [])
-      .filter((h) => !seen.has(h) && h.endsWith(`.${from}`))
-      .map((h) => ({ host: h, site: null, children: [] }));
-    const all = [...tree, ...reserved].sort((a, b) => a.host.localeCompare(b.host));
-    for (const place of all) { const sec = section(place); if (sec) nav.append(sec); }
-    nav.hidden = false;
-    // The wordmark is the name you say out loud; the host is the small true thing under it.
-    document.getElementById("eyebrow").textContent = here;
-  })();
+  // The listing is rendered into this page at build time (see the Liquid above). Nothing here
+  // draws it. This only swaps the standing-by line for the host once the page is up, so the
+  // masthead says where you are — and it is the ONE thing that still needs the client.
+  document.getElementById("eyebrow").textContent =
+    location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
 </script>
 
 <script type="module">
