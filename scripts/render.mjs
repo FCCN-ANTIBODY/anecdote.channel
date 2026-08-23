@@ -28,6 +28,10 @@ import { buildSite } from "../jekyll-enough/build.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PAGES = ["index.html"];
+// IN PLACE IS DESTRUCTIVE: it replaces the source with its own output. The deploy does that to a
+// throwaway checkout on purpose; a person running it in a working tree would lose the template,
+// which is exactly what happened once. So it is opt-in, and the default writes a preview instead.
+const IN_PLACE = process.argv.includes("--in-place");
 
 // The tree jekyll-enough is handed: the pages to render plus _data. Nothing else — the build has
 // no opinion about files it is not given, and this way it cannot touch anything else.
@@ -66,8 +70,9 @@ for (const p of PAGES) {
     console.log(`::warning::${p} still contains Liquid after pre-render — the browser will finish it`);
     for (const l of leftover.slice(0, 5)) console.log(`    ${l}`);
   }
-  writeFileSync(join(ROOT, p), built);
+  const dest = IN_PLACE ? p : p.replace(/\.html$/, ".rendered.html");
+  writeFileSync(join(ROOT, dest), built);
   wrote++;
-  console.log(`  rendered ${p} (${built.length} bytes)`);
+  console.log(`  rendered ${p} -> ${dest} (${built.length} bytes)`);
 }
 console.log(`render: ${wrote} page(s)`);

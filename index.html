@@ -1,3 +1,8 @@
+---
+# Front matter marks this as a PAGE, which is what makes jekyll-enough render it rather than copy
+# it. THIS FILE IS THE SOURCE — `node scripts/render.mjs --in-place` overwrites it, and that is
+# what the deploy does to its own checkout. Do not run it in-place on yours.
+---
 <!doctype html>
 <!-- Public holding page for anecdote.channel. The preflight demos (crunch / bench / composer) are
      no longer linked here — they were pulled down from the public surface and repurposed as build
@@ -186,59 +191,14 @@
   <p class="eyebrow" id="eyebrow">Please Stand By.</p>
 </header>
 <nav id="directory">
-  <section class="place-block">
-    <h2 class="place-name">Fort Collins</h2>
-    <div class="rows">
-      <div class="cat">journal</div>
-      <div class="items">
-        <div class="item"><a class="place" href="https://antibody.fort-collins.colorado.anecdote.channel/">ANTIBODY</a><small class="also">atlas · antidote</small>
-        </div>
-      </div>
-      <div class="cat">media</div>
-      <div class="items">
-        <div class="item"><a class="place" href="https://discoverywritten.github.io/artist-lockers/" rel="noopener">Artist Lockers: Index</a><small class="out">://discoverywritten.github.io</small>
-        </div>
-        <div class="item"><a class="place" href="https://fcreport.org" rel="noopener">The Fort Collins Report</a><small class="out">://fcreport.org</small>
-        </div>
-        <div class="item"><a class="place" href="https://fm.discoverywritten.com/" rel="noopener">FM</a><small class="out">://fm.discoverywritten.com</small>
-        </div>
-        <div class="item"><a class="place" href="https://new.fcpublicmedia.org" rel="noopener">Fort Collins Public Media</a><small class="out">://new.fcpublicmedia.org</small>
-        </div>
-      </div>
-      <div class="cat">trade</div>
-      <div class="items">
-        <div class="item"><a class="place" href="https://discoverywritten.com/" rel="noopener">Discovery Written</a><small class="out">://discoverywritten.com</small>
-        </div>
-      </div>
-      <div class="cat">voices</div>
-      <div class="items">
-        <div class="item"><span class="soon">north</span><small class="note">soon</small>
-        </div>
-      </div>
-    </div>
-  </section>
-  <section class="place-block">
-    <h2 class="place-name">Longmont</h2>
-    <div class="rows">
-      <div class="cat">media</div>
-      <div class="items">
-        <div class="item"><a class="place" href="https://longmontpublicmedia.org" rel="noopener">Longmont Public Media</a><small class="out">://longmontpublicmedia.org</small>
-        </div>
-      </div>
-    </div>
-  </section>
-  <section class="place-block">
-    <h2 class="place-name">Loveland</h2>
-    <p class="reserved">reserved — nothing here yet</p>
-  </section>
-  <section class="place-block">
-    <h2 class="place-name">North</h2>
-    <p class="reserved">reserved — nothing here yet</p>
-  </section>
-  <section class="place-block">
-    <h2 class="place-name">Wellington</h2>
-    <p class="reserved">reserved — nothing here yet</p>
-  </section>
+{%- comment -%}
+  THE LISTING. One template, rendered wherever it needs to be.
+
+  On the public web the deploy renders it in, so a crawler receives text. On a device holding the
+  repository — the offline origin — nothing is pre-rendered and the browser renders it here. Same
+  bytes, same renderer, two places that need it.
+{%- endcomment -%}
+{%- include_relative listing.liquid -%}
 </nav>
 <code id="heading" hidden></code>
 

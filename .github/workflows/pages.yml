@@ -51,7 +51,7 @@ jobs:
       # JavaScript and meant the first paint was always the holding page. The sites are data; a
       # Jekyll site would loop over them in a template, and now this one does.
       - name: Render the page
-        run: node scripts/render.mjs
+        run: node scripts/render.mjs --in-place
 
       - name: Serve files as-is (no Jekyll)
         run: touch .nojekyll

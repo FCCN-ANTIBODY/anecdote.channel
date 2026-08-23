@@ -16,3 +16,6 @@ package-lock.json
 sites.json
 _data/sites.json
 _data/listing.json
+
+# render.mjs preview output (the deploy renders --in-place instead)
+*.rendered.html
