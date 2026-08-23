@@ -14,10 +14,13 @@
 #                it, it survives them changing hosts, and a public repo needs no credential.
 #   to:<url>    — a SHELL pointed at a literal URL, for something with no repo to read.
 #                Either way the listing says it leaves. Naming someone is not hosting them.
-#   type:<kind> — what sort of thing it is (`journal`). Shown beside the name. Leave it off for
-#                something that does not want a category — a platformed site is just a site.
-#   = <label>  — override the label; default is the site's own <title>. Written exactly as the
-#                thing brands itself: ANTIBODY is never "Antibody".
+# There is no `type:` flag, on purpose. What a thing IS reads off the category it sits in —
+# ANTIBODY at `antibody`, Voices at `voices`, FCPM at `media` — so a second word saying "journal"
+# beside the name is noise that can also disagree with the name above it.
+#   = <label>  — LAST RESORT ONLY. A name is taken from the thing itself (its <title>); a label
+#                here is a second copy of a name that already exists, and it goes stale the day
+#                they rename. Use it only where the source is unusable — e.g. a title carrying a
+#                tagline. Never for anything of ours.
 #
 # A listed site that is not answering yet still appears, unlinked — saying "soon" is honest and
 # useful; hiding it makes the directory silently incomplete.
@@ -34,8 +37,8 @@ atlas.anecdote.channel                           system
 
 # --- destinations we run ---------------------------------------------------------------
 # `north` is a region label sitting at city level.
-antibody.fort-collins.colorado.anecdote.channel  type:journal  = ANTIBODY
-voices.north.colorado.anecdote.channel           type:journal  = Voices
+antibody.fort-collins.colorado.anecdote.channel
+voices.north.colorado.anecdote.channel
 
 # --- shells: names we assert over things we do not run ----------------------------------
 # The name is the claim. Putting a neighbour in the same predictable place as our own nodes
@@ -45,8 +48,10 @@ voices.north.colorado.anecdote.channel           type:journal  = Voices
 # FCPM: an org repo, already served — on Cloudflare rather than Pages, which is exactly why the
 # target is read from the repo's `homepage` rather than typed. They move hosts, this follows.
 # Drop the `repo:` on the day the canonical name serves it directly; nothing else changes.
-media.fort-collins.colorado.anecdote.channel  repo:FC-Public-Media/fcpublicmedia.org  = Fort Collins Public Media
+media.fort-collins.colorado.anecdote.channel  repo:FC-Public-Media/fcpublicmedia.org
 
 # Longmont Public Media: not ours in any sense, and not rehosted. The canonical name exists so
 # the chain is predictable; it leads out to them, and it says so.
+# Their title carries a tagline ("… – Longmont's Public Access TV"), so this is the one entry
+# that names itself here rather than being read.
 media.longmont.colorado.anecdote.channel  to:https://longmontpublicmedia.org  = Longmont Public Media

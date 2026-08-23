@@ -19,15 +19,24 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, APEX, tokenEnvFor } from "../directory.mjs";
+import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, claimStatus, APEX, tokenEnvFor } from "../directory.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT = 15000;
 
-// The site describes itself: its own <title> is the label unless config overrides it.
+// The site describes itself: its own <title> IS the name. Not a fallback — the source.
+// Entities are decoded because a title is text, not markup, and Longmont's real one is
+// "Longmont Public Media &#8211; Longmont&#039;s Public Access TV".
+const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "—" };
+function decodeEntities(t) {
+  return t
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&([a-z]+);/gi, (m, n) => ENTITIES[n.toLowerCase()] ?? m);
+}
 function titleOf(html) {
   const m = /<title[^>]*>([^<]*)<\/title>/i.exec(html || "");
-  return m ? m[1].trim().replace(/\s+/g, " ").slice(0, 80) : "";
+  return m ? decodeEntities(m[1]).trim().replace(/\s+/g, " ").slice(0, 90) : "";
 }
 
 // Whether a target permits being framed. Recorded, never acted on: absence of a header is not
@@ -53,6 +62,49 @@ function providerOf(headers) {
     timing.includes("fastly") ? "fastly" : "";
   if (origin && edge && origin !== edge) return `${edge} → ${origin}`;
   return origin || edge || "unknown";
+}
+
+// WHAT A SITE IS, read from what it says it is. Each role in the constellation declares itself
+// at a fetchable path — atlas.yml, tell.yml, antidote.yml, and now journal.yml. So this asks the
+// site rather than inferring from markup, a URL shape, or a list somebody maintains here.
+// "Declared, never computed" is the archivist's own rule; this is it applied to identity.
+//
+// Roles are NOT exclusive. A civic node self-hosting several answers for several, and reporting
+// all of them is the honest description — antibody is an atlas AND an antidote AND a journal.
+// An unrecognised site simply has no roles, which is a fact about it and not a failure.
+const ROLES = ["journal", "tell", "atlas", "antidote"];
+
+async function rolesOf(host) {
+  const found = [];
+  const claims = new Set();
+  await Promise.all(ROLES.map(async (role) => {
+    try {
+      const res = await fetch(`https://${host}/${role}.yml`, {
+        method: "GET",
+        signal: AbortSignal.timeout(TIMEOUT),
+        headers: { "user-agent": "anecdote-directory (+https://anecdote.channel)" },
+      });
+      if (!res.ok) return;
+      // A site that answers everything with a soft 404 page would otherwise read as every role at
+      // once. The declaration is YAML; an HTML page is a miss however it is dressed up.
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      if (ct.includes("html")) return;
+      const body = (await res.text()).slice(0, 4000).trimStart();
+      if (body.startsWith("<")) return;
+      if (!/^\s*[a-z_][a-z0-9_-]*\s*:/mi.test(body)) return;   // must look like the declaration it claims to be
+      found.push(role);
+      // The declaration also carries the site's own claim about WHERE IT BELONGS. This is the
+      // field that lets the directory stop asking a code host anything: a host API answer is an
+      // accident of where the repo sits today, while this is the site speaking, at a path anyone
+      // can fetch, on any substrate.
+      const m = /^\s*url:\s*["']?([^"'\s#]+)/mi.exec(body);
+      if (m && m[1]) claims.add(m[1].replace(/\/+$/, ""));
+    } catch { /* unreachable or timed out — no claim, no role */ }
+  }));
+  return {
+    roles: ROLES.filter((r) => found.includes(r)),   // stable order, not resolution order
+    claim: [...claims][0] || "",
+  };
 }
 
 function framePolicy(headers) {
@@ -119,6 +171,8 @@ async function main() {
   const sites = [];
   for (const e of entries) {
     const p = await probe(e.host);
+    const decl = p.served ? await rolesOf(e.host) : { roles: [], claim: "" };
+    const roles = decl.roles;
     // A shell is judged by its TARGET: the canonical name may not exist yet, and the thing at the
     // end of it is not ours to keep alive either way. `repo:` resolves the target from the
     // repository; an explicit `to:` overrides it for something with no repo at all.
@@ -130,14 +184,26 @@ async function main() {
       else if (r.ok) via = r.via;
     }
     const t = target ? await probe(new URL(target).hostname) : null;
+    // A shell's target can declare the canonical name it is heading for. When it does, that
+    // claim — not a code host's metadata — is what says it is ready to be mounted here.
+    const tDecl = t?.served ? await rolesOf(new URL(target).hostname) : { roles: [], claim: "" };
     const site = {
       host: e.host,
       leaf: e.host.split(".")[0],           // the label at this level — a category with one thing in it
-      kind: e.kind,
+      roles,                                // what it says it is; [] is a fact, not a failure
+      claim: decl.claim,                    // where it says it belongs
+      claimStatus: claimStatus(decl.claim, e.host),
       draft: e.draft,
       system: e.system,
       served: p.served,
-      label: e.label || p.title || t?.title || e.host.split(".")[0],
+      // THE NAME COMES FROM THE THING ITSELF. A config label is an override for something we
+      // cannot read a title from — never a second copy of a name that already exists.
+      // Order matters. Our own host's title always wins — that is the thing naming itself. A config
+      // label comes next, because it is only ever written where the source is unusable, and it must
+      // beat the very title it was written to replace. The target's own title is the default for a
+      // shell; the leaf is the floor.
+      label: p.title || e.label || t?.title || e.host.split(".")[0],
+      labelFrom: p.title ? "its own title" : e.label ? "config" : t?.title ? "target title" : "leaf",
       note: "",
     };
     if (target) {
@@ -147,6 +213,15 @@ async function main() {
       site.targetLive = Boolean(t && t.served);
       site.targetFrames = t?.frames || "unknown";
       site.targetProvider = t?.provider || "unknown";
+      site.targetRoles = tDecl.roles;
+      site.targetClaim = tDecl.claim;
+      // The site claiming the very name we list it under is the handshake: it says it belongs
+      // here, we say it does, and neither of us had to ask GitHub.
+      if (tDecl.claim) {
+        const claimed = tDecl.claim.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+        site.claimsThisName = claimed === e.host;
+        if (!site.claimsThisName) site.note = `declares ${claimed} — listed at ${e.host}`;
+      }
       // Link the canonical name once it answers (it redirects out); until then, link the target
       // directly so the listing is useful before the DNS chain exists.
       site.href = p.served ? `https://${e.host}/` : target;
@@ -166,8 +241,9 @@ async function main() {
 
   for (const s of sites) {
     const mark = s.leaves ? (s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
+    const cl = s.claimStatus === "agrees" ? "✓claim" : s.claimStatus === "elsewhere" ? "!claim" : "";
     const tail = [s.system ? "(system)" : "", s.draft ? "(draft)" : "",
-                  s.via && s.via !== "config" ? `via ${s.via}` : "", s.note].filter(Boolean).join("  ");
+                  cl, s.via && s.via !== "config" ? `via ${s.via}` : "", s.note].filter(Boolean).join("  ");
     console.log(`  ${mark.padEnd(3)} ${s.host.padEnd(48)} ${s.label}${tail ? "   " + tail : ""}`);
   }
 

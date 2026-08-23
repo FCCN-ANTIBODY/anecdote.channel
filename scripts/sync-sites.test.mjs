@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, collapse, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, ROLE_ORDER, claimStatus, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -8,8 +8,8 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 t("parseSites reads hostnames, flags, repo hints and labels", () => {
   const got = parseSites("# hi\n@root x.anecdote.channel\n\na.anecdote.channel\nb.anecdote.channel draft repo:O/r = Voices  # trailing\n");
   assert.deepEqual(got, [
-    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "", kind: "" },
-    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "", kind: "" },
+    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "" },
+    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "" },
   ]);
 });
 
@@ -35,31 +35,48 @@ t("a shell's canonical name still needs TLS coverage — it is served from this 
   assert.equal(coveredBy("media.boulder.colorado.anecdote.channel", san), false);
 });
 
-t("type: marks what a thing is, and is optional", () => {
-  const [j] = parseSites("antibody.fort-collins.colorado.anecdote.channel type:journal = ANTIBODY\n");
-  assert.equal(j.kind, "journal");
-  assert.equal(j.label, "ANTIBODY", "written as the thing brands itself");
-  const [plain] = parseSites("media.fort-collins.colorado.anecdote.channel\n");
-  assert.equal(plain.kind, "", "a platformed site is just a site");
+t("a site's own claim about where it belongs is checked, not assumed", () => {
+  const host = "antibody.fort-collins.colorado.anecdote.channel";
+  assert.equal(claimStatus(`https://${host}`, host), "agrees", "the handshake: it says it belongs here");
+  assert.equal(claimStatus(`https://${host}/`, host), "agrees", "a trailing slash is not a disagreement");
+  assert.equal(claimStatus("https://elsewhere.example", host), "elsewhere");
+  // Unclaimed is a fact about a site, not a failure of one.
+  assert.equal(claimStatus("", host), "unclaimed");
 });
 
-t("a category of one collapses; a category of several does not", () => {
+t("the category is the role a site DECLARES, not its DNS label", () => {
+  assert.equal(categoryOf({ leaf: "voices", roles: ["journal"] }), "journal");
+  assert.equal(categoryOf({ leaf: "antibody", roles: ["atlas", "antidote", "journal"] }), "journal",
+    "a node running several files under the first in ROLE_ORDER");
+  // A moniker is not a category: an undeclared site keeps its label and is honestly uncategorised.
+  assert.equal(categoryOf({ leaf: "media", roles: [] }), "media");
+  assert.deepEqual(ROLE_ORDER, ["journal", "tell", "atlas", "antidote"]);
+});
+
+t("a place yields one row per category, names stacked beside it", () => {
   const sites = [
-    { host: "voices.north.colorado.anecdote.channel", label: "Voices" },
-    { host: "antibody.fort-collins.colorado.anecdote.channel", label: "ANTIBODY" },
-    { host: "media.fort-collins.colorado.anecdote.channel", label: "FCPM" },
+    { host: "antibody.fort-collins.colorado.anecdote.channel", label: "ANTIBODY", leaf: "antibody", roles: ["journal", "atlas"] },
+    { host: "media.fort-collins.colorado.anecdote.channel", label: "FCPM", leaf: "media", roles: [] },
+    { host: "a.circus.fort-collins.colorado.anecdote.channel", label: "One Of Those", leaf: "a", roles: [] },
+    { host: "b.circus.fort-collins.colorado.anecdote.channel", label: "Another Of Those", leaf: "b", roles: [] },
   ];
   const [colorado] = treeUnder(APEX, sites);
-  const north = colorado.children.find((c) => c.host.startsWith("north."));
   const fc = colorado.children.find((c) => c.host.startsWith("fort-collins."));
+  const rows = rowsUnder(fc);
 
-  const one = collapse(north);
-  assert.equal(one.tail.site.label, "Voices", "nothing to choose between — folds to the entry");
-  assert.equal(one.chain.length, 2);
+  // Declared roles file first, in ROLE_ORDER; uncategorised follow alphabetically.
+  assert.equal(rows[0].category, "journal");
+  assert.equal(rows[0].entries[0].site.label, "ANTIBODY");
+  const media = rows.find((r) => r.category === "media");
+  assert.equal(media.entries.length, 1);
+  // Two names under one category stack beside it; the category does not move.
+  const a = rows.find((r) => r.category === "a"), b = rows.find((r) => r.category === "b");
+  assert.ok(a && b, "undeclared siblings keep their own labels rather than being invented a type");
+});
 
-  const many = collapse(fc);
-  assert.equal(many.tail, fc, "two entries is a real choice — stays a category");
-  assert.equal(many.chain.length, 1);
+t("a place label reads as a place, not a DNS label", () => {
+  assert.equal(placeName("fort-collins.colorado.anecdote.channel"), "Fort Collins");
+  assert.equal(placeName("longmont.colorado.anecdote.channel"), "Longmont");
 });
 
 t("system marks machinery: validated, never a destination", () => {
