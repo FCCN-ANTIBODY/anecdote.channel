@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, claimStatus, APEX, tokenEnvFor } from "../directory.mjs";
+import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, claimStatus, APEX, tokenEnvFor } from "../directory.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT = 15000;
@@ -191,6 +191,7 @@ async function main() {
   const cfg = readFileSync(join(ROOT, "config/sites.txt"), "utf8");
   const entries = parseSites(cfg);
   const root = parseRoot(cfg);
+  const places = parsePlaces(cfg);
   const san = parseSan(readFileSync(join(ROOT, "config/san-list.txt"), "utf8"));
 
   const sites = [];
@@ -269,6 +270,9 @@ async function main() {
   // Every listed host is checked for TLS coverage, draft included — the point is to catch it
   // BEFORE it goes public, not after a visitor hits a certificate error.
   const uncovered = sites.filter((s) => !coveredBy(s.host, san));
+  // A reserved place needs its wildcard the day it is claimed. Holding a name whose certificate
+  // does not cover it is holding nothing.
+  const uncoveredPlaces = places.filter((p) => !san.includes(`*.${p}`));
 
   for (const s of sites) {
     const mark = s.leaves ? (s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
@@ -276,6 +280,12 @@ async function main() {
     const tail = [s.system ? "(system)" : "", s.draft ? "(draft)" : "",
                   cl, s.via && s.via !== "config" ? `via ${s.via}` : "", s.note].filter(Boolean).join("  ");
     console.log(`  ${mark.padEnd(3)} ${s.host.padEnd(48)} ${s.label}${tail ? "   " + tail : ""}`);
+  }
+
+  if (uncoveredPlaces.length) {
+    console.error(`\nReserved places with no wildcard — a name held without coverage is held in name only:`);
+    for (const p of uncoveredPlaces) console.error(`  ${p}   add: *.${p}`);
+    process.exit(1);
   }
 
   if (uncovered.length) {
@@ -288,8 +298,26 @@ async function main() {
 
   // No timestamp on purpose: an unchanged re-run must produce no diff, so the committing
   // workflow stays quiet (cadence, not chatter).
-  writeFileSync(join(ROOT, "sites.json"), JSON.stringify({ apex: APEX, root, sites }, null, 2) + "\n");
-  console.log(`\nwrote sites.json (${sites.length} entries)`);
+  writeFileSync(join(ROOT, "sites.json"), JSON.stringify({ apex: APEX, root, places, sites }, null, 2) + "\n");
+
+  // What this actually costs, every run. Places are the unit that scales: one wildcard holds a
+  // place whether it has one site or forty, and only a category that genuinely went plural adds
+  // another. Printing it means the ceiling arrives as a number rather than as a surprise.
+  const used = san.length;
+  const placeSet = new Set(places);
+  let placeWildcards = 0, categoryWildcards = 0;
+  for (const h of san) {
+    if (!h.startsWith("*.")) continue;
+    const rest = h.slice(2);
+    if (placeSet.has(rest)) placeWildcards++;                       // *.<place>
+    else if (placeSet.has(rest.split(".").slice(1).join("."))) categoryWildcards++;  // *.<category>.<place>
+  }
+  const left = 50 - used;
+  console.log(`\nwrote sites.json (${sites.length} entries across ${places.length} places)`);
+  console.log(`SAN: ${used}/50 — ${placeWildcards} place, ${categoryWildcards} plural-category, ` +
+              `${used - placeWildcards - categoryWildcards} structural. ${left} left.`);
+  console.log(`     a place costs 1 whether it holds one site or forty; a category costs 1 more ` +
+              `only once it goes plural.`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

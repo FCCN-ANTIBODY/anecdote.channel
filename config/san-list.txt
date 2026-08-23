@@ -45,6 +45,11 @@ anecdote.channel
 # (as a redirect out), so a visitor reaching it meets this certificate first.
 *.longmont.colorado.anecdote.channel
 
+# Reserved, nothing in them yet. A place costs ONE wildcard whether it holds one site or forty —
+# which is the whole reason places are the unit and categories are not.
+*.loveland.colorado.anecdote.channel
+*.wellington.colorado.anecdote.channel
+
 # --- per-category wildcards: only where plurality actually arrived ----------------------
 # A category with ONE occupant costs nothing — media.fort-collins… is already covered by
 # *.fort-collins.colorado.anecdote.channel. These exist because a second occupant showed up and

@@ -195,6 +195,20 @@ export function placeName(host) {
   return host.split(".")[0].split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+// `@place <host>` — a place RESERVED before anything is in it. A wildcard nobody can see is not a
+// reservation; the point of holding a name is that someone can be shown it. So a reserved place
+// renders, empty, and its TLS coverage is checked exactly like an occupied one — the cost of
+// standing somewhere up is paid the day it is claimed, not the day someone finally arrives.
+export function parsePlaces(text) {
+  const out = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/#.*$/, "").trim();
+    const m = /^@place\s+(\S+)$/.exec(line);
+    if (m) out.push(m[1].toLowerCase());
+  }
+  return out;
+}
+
 // `@root <host>` — which level the APEX lists. The apex is the name people can remember and say
 // out loud, so it should show the places worth going, not the top of the tree. Today everything
 // lives under one state; when that stops being true, change this line and the apex widens.
