@@ -148,6 +148,17 @@ async function probe(where) {
       signal: AbortSignal.timeout(TIMEOUT),
       headers: { "user-agent": "anecdote-directory (+https://anecdote.channel)" },
     });
+    // SHIELDED: live, but behind a bot challenge, so nothing about it can be read. This is not
+    // "not answering" — the site is there and a person reaches it fine. Reporting it as absent
+    // would be the directory lying about a neighbour because a robot was turned away, so it is
+    // listed and marked, with the label supplied by config since the title cannot be read.
+    if (res.status === 403 || res.status === 503) {
+      const body = (await res.text()).slice(0, 600).toLowerCase();
+      const cf = (res.headers.get("server") || "").toLowerCase().includes("cloudflare");
+      if (cf && /just a moment|checking your browser|cf-browser-verification|challenge/.test(body)) {
+        return { served: false, shielded: true, status: res.status, provider: providerOf(res.headers) };
+      }
+    }
     if (!res.ok) return { served: false, status: res.status };
     return { served: true, status: res.status, title: titleOf(await res.text()),
              frames: framePolicy(res.headers), provider: providerOf(res.headers) };
@@ -242,7 +253,8 @@ async function main() {
       site.to = target;
       site.via = via;
       site.leaves = true;                     // the renderer must say so, every time
-      site.targetLive = Boolean(t && t.served);
+      site.targetLive = Boolean(t && (t.served || t.shielded));
+      site.targetShielded = Boolean(t?.shielded);
       site.targetFrames = t?.frames || "unknown";
       site.targetProvider = t?.provider || "unknown";
       site.targetRoles = tDecl.roles;
@@ -257,7 +269,8 @@ async function main() {
       // Link the canonical name once it answers (it redirects out); until then, link the target
       // directly so the listing is useful before the DNS chain exists.
       site.href = p.served ? `https://${e.host}/` : target;
-      if (!t?.served) site.note = "target not answering";
+      if (t?.shielded) site.note = "shielded — live, but a challenge blocks reading it";
+      else if (!t?.served) site.note = "target not answering";
       else if (!p.served) site.note = "no canonical name yet — links out directly";
     }
     if (!p.served && !target) {
@@ -275,7 +288,7 @@ async function main() {
   const uncoveredPlaces = places.filter((p) => !san.includes(`*.${p}`));
 
   for (const s of sites) {
-    const mark = s.leaves ? (s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
+    const mark = s.leaves ? (s.targetShielded ? "shd" : s.targetLive ? "out" : "—") : s.served ? "ok" : "—";
     const cl = s.claimStatus === "agrees" ? "✓claim" : s.claimStatus === "elsewhere" ? "!claim" : "";
     const tail = [s.system ? "(system)" : "", s.draft ? "(draft)" : "",
                   cl, s.via && s.via !== "config" ? `via ${s.via}` : "", s.note].filter(Boolean).join("  ");

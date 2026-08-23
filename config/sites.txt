@@ -35,7 +35,10 @@
 # cost of standing a place up is paid when it is claimed rather than when someone finally arrives.
 @place fort-collins.colorado.anecdote.channel
 @place longmont.colorado.anecdote.channel
-@place north.colorado.anecdote.channel
+# `voices` is a category standing where a place usually stands — a topical grouping at state
+# level rather than a city. `north` is the moniker inside it, which is the inversion that lets a
+# regional publication be called Voices without the region having to be a city.
+@place voices.colorado.anecdote.channel
 # Loveland: a journal site and nothing else — no Atlas, no Tell, no Antidote. Another ANTIBODY
 # under different branding, the way Voices is. When it arrives it declares `journal` and files
 # itself; nothing here needs changing but the removal of this comment.
@@ -50,7 +53,7 @@ atlas.anecdote.channel                           system
 # --- destinations we run ---------------------------------------------------------------
 # `north` is a region label sitting at city level.
 antibody.fort-collins.colorado.anecdote.channel
-voices.north.colorado.anecdote.channel
+north.voices.colorado.anecdote.channel
 
 # --- trade: what you can buy here, what you can sell here -------------------------------
 # Naturally plural — nobody is THE business of a place — so it takes monikers from the start
@@ -71,6 +74,10 @@ media.fort-collins.colorado.anecdote.channel  repo:FC-Public-Media/fcpublicmedia
 # the newcomers take monikers beneath it. This is the extra DNS level arriving because plurality
 # actually showed up, which is the only reason it should ever arrive.
 fm.media.fort-collins.colorado.anecdote.channel               repo:tiliv/fm
+
+# fcreport.org sits behind a bot challenge, so its title cannot be read and the label is supplied
+# here — the one legitimate use for a config label. Live for a person; unreadable to us.
+fcreport.media.fort-collins.colorado.anecdote.channel  to:https://fcreport.org  = The Fort Collins Report
 artist-lockers.media.fort-collins.colorado.anecdote.channel   repo:tiliv/artist-lockers
 
 # Longmont Public Media: not ours in any sense, and not rehosted. The canonical name exists so
