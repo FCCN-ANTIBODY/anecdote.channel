@@ -29,6 +29,18 @@
 # say out loud, so it shows destinations rather than the top of the tree. Everything currently
 # lives under one state; widen this when that stops being true.
 @root colorado.anecdote.channel
+
+# `@place` reserves a place before anything is in it. It renders empty, and its TLS coverage is
+# checked exactly like an occupied one — a wildcard nobody can see is not a reservation, and the
+# cost of standing a place up is paid when it is claimed rather than when someone finally arrives.
+@place fort-collins.colorado.anecdote.channel
+@place longmont.colorado.anecdote.channel
+@place north.colorado.anecdote.channel
+# Loveland: a journal site and nothing else — no Atlas, no Tell, no Antidote. Another ANTIBODY
+# under different branding, the way Voices is. When it arrives it declares `journal` and files
+# itself; nothing here needs changing but the removal of this comment.
+@place loveland.colorado.anecdote.channel
+@place wellington.colorado.anecdote.channel
 # Blank lines and `#` comments ignored.
 
 # --- system: machinery, verified but never advertised to a person --------------------

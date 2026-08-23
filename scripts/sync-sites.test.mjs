@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, monikerOf, ROLE_ORDER, claimStatus, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, monikerOf, ROLE_ORDER, claimStatus, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -11,6 +11,16 @@ t("parseSites reads hostnames, flags, repo hints and labels", () => {
     { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "" },
     { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "" },
   ]);
+});
+
+t("@place reserves a place before anything is in it", () => {
+  const cfg = "@root colorado.anecdote.channel\n@place wellington.colorado.anecdote.channel\n" +
+              "@place loveland.colorado.anecdote.channel\nmedia.fort-collins.colorado.anecdote.channel\n";
+  assert.deepEqual(parsePlaces(cfg),
+    ["wellington.colorado.anecdote.channel", "loveland.colorado.anecdote.channel"]);
+  // Directives are not sites, and a reserved place is not an entry — it is a level that renders
+  // empty until someone arrives.
+  assert.equal(parseSites(cfg).length, 1);
 });
 
 t("a @root directive is a directive, not a site", () => {

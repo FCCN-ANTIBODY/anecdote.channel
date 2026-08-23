@@ -243,7 +243,14 @@
     };
 
     const nav = document.getElementById("directory");
-    for (const place of tree) { const sec = section(place); if (sec) nav.append(sec); }
+    // Places come from the sites in them, plus any RESERVED before anything arrives. Sorted
+    // together so a held name sits among the occupied ones rather than in a leftovers bin.
+    const seen = new Set(tree.map((p) => p.host));
+    const reserved = (data.places || [])
+      .filter((h) => !seen.has(h) && h.endsWith(`.${from}`))
+      .map((h) => ({ host: h, site: null, children: [] }));
+    const all = [...tree, ...reserved].sort((a, b) => a.host.localeCompare(b.host));
+    for (const place of all) { const sec = section(place); if (sec) nav.append(sec); }
     nav.hidden = false;
     // The wordmark is the name you say out loud; the host is the small true thing under it.
     document.getElementById("eyebrow").textContent = here;
