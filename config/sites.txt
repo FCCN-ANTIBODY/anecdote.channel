@@ -71,6 +71,10 @@ media.fort-collins.colorado.anecdote.channel  repo:FC-Public-Media/fcpublicmedia
 # the newcomers take monikers beneath it. This is the extra DNS level arriving because plurality
 # actually showed up, which is the only reason it should ever arrive.
 fm.media.fort-collins.colorado.anecdote.channel               repo:tiliv/fm
+
+# fcreport.org sits behind a bot challenge, so its title cannot be read and the label is supplied
+# here — the one legitimate use for a config label. Live for a person; unreadable to us.
+fcreport.media.fort-collins.colorado.anecdote.channel  to:https://fcreport.org  = The Fort Collins Report
 artist-lockers.media.fort-collins.colorado.anecdote.channel   repo:tiliv/artist-lockers
 
 # Longmont Public Media: not ours in any sense, and not rehosted. The canonical name exists so
