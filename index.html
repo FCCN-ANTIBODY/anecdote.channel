@@ -73,7 +73,7 @@
      HEIGHT whatever the text size — and setting it as line-height centres the text inside it for
      free, which is the whole reason not to do this with a pseudo-element.
      `--ind` is where that header's text starts from the screen edge; the black fills it. */
-  :root { --tab-h: 1.6rem; }
+  :root { --tab-h: .9rem; }
 
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
   #directory[hidden] { display: none; }
@@ -92,10 +92,9 @@
     margin-left: calc(var(--gutter) * -1);
     /* THE BLACK IS THIS HEADER'S OWN LEFT GUTTER, drawn as its border — the same box as the
        text, so it cannot slip off it. */
-    --ind: 1.25rem;
-    line-height: var(--tab-h);
-    border-left: calc(var(--ind) - .5rem) solid var(--ink);
-    padding-left: .5rem;
+    --ind: 1rem;
+    padding-left: var(--ind);
+    background: linear-gradient(var(--ink), var(--ink)) left center / calc(var(--ind) - .5rem) var(--tab-h) no-repeat;
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
     font-size: var(--mono-lead);
@@ -117,11 +116,10 @@
   .cat {
     /* Smaller header, WIDER gutter. Stated outright rather than derived from --gutter, which is
        24px on a phone and made this tab all but the same width as the city's. */
-    --ind: 3.25rem;
-    line-height: var(--tab-h);
+    --ind: 2.5rem;
     margin-left: calc(var(--gutter) * -1);
-    border-left: calc(var(--ind) - .5rem) solid var(--ink);
-    padding-left: .5rem;
+    padding-left: var(--ind);
+    background: linear-gradient(var(--ink), var(--ink)) left center / calc(var(--ind) - .5rem) var(--tab-h) no-repeat;
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
     letter-spacing: var(--tracking-caps);
@@ -194,7 +192,7 @@
 <template id="t-place">
   <section class="place-block">
     <h2 class="place-name"></h2>
-    <p class="reserved" hidden>reserved — nothing here yet</p>
+    <p class="reserved">reserved — nothing here yet</p>
     <div class="rows"></div>
   </section>
 </template>
@@ -204,11 +202,11 @@
 </template>
 <template id="t-entry">
   <div class="item">
-    <a class="place" hidden></a>
-    <span class="soon" hidden></span>
-    <small class="note" hidden>soon</small>
-    <small class="also" hidden></small>
-    <small class="out" hidden></small>
+    <a class="place"></a>
+    <span class="soon"></span>
+    <small class="note">soon</small>
+    <small class="also"></small>
+    <small class="out"></small>
   </div>
 </template>
 <code id="heading" hidden></code>
@@ -242,8 +240,7 @@
       const p = frag("t-place");
       p.querySelector(".place-name").textContent = place.name;
       const rows = p.querySelector(".rows");
-      if (!place.rows.length) show(p.querySelector(".reserved"));
-
+      if (place.rows.length) drop(p, ".reserved");
       for (const row of place.rows) {
         const r = frag("t-row");
         r.querySelector(".cat").textContent = row.category;
