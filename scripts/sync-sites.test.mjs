@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, ROLE_ORDER, claimStatus, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, monikerOf, ROLE_ORDER, claimStatus, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -57,34 +57,50 @@ t("a site's own claim about where it belongs is checked, not assumed", () => {
   assert.equal(claimStatus("", host), "unclaimed");
 });
 
-t("the category is the role a site DECLARES, not its DNS label", () => {
-  assert.equal(categoryOf({ leaf: "voices", roles: ["journal"] }), "journal");
-  assert.equal(categoryOf({ leaf: "antibody", roles: ["atlas", "antidote", "journal"] }), "journal",
+t("the category is a declared role, else the label adjacent to the place", () => {
+  const P = "fort-collins.colorado.anecdote.channel";
+  // A declared role beats position — this is what stops a moniker being read as a category.
+  assert.equal(categoryOf({ host: `voices.north.colorado.anecdote.channel`, roles: ["journal"] },
+    "north.colorado.anecdote.channel"), "journal");
+  assert.equal(categoryOf({ host: `antibody.${P}`, roles: ["atlas", "antidote", "journal"] }, P), "journal",
     "a node running several files under the first in ROLE_ORDER");
-  // A moniker is not a category: an undeclared site keeps its label and is honestly uncategorised.
-  assert.equal(categoryOf({ leaf: "media", roles: [] }), "media");
+
+  // Undeclared: the label sitting ON the place is the category, the one in front of it the moniker.
+  assert.equal(categoryOf({ host: `fm.media.${P}`, roles: [] }, P), "media");
+  assert.equal(monikerOf({ host: `fm.media.${P}` }, P), "fm");
+
+  // One label is both — the canonical occupant, which is why it needs no moniker in front of it.
+  assert.equal(categoryOf({ host: `media.${P}`, roles: [] }, P), "media");
+  assert.equal(monikerOf({ host: `media.${P}` }, P), "media");
   assert.deepEqual(ROLE_ORDER, ["journal", "tell", "atlas", "antidote"]);
 });
 
 t("a place yields one row per category, names stacked beside it", () => {
+  const P = "fort-collins.colorado.anecdote.channel";
   const sites = [
-    { host: "antibody.fort-collins.colorado.anecdote.channel", label: "ANTIBODY", leaf: "antibody", roles: ["journal", "atlas"] },
-    { host: "media.fort-collins.colorado.anecdote.channel", label: "FCPM", leaf: "media", roles: [] },
-    { host: "a.circus.fort-collins.colorado.anecdote.channel", label: "One Of Those", leaf: "a", roles: [] },
-    { host: "b.circus.fort-collins.colorado.anecdote.channel", label: "Another Of Those", leaf: "b", roles: [] },
+    { host: `antibody.${P}`, label: "ANTIBODY", leaf: "antibody", roles: ["journal"] },
+    { host: `media.${P}`, label: "FCPM", leaf: "media", roles: [] },
+    { host: `a.circus.${P}`, label: "One Of Those", leaf: "a", roles: [] },
+    { host: `b.circus.${P}`, label: "Another Of Those", leaf: "b", roles: [] },
   ];
   const [colorado] = treeUnder(APEX, sites);
   const fc = colorado.children.find((c) => c.host.startsWith("fort-collins."));
   const rows = rowsUnder(fc);
 
-  // Declared roles file first, in ROLE_ORDER; uncategorised follow alphabetically.
+  // Declared roles file first, in ROLE_ORDER; the rest follow alphabetically.
   assert.equal(rows[0].category, "journal");
   assert.equal(rows[0].entries[0].site.label, "ANTIBODY");
+
+  // Two monikers under ONE category stack beside it, and the category does not move — the shelf
+  // stays a shelf instead of scattering into a row per occupant.
+  const circus = rows.find((r) => r.category === "circus");
+  assert.equal(circus.entries.length, 2);
+  assert.deepEqual(circus.entries.map((e) => e.site.label), ["One Of Those", "Another Of Those"]);
+
+  // A canonical occupant is a category of one, with no moniker level in sight.
   const media = rows.find((r) => r.category === "media");
   assert.equal(media.entries.length, 1);
-  // Two names under one category stack beside it; the category does not move.
-  const a = rows.find((r) => r.category === "a"), b = rows.find((r) => r.category === "b");
-  assert.ok(a && b, "undeclared siblings keep their own labels rather than being invented a type");
+  assert.equal(monikerOf(media.entries[0].site, P), "media");
 });
 
 t("a place label reads as a place, not a DNS label", () => {
