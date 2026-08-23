@@ -35,10 +35,7 @@
 # cost of standing a place up is paid when it is claimed rather than when someone finally arrives.
 @place fort-collins.colorado.anecdote.channel
 @place longmont.colorado.anecdote.channel
-# `voices` is a category standing where a place usually stands — a topical grouping at state
-# level rather than a city. `north` is the moniker inside it, which is the inversion that lets a
-# regional publication be called Voices without the region having to be a city.
-@place voices.colorado.anecdote.channel
+@place north.colorado.anecdote.channel
 # Loveland: a journal site and nothing else — no Atlas, no Tell, no Antidote. Another ANTIBODY
 # under different branding, the way Voices is. When it arrives it declares `journal` and files
 # itself; nothing here needs changing but the removal of this comment.
@@ -53,7 +50,7 @@ atlas.anecdote.channel                           system
 # --- destinations we run ---------------------------------------------------------------
 # `north` is a region label sitting at city level.
 antibody.fort-collins.colorado.anecdote.channel
-north.voices.colorado.anecdote.channel
+north.voices.fort-collins.colorado.anecdote.channel
 
 # --- trade: what you can buy here, what you can sell here -------------------------------
 # Naturally plural — nobody is THE business of a place — so it takes monikers from the start
