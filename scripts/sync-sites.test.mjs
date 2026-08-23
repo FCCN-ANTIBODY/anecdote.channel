@@ -35,6 +35,19 @@ t("a shell's canonical name still needs TLS coverage — it is served from this 
   assert.equal(coveredBy("media.boulder.colorado.anecdote.channel", san), false);
 });
 
+t("NAME is one line, no scheme, and normalises to a bare host", () => {
+  // The parse the reader applies, stated as the contract NAME has to meet.
+  const norm = (b) => b.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "").toLowerCase();
+  assert.equal(norm("  Antibody.Fort-Collins.Colorado.Anecdote.Channel/\n"),
+    "antibody.fort-collins.colorado.anecdote.channel");
+  assert.equal(norm("https://tell.anecdote.channel"), "tell.anecdote.channel");
+  // A canonical name is a PROVEN COPY, not the only copy: two hosts may hold the same NAME and
+  // both be canonical, so nothing here treats a match as exclusive.
+  const host = "mirror.example";
+  assert.equal(claimStatus("https://antibody.fort-collins.colorado.anecdote.channel", host), "elsewhere",
+    "a mirror declaring the original's name is reported, never rewritten or refused");
+});
+
 t("a site's own claim about where it belongs is checked, not assumed", () => {
   const host = "antibody.fort-collins.colorado.anecdote.channel";
   assert.equal(claimStatus(`https://${host}`, host), "agrees", "the handshake: it says it belongs here");
