@@ -72,18 +72,45 @@
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
   #directory[hidden] { display: none; }
 
-  /* A city is a divider and a quiet label, not a headline. It was set in the display serif at
-     the same size as the site names, so it read as another clickable thing — and there is nothing
-     to click: we do not serve a directory per city yet. Mono, and it stops pretending. */
+  /* ---- HEADERS: ONE BAR, ONE HEIGHT, WIDTH BY LEVEL --------------------------------------
+     Every header has a black bar to its left. Every bar is the SAME HEIGHT and every bar starts
+     at the LEFT EDGE OF THE PAGE. The only thing that changes with heading level is the bar's
+     WIDTH and the text size — so a smaller header is pushed further right by its own longer bar,
+     and that displacement is the indent.
+
+     The header text is not touched: no negative margins on it, no baseline nudging. The bar is a
+     flex item beside it and `align-items: center` does the vertical alignment, which is why this
+     stops drifting off the baseline at different text sizes. */
+  :root { --bar-h: 1.15rem; }
+
   .place-block + .place-block {
     margin-top: var(--space-7);
     border-top: 1px solid var(--border-faint);
     padding-top: var(--space-7);
   }
-  .place-name {
-    margin: 0 0 var(--space-5);
-    /* Out of the gutter entirely — hugging the page, not the column. */
+
+  .place-name,
+  .cat {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    /* Out of the gutter, to the page's own left edge. Both levels, identically. */
     margin-left: calc(var(--gutter) * -1);
+  }
+  .place-name::before,
+  .cat::before {
+    content: "";
+    display: block;
+    flex: none;
+    height: var(--bar-h);          /* the one height, set by the city level and shared */
+    background: var(--ink);
+  }
+  .place-name::before { width: .75rem; }   /* outermost heading: shortest bar */
+  .cat::before        { width: 2.5rem; }   /* one level in: longer bar, so its text starts later */
+
+  .place-name {
+    margin-top: 0;
+    margin-bottom: var(--space-5);
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
     font-size: var(--mono-lead);
@@ -91,51 +118,20 @@
     text-transform: uppercase;
     color: var(--text-strong);
   }
-  /* A solid rule hanging left of the label. The longer the bar, the higher the header — the
-     hierarchy is a length you can see at a glance rather than a font size you have to compare. */
-  /* THE TAB IS THE INDENT. Its width is how far the text starts from the left, so the smaller a
-     header is the longer its tab and the further in it sits. The place is the outermost thing on
-     the page: a 4px nub against the very edge, text immediately right of it. */
-  .place-name::before {
-    content: "";
-    display: inline-block;
-    width: 4px;                 /* the width is the whole message */
-    height: 1em;                /* as tall as the text, both ranks the same */
-    margin-right: .5rem;
-    background: var(--ink);
-    vertical-align: text-bottom;
-  }
-
-  .rows {
-    display: grid;
-    grid-template-columns: minmax(7rem, max-content) 1fr;
-    column-gap: var(--space-6);
-    row-gap: var(--space-4);
-    align-items: baseline;
-  }
-  /* The category. Mono, small-caps, and the same left edge on every row in the block. */
   .cat {
+    margin: var(--space-5) 0 var(--space-3);
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
     color: var(--text-muted);
-    padding-top: .35em;              /* optical: sit the caps on the serif's baseline */
   }
-  /* One rank in, so a LONGER tab. Its text lands half a character left of the names below it —
-     enough to read as a header, not enough to open a second column. */
-  .cat::before {
-    content: "";
-    display: inline-block;
-    width: 1.4rem;              /* longer, because it is further in */
-    height: 1em;                /* identical height — same object, different width */
-    margin-left: calc((1.4rem + .5rem + .5ch) * -1);
-    margin-right: .5rem;
-    background: var(--ink);
-    vertical-align: text-bottom;
-  }
+
+  /* The names themselves sit at the ordinary gutter — no bar, no displacement. */
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
+
+  [hidden] { display: none !important; }
 
   .place, .soon {
     font-family: var(--font-display);
@@ -157,23 +153,6 @@
   .note, .also { letter-spacing: var(--tracking-caps); text-transform: uppercase; }
   .also { color: var(--ink-faint); }
 
-  @media (max-width: 34rem) {
-    /* Too narrow for two columns: the category becomes a heading over its names, which keeps
-       the same reading order rather than inventing a second layout. */
-    .rows { grid-template-columns: 1fr; row-gap: var(--space-2); }
-    .cat { padding-top: var(--space-3); }
-    .items { margin-bottom: var(--space-3); }
-  }
-
-  /* ---- the standing-by fallback + ?diag readout -------------------------------------- */
-  #heading {
-    display: block;
-    padding: var(--space-7) var(--gutter);
-    font-family: var(--font-mono);
-    font-size: var(--mono-small);
-    color: var(--text-muted);
-    white-space: pre;
-  }
   #heading[hidden] { display: none; }
 
   /* Diagnostics run offscreen (see the ?diag block below). */
@@ -208,16 +187,18 @@
 </template>
 <template id="t-entry">
   <div class="item">
-    <a class="place" hidden></a>
-    <span class="soon" hidden></span>
-    <small class="note" hidden>soon</small>
-    <small class="also" hidden></small>
-    <small class="out" hidden></small>
+    <a class="place"></a>
+    <span class="soon"></span>
+    <small class="note">soon</small>
+    <small class="also"></small>
+    <small class="out"></small>
   </div>
 </template>
 <code id="heading" hidden></code>
 
 <script type="module">
+  import { entryParts } from "/directory.mjs";
+
   // BIND TO THE PAGE AND INTERPRET IT. That is the whole job. This file is served exactly as it
   // was committed — no build ran, nothing was pre-rendered, and there is no artifact anywhere.
   // Publishing here means committing a source file.
@@ -230,7 +211,10 @@
     location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
 
   const frag = (id) => document.getElementById(id).content.cloneNode(true);
-  const show = (el, text) => { el.hidden = false; if (text != null) el.textContent = text; };
+  // REMOVE, never hide. `hidden` is a UA display rule any author stylesheet outranks — which is
+  // exactly how every entry came to show both its link and "soon" at once.
+  const drop = (root, sel) => { const el = root.querySelector(sel); if (el) el.remove(); };
+  const put = (root, sel, text) => { const el = root.querySelector(sel); if (el && text != null) el.textContent = text; return el; };
 
   try {
     const res = await fetch("/sites.json", { cache: "no-cache" });
@@ -249,17 +233,18 @@
         const items = r.querySelector(".items");
         for (const e of row.entries) {
           const it = frag("t-entry");
-          if (e.linked) {
-            const a = it.querySelector(".place");
+          const parts = entryParts(e);
+          if (parts.link) {
+            const a = put(it, ".place", e.name);
             a.href = e.href;
             if (e.leaves) a.rel = "noopener";
-            show(a, e.name);
           } else {
-            show(it.querySelector(".soon"), e.name);
-            show(it.querySelector(".note"));
+            put(it, ".soon", e.name);
           }
-          if (e.also) show(it.querySelector(".also"), e.also);
-          if (e.leaves) show(it.querySelector(".out"), e.dest + (e.shielded ? "  shielded" : ""));
+          if (!parts.link) drop(it, ".place");
+          if (!parts.soon) { drop(it, ".soon"); drop(it, ".note"); }
+          if (parts.also) put(it, ".also", e.also); else drop(it, ".also");
+          if (parts.out) put(it, ".out", e.dest + (e.shielded ? "  shielded" : "")); else drop(it, ".out");
           items.append(it);
         }
         rows.append(r);
