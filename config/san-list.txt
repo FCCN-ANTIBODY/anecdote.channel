@@ -45,6 +45,15 @@ anecdote.channel
 # (as a redirect out), so a visitor reaching it meets this certificate first.
 *.longmont.colorado.anecdote.channel
 
+# NOTE ON COST. Reserving the five-part slot for civic nodes means a category occupant is always
+# at six, so every (place, category) that holds anything needs its own wildcard — even a category
+# with exactly one occupant. That gives up the singleton exemption that used to make a lone
+# occupant free, and it is the multiplicative term: places x categories-in-use.
+#
+# It buys a five-part slot that means one thing, and monikers that can never shadow a category
+# word because they cannot reach that level. Worth it while the numbers are small; worth
+# re-checking when a place routinely holds four or five categories.
+
 # Reserved, nothing in them yet. A place costs ONE wildcard whether it holds one site or forty —
 # which is the whole reason places are the unit and categories are not.
 *.loveland.colorado.anecdote.channel
@@ -58,3 +67,4 @@ anecdote.channel
 *.media.fort-collins.colorado.anecdote.channel
 *.trade.fort-collins.colorado.anecdote.channel
 *.voices.fort-collins.colorado.anecdote.channel
+*.media.longmont.colorado.anecdote.channel

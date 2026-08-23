@@ -327,10 +327,23 @@ async function main() {
   }
   const left = 50 - used;
   console.log(`\nwrote sites.json (${sites.length} entries across ${places.length} places)`);
-  console.log(`SAN: ${used}/50 — ${placeWildcards} place, ${categoryWildcards} plural-category, ` +
+  console.log(`SAN: ${used}/50 — ${placeWildcards} place, ${categoryWildcards} category, ` +
               `${used - placeWildcards - categoryWildcards} structural. ${left} left.`);
-  console.log(`     a place costs 1 whether it holds one site or forty; a category costs 1 more ` +
-              `only once it goes plural.`);
+  console.log(`     a place costs 1 whether it holds one site or forty. A CATEGORY costs 1 per` +
+              ` place it is used in — even with one occupant, because the five-part slot is`);
+  console.log(`     reserved for civic nodes and an occupant is therefore always at six. That is` +
+              ` the multiplicative term: places x categories-in-use.`);
+  // Say where the ceiling actually is, in the shape it will arrive in, rather than leaving it to
+  // be discovered when a wildcard silently cannot be added.
+  const cats = new Set();
+  for (const h of san) {
+    if (!h.startsWith("*.")) continue;
+    const rest = h.slice(2);
+    if (!placeSet.has(rest) && placeSet.has(rest.split(".").slice(1).join("."))) cats.add(rest.split(".")[0]);
+  }
+  const k = Math.max(1, cats.size);
+  console.log(`     at ${cats.size} distinct categor${cats.size === 1 ? "y" : "ies"} in use, ` +
+              `~${Math.floor(left / (1 + k))} more places fit.`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
