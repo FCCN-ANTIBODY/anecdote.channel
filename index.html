@@ -1,12 +1,3 @@
----
-# Front matter marks this file as a PAGE — jekyll-enough renders files that have it and copies
-# everything else verbatim. Empty is enough.
-#
-# scripts/render.mjs replaces this file with its rendered output at deploy, so what ships carries
-# no front matter and no Liquid. Served straight from the repo you are looking at the SOURCE:
-#
-#   node scripts/sync-sites.mjs && node scripts/render.mjs
----
 <!doctype html>
 <!-- Public holding page for anecdote.channel. The preflight demos (crunch / bench / composer) are
      no longer linked here — they were pulled down from the public surface and repurposed as build
@@ -195,48 +186,90 @@
   <p class="eyebrow" id="eyebrow">Please Stand By.</p>
 </header>
 <nav id="directory">
-{%- comment -%}
-  THE LISTING, RENDERED AT BUILD TIME. Nested `for` loops over site.data.listing, which the
-  resolver shaped flat precisely so this could be Liquid — the page a crawler receives already
-  contains the directory instead of a script that will fetch one.
-
-  Liquid has no recursion, so the tree walk happens in scripts/sync-sites.mjs and lands in
-  _data/sites.json. What is left here is what a Jekyll site would have been all along.
-{%- endcomment -%}
-{%- for place in site.data.listing %}
   <section class="place-block">
-    <h2 class="place-name">{{ place.name }}</h2>
-    {%- if place.rows.size == 0 %}
-    <p class="reserved">reserved — nothing here yet</p>
-    {%- else %}
+    <h2 class="place-name">Fort Collins</h2>
     <div class="rows">
-      {%- for row in place.rows %}
-      <div class="cat">{{ row.category }}</div>
+      <div class="cat">journal</div>
       <div class="items">
-        {%- for e in row.entries %}
-        <div class="item">
-          {%- if e.linked %}<a class="place" href="{{ e.href }}"{% if e.leaves %} rel="noopener"{% endif %}>{{ e.name }}</a>
-          {%- else %}<span class="soon">{{ e.name }}</span><small class="note">soon</small>
-          {%- endif %}
-          {%- if e.also != "" %}<small class="also">{{ e.also }}</small>{% endif %}
-          {%- if e.leaves %}<small class="out">{{ e.dest }}{% if e.shielded %}  shielded{% endif %}</small>{% endif %}
+        <div class="item"><a class="place" href="https://antibody.fort-collins.colorado.anecdote.channel/">ANTIBODY</a><small class="also">atlas · antidote</small>
         </div>
-        {%- endfor %}
       </div>
-      {%- endfor %}
+      <div class="cat">media</div>
+      <div class="items">
+        <div class="item"><a class="place" href="https://discoverywritten.github.io/artist-lockers/" rel="noopener">Artist Lockers: Index</a><small class="out">://discoverywritten.github.io</small>
+        </div>
+        <div class="item"><a class="place" href="https://fcreport.org" rel="noopener">The Fort Collins Report</a><small class="out">://fcreport.org</small>
+        </div>
+        <div class="item"><a class="place" href="https://fm.discoverywritten.com/" rel="noopener">FM</a><small class="out">://fm.discoverywritten.com</small>
+        </div>
+        <div class="item"><a class="place" href="https://new.fcpublicmedia.org" rel="noopener">Fort Collins Public Media</a><small class="out">://new.fcpublicmedia.org</small>
+        </div>
+      </div>
+      <div class="cat">trade</div>
+      <div class="items">
+        <div class="item"><a class="place" href="https://discoverywritten.com/" rel="noopener">Discovery Written</a><small class="out">://discoverywritten.com</small>
+        </div>
+      </div>
+      <div class="cat">voices</div>
+      <div class="items">
+        <div class="item"><span class="soon">north</span><small class="note">soon</small>
+        </div>
+      </div>
     </div>
-    {%- endif %}
   </section>
-{%- endfor %}
+  <section class="place-block">
+    <h2 class="place-name">Longmont</h2>
+    <div class="rows">
+      <div class="cat">media</div>
+      <div class="items">
+        <div class="item"><a class="place" href="https://longmontpublicmedia.org" rel="noopener">Longmont Public Media</a><small class="out">://longmontpublicmedia.org</small>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="place-block">
+    <h2 class="place-name">Loveland</h2>
+    <p class="reserved">reserved — nothing here yet</p>
+  </section>
+  <section class="place-block">
+    <h2 class="place-name">North</h2>
+    <p class="reserved">reserved — nothing here yet</p>
+  </section>
+  <section class="place-block">
+    <h2 class="place-name">Wellington</h2>
+    <p class="reserved">reserved — nothing here yet</p>
+  </section>
 </nav>
 <code id="heading" hidden></code>
 
 <script type="module">
-  // The listing is rendered into this page at build time (see the Liquid above). Nothing here
-  // draws it. This only swaps the standing-by line for the host once the page is up, so the
-  // masthead says where you are — and it is the ONE thing that still needs the client.
-  document.getElementById("eyebrow").textContent =
+  // THE RUNTIME RENDERER. This is what jekyll-enough is actually for: an UNBUILT project, served
+  // as-is, rendered page by narrow page in the browser. The deploy pre-renders this one page as an
+  // optimisation for readers who execute nothing — but if that did not happen, nothing is broken,
+  // because the mechanism is right here.
+  //
+  // Same template, same data, same renderer. One source of truth rendered in two places rather
+  // than a build output and a client-side reimplementation that drift apart.
+  const nav = document.getElementById("directory");
+  const eyebrow = document.getElementById("eyebrow");
+  eyebrow.textContent =
     location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
+
+  // Already rendered by the build? Then there is nothing to do — and nothing was needed.
+  if (!nav.querySelector(".place-block")) {
+    try {
+      const { render } = await import("/jekyll-enough/liquid.mjs");
+      const [tpl, listing] = await Promise.all([
+        fetch("/listing.liquid").then((r) => r.ok ? r.text() : Promise.reject()),
+        fetch("/_data/listing.json").then((r) => r.ok ? r.json() : Promise.reject()),
+      ]);
+      nav.innerHTML = render(tpl, { site: { data: { listing } } });
+    } catch {
+      // Origin unreachable, or the data is not there. The masthead stands by, which is what it has
+      // always been for — a page that says less rather than a page that lies.
+      eyebrow.textContent = "Please Stand By.";
+    }
+  }
 </script>
 
 <script type="module">

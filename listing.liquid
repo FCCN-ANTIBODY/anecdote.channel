@@ -1,0 +1,25 @@
+{%- for place in site.data.listing %}
+  <section class="place-block">
+    <h2 class="place-name">{{ place.name }}</h2>
+    {%- if place.rows.size == 0 %}
+    <p class="reserved">reserved — nothing here yet</p>
+    {%- else %}
+    <div class="rows">
+      {%- for row in place.rows %}
+      <div class="cat">{{ row.category }}</div>
+      <div class="items">
+        {%- for e in row.entries %}
+        <div class="item">
+          {%- if e.linked %}<a class="place" href="{{ e.href }}"{% if e.leaves %} rel="noopener"{% endif %}>{{ e.name }}</a>
+          {%- else %}<span class="soon">{{ e.name }}</span><small class="note">soon</small>
+          {%- endif %}
+          {%- if e.also != "" %}<small class="also">{{ e.also }}</small>{% endif %}
+          {%- if e.leaves %}<small class="out">{{ e.dest }}{% if e.shielded %}  shielded{% endif %}</small>{% endif %}
+        </div>
+        {%- endfor %}
+      </div>
+      {%- endfor %}
+    </div>
+    {%- endif %}
+  </section>
+{%- endfor %}
