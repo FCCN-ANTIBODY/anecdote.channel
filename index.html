@@ -69,9 +69,6 @@
      right while the category stays put. */
   /* The content keeps the full gutter. Headers reach OUT of it to the left; nothing pushes the
      names inward, because column width is the one thing here worth spending. */
-  /* The one bar height, shared by every level. */
-  :root { --bar-h: 1.15rem; }
-
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
   #directory[hidden] { display: none; }
 
@@ -84,11 +81,9 @@
     padding-top: var(--space-7);
   }
   .place-name {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
     margin: 0 0 var(--space-5);
-    margin-left: calc(var(--gutter) * -1);   /* bar touches the left edge of the screen */
+    /* Out of the gutter entirely — hugging the page, not the column. */
+    margin-left: calc(var(--gutter) * -1);
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
     font-size: var(--mono-lead);
@@ -101,20 +96,15 @@
   /* THE TAB IS THE INDENT. Its width is how far the text starts from the left, so the smaller a
      header is the longer its tab and the further in it sits. The place is the outermost thing on
      the page: a 4px nub against the very edge, text immediately right of it. */
-  /* ONE BAR. Same shape and the SAME FIXED HEIGHT at every level — 1em made each bar follow its
-     own text size, which is what turned them into two different objects. Level changes the WIDTH
-     and nothing else. Both start at the page's left edge. */
-  .place-name::before,
-  .cat::before {
+  .place-name::before {
     content: "";
-    display: block;
-    flex: none;
-    width: var(--bar-w);
-    height: var(--bar-h);
+    display: inline-block;
+    width: 4px;                 /* the width is the whole message */
+    height: 1em;                /* as tall as the text, both ranks the same */
+    margin-right: .5rem;
     background: var(--ink);
+    vertical-align: text-bottom;
   }
-  .place-name { --bar-w: .75rem; }
-  .cat        { --bar-w: 3.25rem; }
 
   .rows {
     display: grid;
@@ -125,22 +115,27 @@
   }
   /* The category. Mono, small-caps, and the same left edge on every row in the block. */
   .cat {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-    margin-left: calc(var(--gutter) * -1);   /* bar touches the left edge of the screen */
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
     color: var(--text-muted);
+    padding-top: .35em;              /* optical: sit the caps on the serif's baseline */
   }
   /* One rank in, so a LONGER tab. Its text lands half a character left of the names below it —
      enough to read as a header, not enough to open a second column. */
+  .cat::before {
+    content: "";
+    display: inline-block;
+    width: 1.4rem;              /* longer, because it is further in */
+    height: 1em;                /* identical height — same object, different width */
+    margin-left: calc((1.4rem + .5rem + .5ch) * -1);
+    margin-right: .5rem;
+    background: var(--ink);
+    vertical-align: text-bottom;
+  }
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
-
-  [hidden] { display: none !important; }
 
   .place, .soon {
     font-family: var(--font-display);
@@ -223,8 +218,6 @@
 <code id="heading" hidden></code>
 
 <script type="module">
-  import { entryParts } from "/directory.mjs";
-
   // BIND TO THE PAGE AND INTERPRET IT. That is the whole job. This file is served exactly as it
   // was committed — no build ran, nothing was pre-rendered, and there is no artifact anywhere.
   // Publishing here means committing a source file.
@@ -237,10 +230,7 @@
     location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
 
   const frag = (id) => document.getElementById(id).content.cloneNode(true);
-  // REMOVE, never hide: `hidden` is a UA display rule that an author `display:` outranks, which
-  // is exactly how every entry came to show its link AND "soon" at once.
-  const drop = (r, sel) => { const el = r.querySelector(sel); if (el) el.remove(); };
-  const put = (r, sel, t) => { const el = r.querySelector(sel); if (el && t != null) el.textContent = t; return el; };
+  const show = (el, text) => { el.hidden = false; if (text != null) el.textContent = text; };
 
   try {
     const res = await fetch("/sites.json", { cache: "no-cache" });
@@ -259,18 +249,17 @@
         const items = r.querySelector(".items");
         for (const e of row.entries) {
           const it = frag("t-entry");
-          const parts = entryParts(e);
-          if (parts.link) {
-            const a = put(it, ".place", e.name);
+          if (e.linked) {
+            const a = it.querySelector(".place");
             a.href = e.href;
             if (e.leaves) a.rel = "noopener";
+            show(a, e.name);
           } else {
-            put(it, ".soon", e.name);
+            show(it.querySelector(".soon"), e.name);
+            show(it.querySelector(".note"));
           }
-          if (!parts.link) drop(it, ".place");
-          if (!parts.soon) { drop(it, ".soon"); drop(it, ".note"); }
-          if (parts.also) put(it, ".also", e.also); else drop(it, ".also");
-          if (parts.out) put(it, ".out", e.dest + (e.shielded ? "  shielded" : "")); else drop(it, ".out");
+          if (e.also) show(it.querySelector(".also"), e.also);
+          if (e.leaves) show(it.querySelector(".out"), e.dest + (e.shielded ? "  shielded" : ""));
           items.append(it);
         }
         rows.append(r);
