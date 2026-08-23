@@ -133,9 +133,35 @@ export function treeUnder(root, sites) {
 // one it files under, and the rest travel with the entry so nothing is hidden.
 export const ROLE_ORDER = ["journal", "tell", "atlas", "antidote"];
 
-export function categoryOf(site) {
+// A host under a place carries at most two meaningful labels: <moniker>.<category>.<place>…
+// The label ADJACENT TO THE PLACE is the category; the one in front of it is the moniker. Where
+// only one label is present it is both — the canonical occupant, which is why media.fort-collins…
+// reads as "the public media here" and needs no moniker in front of it.
+//
+// This is why the extra level only appears where plurality actually arrives: a category with one
+// occupant costs nothing, and the day a second shows up the first keeps its short canonical name
+// while the newcomers take monikers beneath it.
+//
+// A DECLARED ROLE STILL WINS over position. A thing that says what it is beats a guess from where
+// it sits, which is what keeps a moniker from being mistaken for a category.
+export function categoryOf(site, placeHost = "") {
   const roles = site?.roles || [];
   for (const r of ROLE_ORDER) if (roles.includes(r)) return r;
+  const host = site?.host || "";
+  if (placeHost && host.endsWith(`.${placeHost}`)) {
+    const below = host.slice(0, -(placeHost.length + 1)).split(".");
+    return below[below.length - 1];          // the label sitting on the place
+  }
+  return site?.leaf || "";
+}
+
+// The name a thing goes by inside its category — the label furthest from the place. Equal to the
+// category when the thing is that category's canonical occupant.
+export function monikerOf(site, placeHost = "") {
+  const host = site?.host || "";
+  if (placeHost && host.endsWith(`.${placeHost}`)) {
+    return host.slice(0, -(placeHost.length + 1)).split(".")[0];
+  }
   return site?.leaf || "";
 }
 
@@ -144,7 +170,7 @@ export function rowsUnder(placeNode) {
   for (const child of placeNode.children) entries.push(...flatten(child));
   const byCategory = new Map();
   for (const e of entries) {
-    const c = categoryOf(e.site);
+    const c = categoryOf(e.site, placeNode.host);
     if (!byCategory.has(c)) byCategory.set(c, []);
     byCategory.get(c).push(e);
   }

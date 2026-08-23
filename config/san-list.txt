@@ -44,3 +44,11 @@ anecdote.channel
 # A shell's canonical name needs coverage exactly like our own: it is served from this zone
 # (as a redirect out), so a visitor reaching it meets this certificate first.
 *.longmont.colorado.anecdote.channel
+
+# --- per-category wildcards: only where plurality actually arrived ----------------------
+# A category with ONE occupant costs nothing — media.fort-collins… is already covered by
+# *.fort-collins.colorado.anecdote.channel. These exist because a second occupant showed up and
+# needed a moniker beneath the category. Never add one speculatively: the whole point of the
+# demand-driven rule is that the vocabulary is free and only plurality is billed.
+*.media.fort-collins.colorado.anecdote.channel
+*.trade.fort-collins.colorado.anecdote.channel

@@ -156,7 +156,7 @@
   // becomes a listing of its leaves the moment a host is arranged for it — no new page.
   // Levels nobody serves still render, as categories. Offline-safe: sites.json rides in the
   // shell (sw.js), and a failed fetch simply leaves the standing-by heading alone.
-  import { APEX, treeUnder, rowsUnder, placeName, categoryOf } from "/directory.mjs";
+  import { APEX, treeUnder, rowsUnder, placeName } from "/directory.mjs";
 
   (async () => {
     const here = location.hostname.endsWith(APEX) ? location.hostname : APEX;
@@ -183,7 +183,7 @@
     // they hold beside them. The left column never moves — a category with one name reads as a
     // straight row across, a category with several stacks them on the right while the category
     // stays put. Nothing folds away and nothing indents out of line.
-    const nameOf = (node) => {
+    const nameOf = (node, rowCategory) => {
       const s = node.site;
       const el = document.createElement(s.served || s.leaves ? "a" : "span");
       el.className = s.served || s.leaves ? "place" : "soon";
@@ -201,7 +201,7 @@
       }
       // A node running several roles files under one and carries the rest, so nothing is hidden by
       // the filing. Only ever roles it declared — never a guess about what else it might be.
-      const also = (s.roles || []).filter((r) => r !== categoryOf(s));
+      const also = (s.roles || []).filter((r) => r !== rowCategory);
       if (also.length) {
         wrap.append(Object.assign(document.createElement("small"),
           { className: "also", textContent: "also " + also.join(" · ") }));
@@ -235,7 +235,7 @@
           { className: "cat", textContent: row.category }));
         const items = document.createElement("div");
         items.className = "items";
-        for (const e of row.entries) items.append(nameOf(e));
+        for (const e of row.entries) items.append(nameOf(e, row.category));
         grid.append(items);
       }
       sec.append(grid);

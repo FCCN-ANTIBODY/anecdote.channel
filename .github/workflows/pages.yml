@@ -38,6 +38,12 @@ jobs:
       # if any listed name is missing TLS coverage in config/san-list.txt, and writes sites.json
       # straight into the uploaded artifact — never committed, so there is nothing to drift.
       - name: Gather the directory
+        env:
+          # Only used while `repo:` entries exist. Unauthenticated the API allows 60 requests an
+          # hour, which a handful of entries can exhaust — and a rate-limited lookup reads exactly
+          # like a site that is not there. The run's own token is enough and is already scoped to
+          # public reads. Per-owner SITES_TOKEN_<OWNER> secrets still override for private repos.
+          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/sync-sites.mjs
 
       - name: Serve files as-is (no Jekyll)
