@@ -20,7 +20,7 @@ import { pinDecision, verifyFiles } from "/composer/firmware.mjs";
 // and the network is never consulted — and activate() only deletes caches whose key DIFFERS from
 // VERSION. So editing the shell without bumping the key strands every existing install on the old
 // copy, and no amount of edge purging reaches it: the request never leaves the browser.
-const VERSION = "anecdote-shell-v3";
+const VERSION = "anecdote-shell-v4";
 
 // Fallback shell when NO firmware.json is deployed — pinning is dormant, static precache (slice 1a note:
 // arming the guarantee is opt-in). Same set as before + the firmware verify graph so a signed manifest can

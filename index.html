@@ -67,12 +67,9 @@
   /* A place heading flush left; categories in a fixed left column that never moves; the names
      they hold in the column beside it. One name reads as a row across, several stack on the
      right while the category stays put. */
-  /* Content sits inboard of every header, so the headers lean out of the column rather than
-     starting it. */
+  /* The content keeps the full gutter. Headers reach OUT of it to the left; nothing pushes the
+     names inward, because column width is the one thing here worth spending. */
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
-  /* Room for the rules to hang into. Every header's TEXT starts on the same left edge as the
-     content; only the bar leans out, and its length is the rank. */
-  .place-block { padding-left: 3.75rem; }
   #directory[hidden] { display: none; }
 
   /* A city is a divider and a quiet label, not a headline. It was set in the display serif at
@@ -85,6 +82,8 @@
   }
   .place-name {
     margin: 0 0 var(--space-5);
+    /* Out of the gutter entirely — hugging the page, not the column. */
+    margin-left: calc(var(--gutter) * -1);
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
     font-size: var(--mono-lead);
@@ -94,15 +93,17 @@
   }
   /* A solid rule hanging left of the label. The longer the bar, the higher the header — the
      hierarchy is a length you can see at a glance rather than a font size you have to compare. */
+  /* THE TAB IS THE INDENT. Its width is how far the text starts from the left, so the smaller a
+     header is the longer its tab and the further in it sits. The place is the outermost thing on
+     the page: a 4px nub against the very edge, text immediately right of it. */
   .place-name::before {
     content: "";
     display: inline-block;
-    width: 3rem;
-    height: var(--rule);
-    margin-left: -3.75rem;
-    margin-right: .75rem;
+    width: 4px;                 /* the width is the whole message */
+    height: 1em;                /* as tall as the text, both ranks the same */
+    margin-right: .5rem;
     background: var(--ink);
-    vertical-align: middle;
+    vertical-align: text-bottom;
   }
 
   .rows {
@@ -121,17 +122,17 @@
     color: var(--text-muted);
     padding-top: .35em;              /* optical: sit the caps on the serif's baseline */
   }
-  /* Shorter bar, lighter weight: one rank down, and it reads as one rank down without anyone
-     having to measure the type. */
+  /* One rank in, so a LONGER tab. Its text lands half a character left of the names below it —
+     enough to read as a header, not enough to open a second column. */
   .cat::before {
     content: "";
     display: inline-block;
-    width: 1.25rem;
-    height: 1px;
-    margin-left: -2rem;
-    margin-right: .75rem;
-    background: var(--ink-faint);
-    vertical-align: middle;
+    width: 1.4rem;              /* longer, because it is further in */
+    height: 1em;                /* identical height — same object, different width */
+    margin-left: calc((1.4rem + .5rem + .5ch) * -1);
+    margin-right: .5rem;
+    background: var(--ink);
+    vertical-align: text-bottom;
   }
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
@@ -184,115 +185,92 @@
   <h1 class="wordmark">anecdote</h1>
   <p class="eyebrow" id="eyebrow">Please Stand By.</p>
 </header>
-<nav id="directory" hidden></nav>
+<nav id="directory"></nav>
+
+<!-- THE LISTING, AS HTML FRAGMENTS. Not a Liquid loop and not a build product: these are ordinary
+     <template> elements, the browser's own template syntax, cloned once per row at runtime.
+
+     The point of this whole apparatus is that you can publish shitty source files and get a
+     website with no build. So this page IS the source. It is served exactly as committed, and it
+     interprets itself when it loads. Liquid's job here is includes — which is how an iframe gets
+     composed — and iteration is HTML's job, because HTML already has a way to say "this shape,
+     repeated". -->
+<template id="t-place">
+  <section class="place-block">
+    <h2 class="place-name"></h2>
+    <p class="reserved" hidden>reserved — nothing here yet</p>
+    <div class="rows"></div>
+  </section>
+</template>
+<template id="t-row">
+  <div class="cat"></div>
+  <div class="items"></div>
+</template>
+<template id="t-entry">
+  <div class="item">
+    <a class="place" hidden></a>
+    <span class="soon" hidden></span>
+    <small class="note" hidden>soon</small>
+    <small class="also" hidden></small>
+    <small class="out" hidden></small>
+  </div>
+</template>
 <code id="heading" hidden></code>
 
 <script type="module">
-  // THE DIRECTORY. This same page is the listing at EVERY level: it reads its own
-  // location.hostname and renders what sits beneath it, so `north.colorado.anecdote.channel`
-  // becomes a listing of its leaves the moment a host is arranged for it — no new page.
-  // Levels nobody serves still render, as categories. Offline-safe: sites.json rides in the
-  // shell (sw.js), and a failed fetch simply leaves the standing-by heading alone.
-  import { APEX, treeUnder, rowsUnder, placeName } from "/directory.mjs";
+  // BIND TO THE PAGE AND INTERPRET IT. That is the whole job. This file is served exactly as it
+  // was committed — no build ran, nothing was pre-rendered, and there is no artifact anywhere.
+  // Publishing here means committing a source file.
+  //
+  // Iteration is HTML's: <template> cloned per row. The data is data. Nothing here reimplements a
+  // templating language to do what the browser already does.
+  const nav = document.getElementById("directory");
+  const eyebrow = document.getElementById("eyebrow");
+  eyebrow.textContent =
+    location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
 
-  (async () => {
-    const here = location.hostname.endsWith(APEX) ? location.hostname : APEX;
-    let data;
-    try {
-      const res = await fetch("/sites.json", { cache: "no-cache" });
-      if (!res.ok) return;
-      data = await res.json();
-    } catch { return; }                       // origin unreachable — stand by, as before
+  const frag = (id) => document.getElementById(id).content.cloneNode(true);
+  const show = (el, text) => { el.hidden = false; if (text != null) el.textContent = text; };
 
-    // System hosts are machinery other software talks to, not somewhere to send a person.
-    // A destination that is not answering yet still lists, unlinked — "soon" is honest.
-    const published = (data.sites || []).filter((s) => !s.draft && !s.system)
-      // A shell with a dead target is not a destination; drop it rather than hand someone a
-      // broken handoff under our own name.
-      .filter((s) => !s.leaves || s.targetLive);
-    // At the apex, list from the configured root: the memorable name should show destinations,
-    // not the top of the tree. Deeper in, a level always lists beneath itself.
-    const from = (here === (data.apex || APEX) && data.root) ? data.root : here;
-    const tree = treeUnder(from, published);
-    if (!tree.length) return;                 // nothing beneath this level yet
+  try {
+    const res = await fetch("/sites.json", { cache: "no-cache" });
+    if (!res.ok) throw new Error();
+    const { listing = [] } = await res.json();
 
-    // A place heading flush left; beneath it, categories in a fixed left column with the names
-    // they hold beside them. The left column never moves — a category with one name reads as a
-    // straight row across, a category with several stacks them on the right while the category
-    // stays put. Nothing folds away and nothing indents out of line.
-    const nameOf = (node, rowCategory) => {
-      const s = node.site;
-      const el = document.createElement(s.served || s.leaves ? "a" : "span");
-      el.className = s.served || s.leaves ? "place" : "soon";
-      el.textContent = s.label || s.leaf;
-      if (el.tagName === "A") {
-        el.href = s.leaves ? s.href : `https://${node.host}/`;
-        if (s.leaves) el.rel = "noopener";
+    for (const place of listing) {
+      const p = frag("t-place");
+      p.querySelector(".place-name").textContent = place.name;
+      const rows = p.querySelector(".rows");
+      if (!place.rows.length) show(p.querySelector(".reserved"));
+
+      for (const row of place.rows) {
+        const r = frag("t-row");
+        r.querySelector(".cat").textContent = row.category;
+        const items = r.querySelector(".items");
+        for (const e of row.entries) {
+          const it = frag("t-entry");
+          if (e.linked) {
+            const a = it.querySelector(".place");
+            a.href = e.href;
+            if (e.leaves) a.rel = "noopener";
+            show(a, e.name);
+          } else {
+            show(it.querySelector(".soon"), e.name);
+            show(it.querySelector(".note"));
+          }
+          if (e.also) show(it.querySelector(".also"), e.also);
+          if (e.leaves) show(it.querySelector(".out"), e.dest + (e.shielded ? "  shielded" : ""));
+          items.append(it);
+        }
+        rows.append(r);
       }
-      const wrap = document.createElement("div");
-      wrap.className = "item";
-      wrap.append(el);
-      if (!(s.served || s.leaves)) {
-        wrap.append(Object.assign(document.createElement("small"),
-          { className: "note", textContent: "soon" }));
-      }
-      // A node running several roles files under one and carries the rest, so nothing is hidden by
-      // the filing. Only ever roles it declared — never a guess about what else it might be.
-      const also = (s.roles || []).filter((r) => r !== rowCategory);
-      if (also.length) {
-        wrap.append(Object.assign(document.createElement("small"),
-          { className: "also", textContent: also.join(" · ") }));
-      }
-
-      if (s.leaves) {
-        // The scheme is destroyed and the colon kept. Routing these needs no `://` — printing it
-        // anyway is the tell that this address was taken apart on purpose.
-        //
-        // What is NOT printed: who serves it. `server:` names the software sitting in front, not
-        // where a thing is hosted, and the software is not the question anyone was asking.
-        const dest = "://" + new URL(s.href).hostname;
-        wrap.append(Object.assign(document.createElement("small"), {
-          className: "out",
-          textContent: s.targetShielded ? dest + "  shielded" : dest,
-        }));
-      }
-      return wrap;
-    };
-
-    const section = (place) => {
-      const rows = rowsUnder(place);
-      if (!rows.length) return null;
-      const sec = document.createElement("section");
-      sec.className = "place-block";
-      sec.append(Object.assign(document.createElement("h2"),
-        { className: "place-name", textContent: placeName(place.host) }));
-      const grid = document.createElement("div");
-      grid.className = "rows";
-      for (const row of rows) {
-        grid.append(Object.assign(document.createElement("div"),
-          { className: "cat", textContent: row.category }));
-        const items = document.createElement("div");
-        items.className = "items";
-        for (const e of row.entries) items.append(nameOf(e, row.category));
-        grid.append(items);
-      }
-      sec.append(grid);
-      return sec;
-    };
-
-    const nav = document.getElementById("directory");
-    // Places come from the sites in them, plus any RESERVED before anything arrives. Sorted
-    // together so a held name sits among the occupied ones rather than in a leftovers bin.
-    const seen = new Set(tree.map((p) => p.host));
-    const reserved = (data.places || [])
-      .filter((h) => !seen.has(h) && h.endsWith(`.${from}`))
-      .map((h) => ({ host: h, site: null, children: [] }));
-    const all = [...tree, ...reserved].sort((a, b) => a.host.localeCompare(b.host));
-    for (const place of all) { const sec = section(place); if (sec) nav.append(sec); }
-    nav.hidden = false;
-    // The wordmark is the name you say out loud; the host is the small true thing under it.
-    document.getElementById("eyebrow").textContent = here;
-  })();
+      nav.append(p);
+    }
+  } catch {
+    // Origin unreachable, or no data. The masthead stands by — a page that says less rather than
+    // a page that lies.
+    eyebrow.textContent = "Please Stand By.";
+  }
 </script>
 
 <script type="module">
