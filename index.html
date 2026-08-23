@@ -69,11 +69,22 @@
      right while the category stays put. */
   /* The content keeps the full gutter. Headers reach OUT of it to the left; nothing pushes the
      names inward, because column width is the one thing here worth spending. */
-  /* THE TAB. `--tab-h` is the line box both headers are forced to, so their borders are the SAME
-     HEIGHT whatever the text size — and setting it as line-height centres the text inside it for
-     free, which is the whole reason not to do this with a pseudo-element.
-     `--ind` is where that header's text starts from the screen edge; the black fills it. */
-  :root { --tab-h: .9rem; }
+  :root { --hdr-h: 1.1rem; }
+
+  /* THE HEADER WRAPPER OWNS THE BOX.
+     .hdr sets the height — one number, every level, so every black box is the same height.
+     .hdr-N sets the left border — wider the smaller the header, which is what indents it.
+     The header element inside is not touched: no margins, no line-height, no alignment. */
+  .hdr {
+    height: var(--hdr-h);
+    display: flex;
+    align-items: center;
+    margin-left: calc(var(--gutter) * -1);   /* border starts at the screen edge */
+    padding-left: .5rem;
+  }
+  .hdr-1 { border-left: .5rem solid var(--ink); margin-bottom: var(--space-5); }
+  .hdr-2 { border-left: 2rem solid var(--ink); }
+  .hdr > * { margin: 0; }
 
   #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
   #directory[hidden] { display: none; }
@@ -87,14 +98,6 @@
     padding-top: var(--space-7);
   }
   .place-name {
-    margin: 0 0 var(--space-5);
-    /* Out of the gutter entirely — hugging the page, not the column. */
-    margin-left: calc(var(--gutter) * -1);
-    /* THE BLACK IS THIS HEADER'S OWN LEFT GUTTER, drawn as its border — the same box as the
-       text, so it cannot slip off it. */
-    --ind: 1rem;
-    padding-left: var(--ind);
-    background: linear-gradient(var(--ink), var(--ink)) left center / calc(var(--ind) - .5rem) var(--tab-h) no-repeat;
     font-family: var(--font-mono);
     font-weight: var(--weight-mono-bold);
     font-size: var(--mono-lead);
@@ -114,12 +117,6 @@
   }
   /* The category. Mono, small-caps, and the same left edge on every row in the block. */
   .cat {
-    /* Smaller header, WIDER gutter. Stated outright rather than derived from --gutter, which is
-       24px on a phone and made this tab all but the same width as the city's. */
-    --ind: 2.5rem;
-    margin-left: calc(var(--gutter) * -1);
-    padding-left: var(--ind);
-    background: linear-gradient(var(--ink), var(--ink)) left center / calc(var(--ind) - .5rem) var(--tab-h) no-repeat;
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
     letter-spacing: var(--tracking-caps);
@@ -128,8 +125,6 @@
   }
   .items { display: flex; flex-direction: column; gap: var(--space-4); }
   .item { display: block; }
-
-  [hidden] { display: none !important; }
 
   .place, .soon {
     font-family: var(--font-display);
@@ -191,13 +186,13 @@
      repeated". -->
 <template id="t-place">
   <section class="place-block">
-    <h2 class="place-name"></h2>
+    <div class="hdr hdr-1"><h2 class="place-name"></h2></div>
     <p class="reserved">reserved — nothing here yet</p>
     <div class="rows"></div>
   </section>
 </template>
 <template id="t-row">
-  <div class="cat"></div>
+  <div class="hdr hdr-2"><div class="cat"></div></div>
   <div class="items"></div>
 </template>
 <template id="t-entry">
@@ -226,8 +221,7 @@
     location.hostname.endsWith("anecdote.channel") ? location.hostname : "anecdote.channel";
 
   const frag = (id) => document.getElementById(id).content.cloneNode(true);
-  // REMOVE, never hide. `hidden` is a UA display rule that any author `display:` outranks, which
-  // is how every entry came to show its link AND "soon" at the same time.
+  // REMOVE, never hide: `hidden` is a UA display rule any author `display:` outranks.
   const drop = (r, sel) => { const el = r.querySelector(sel); if (el) el.remove(); };
   const put = (r, sel, t) => { const el = r.querySelector(sel); if (el && t != null) el.textContent = t; return el; };
 
