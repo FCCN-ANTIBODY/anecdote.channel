@@ -244,3 +244,17 @@ export function claimStatus(claim, host) {
   const c = claim.replace(/^https?:\/\//, "").replace(/\/+$/, "").toLowerCase();
   return c === host.toLowerCase() ? "agrees" : "elsewhere";
 }
+
+// WHICH PARTS OF AN ENTRY EXIST. Pure, so it can be tested without a browser — the "everything
+// says SOON" bug was a CSS rule (`display: inline-block` on .place/.soon) beating the UA's
+// [hidden] { display: none }, which resurrected elements the script had hidden. The renderer now
+// REMOVES what does not apply instead of hiding it, and this decides what applies.
+export function entryParts(e) {
+  const linked = Boolean(e && e.linked);
+  return {
+    link: linked,
+    soon: !linked,
+    also: Boolean(e && e.also),
+    out: Boolean(e && e.leaves),
+  };
+}
