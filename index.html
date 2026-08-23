@@ -208,7 +208,11 @@
       }
 
       // Where it goes, and for something genuinely foreign, who answers for it.
-      if (s.leaves) {
+      if (s.leaves && s.targetShielded) {
+        // Live, but a challenge blocks reading it. Say that rather than implying we checked.
+        wrap.append(Object.assign(document.createElement("small"),
+          { className: "out", textContent: new URL(s.href).hostname + " · shielded" }));
+      } else if (s.leaves) {
         const dest = new URL(s.href).hostname;
         const foreign = s.via === "config";
         wrap.append(Object.assign(document.createElement("small"), {
