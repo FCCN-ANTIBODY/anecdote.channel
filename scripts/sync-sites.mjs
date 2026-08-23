@@ -74,6 +74,27 @@ function providerOf(headers) {
 // An unrecognised site simply has no roles, which is a fact about it and not a failure.
 const ROLES = ["journal", "tell", "atlas", "antidote"];
 
+// A site's own claim about where it belongs: /NAME, one line, no scheme. Site-owned rather than
+// engine-owned, so it is one fact in one place however many roles the node fills — and readable
+// without knowing anything about the substrate underneath it.
+//
+// Deliberately not CNAME. A CNAME asserts one host is an alias of another; canonical here means a
+// PROVEN COPY, not the only copy, so a branch mirrored to another apex is canonical at both.
+async function nameOf(host) {
+  try {
+    const res = await fetch(`https://${host}/NAME`, {
+      signal: AbortSignal.timeout(TIMEOUT),
+      headers: { "user-agent": "anecdote-directory (+https://anecdote.channel)" },
+    });
+    if (!res.ok) return "";
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    if (ct.includes("html")) return "";
+    const body = (await res.text()).trim();
+    if (!body || body.startsWith("<") || body.includes("\n")) return "";   // one line, or it is not NAME
+    return body.replace(/^https?:\/\//, "").replace(/\/+$/, "").toLowerCase();
+  } catch { return ""; }
+}
+
 async function rolesOf(host) {
   const found = [];
   const claims = new Set();
@@ -173,6 +194,11 @@ async function main() {
     const p = await probe(e.host);
     const decl = p.served ? await rolesOf(e.host) : { roles: [], claim: "" };
     const roles = decl.roles;
+    // NAME is the address; a role file's url: is the transitional fallback for a site that has
+    // not adopted it yet. One fact, one place — the role declarations are getting out of this
+    // business entirely.
+    const named = p.served ? await nameOf(e.host) : "";
+    const claim = named || decl.claim;
     // A shell is judged by its TARGET: the canonical name may not exist yet, and the thing at the
     // end of it is not ours to keep alive either way. `repo:` resolves the target from the
     // repository; an explicit `to:` overrides it for something with no repo at all.
@@ -191,8 +217,9 @@ async function main() {
       host: e.host,
       leaf: e.host.split(".")[0],           // the label at this level — a category with one thing in it
       roles,                                // what it says it is; [] is a fact, not a failure
-      claim: decl.claim,                    // where it says it belongs
-      claimStatus: claimStatus(decl.claim, e.host),
+      claim,                                // where it says it belongs
+      claimFrom: named ? "NAME" : decl.claim ? "role url:" : "",
+      claimStatus: claimStatus(claim, e.host),
       draft: e.draft,
       system: e.system,
       served: p.served,
