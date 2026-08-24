@@ -8,8 +8,8 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 t("parseSites reads hostnames, flags, repo hints and labels", () => {
   const got = parseSites("# hi\n@root x.anecdote.channel\n\na.anecdote.channel\nb.anecdote.channel draft repo:O/r = Voices  # trailing\n");
   assert.deepEqual(got, [
-    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "" },
-    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "" },
+    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "", was: [] },
+    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "", was: [] },
   ]);
 });
 
@@ -27,6 +27,22 @@ t("a @root directive is a directive, not a site", () => {
   assert.equal(parseRoot("@root colorado.anecdote.channel\n"), "colorado.anecdote.channel");
   assert.equal(parseRoot("# none here\n"), APEX, "defaults to the apex");
   assert.equal(parseSites("@root colorado.anecdote.channel\n").length, 0);
+});
+
+t("was: records a former host, repeatably, so a move is legible from outside", () => {
+  const [moved] = parseSites(
+    "north.voices.fort-collins.colorado.anecdote.channel was:voices.north.colorado.anecdote.channel\n");
+  assert.deepEqual(moved.was, ["voices.north.colorado.anecdote.channel"]);
+
+  const [twice] = parseSites("c.x.y was:a.x.y was:b.x.y\n");
+  assert.deepEqual(twice.was, ["a.x.y", "b.x.y"], "a name can move more than once");
+
+  const [never] = parseSites("a.x.y\n");
+  assert.deepEqual(never.was, [], "no history is an empty list, not undefined");
+
+  // The point of the field: from outside, a rename and a deletion are the same observation.
+  // Only the alias distinguishes them, so a consumer can repair its own links.
+  assert.ok(!moved.was.includes(moved.host), "an entry does not list itself as a former name");
 });
 
 t("a shell carries its target, and is never mistaken for something we host", () => {

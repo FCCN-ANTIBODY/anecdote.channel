@@ -25,6 +25,10 @@ export function parseSites(text) {
     if (!host.includes(".")) throw new Error(`sites.txt: expected a hostname, got "${host}"`);
     const repo = (parts.find((p) => p.startsWith("repo:")) || "").slice(5);
     const to = (parts.find((p) => p.startsWith("to:")) || "").slice(3);
+    // Names this entry USED to answer at. From outside, a rename and a deletion are the same
+    // observation — the host stops answering — so without this every downstream link rots
+    // silently on each move and the directory cannot tell anyone why.
+    const was = parts.filter((p) => p.startsWith("was:")).map((p) => p.slice(4).toLowerCase());
     const flags = parts.filter((p) => !/^(repo|to):/.test(p));
     out.push({
       host: host.toLowerCase(),
@@ -33,6 +37,7 @@ export function parseSites(text) {
       label: label || "",
       repo,
       to,                                   // a SHELL: we assert the name, it points somewhere we do not run
+      was,                                  // former hosts; a consumer can say "renamed to X", not "dead"
     });
   }
   return out;

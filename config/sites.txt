@@ -12,6 +12,10 @@
 #   repo:<o/n> — resolve where this points FROM THE REPOSITORY (its Pages cname if it serves from
 #                Pages, else its `homepage` field). Preferred over a typed URL: the owner controls
 #                it, it survives them changing hosts, and a public repo needs no credential.
+#   was:<host>  — a name this entry used to answer at. Repeatable. From outside, a rename and a
+#                 deletion look identical — the host stops answering — so recording the old name
+#                 is what lets a consumer say "renamed to X" instead of "dead", and repair its own
+#                 links. Never remove one: the whole value is that it outlives the move.
 #   to:<url>    — a SHELL pointed at a literal URL, for something with no repo to read.
 #                Either way the listing says it leaves. Naming someone is not hosting them.
 # There is no `type:` flag, on purpose. What a thing IS reads off the category it sits in —
@@ -49,7 +53,7 @@ atlas.anecdote.channel                           system
 # --- destinations we run ---------------------------------------------------------------
 # `north` is a region label sitting at city level.
 antibody.fort-collins.colorado.anecdote.channel
-north.voices.fort-collins.colorado.anecdote.channel
+north.voices.fort-collins.colorado.anecdote.channel  was:voices.north.colorado.anecdote.channel
 
 # --- trade: what you can buy here, what you can sell here -------------------------------
 # Naturally plural — nobody is THE business of a place — so it takes monikers from the start
