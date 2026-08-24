@@ -92,9 +92,14 @@ function cmdCoverage({ entries, places, san }) {
     const w = wildcardFor(h);
     if (w && san.includes(w)) used.add(w);
   }
-  // A wildcard over a RESERVED place covers nothing listed and is not idle — the reservation is
-  // the point, and the coverage has to exist the day someone arrives. Calling it unused would
-  // invite deleting exactly the slot that makes a place claimable.
+  // A wildcard over a RESERVED place covers nothing yet ON PURPOSE. The reservation is what makes
+  // the place claimable later, and the coverage has to already exist the day someone arrives.
+  //
+  // This is why it gets its own category instead of being folded into "unused": an idle-slot
+  // reaper that does not know the difference would free exactly the slots that are load-bearing,
+  // and nothing would show it until someone tried to claim the place and could not. That is the
+  // same shape as REUSED — a silent wrong outcome rather than a visible break — which is the class
+  // of thing worth spending a category on.
   const reserved = san.filter((h) => !used.has(h) && places.some((p) => h === `*.${p}`));
   const idle = san.filter((h) => !used.has(h) && !reserved.includes(h));
 
@@ -109,12 +114,17 @@ function cmdCoverage({ entries, places, san }) {
     console.log("every listed name is covered.");
   }
   if (reserved.length) {
-    console.log("\nheld for a reserved place — covers nothing yet, and should not:");
+    console.log("\nRESERVED — covers nothing yet, and should not. Do not reclaim: the coverage is");
+    console.log("what makes the place claimable, and its absence only shows when someone tries:");
     for (const h of reserved) console.log(`  ${h}`);
   }
   if (idle.length) {
-    console.log("\nIDLE — covers nothing listed and no reserved place. Either something is served");
-    console.log("under it that config does not know about, or it is a slot to reclaim:");
+    // "covers nothing IN CONFIG" and "covers nothing" are different claims, and only the
+    // registrar can tell them apart. Say which one this is, because a reader who takes the
+    // weaker claim for the stronger one deletes a wildcard that is doing real work.
+    console.log("\nUNMATCHED — covers nothing THIS CONFIG lists. That is not the same as covering");
+    console.log("nothing: it may serve hosts owned elsewhere (the Floor does). Check before");
+    console.log("reclaiming — a slot freed wrongly breaks a name that answers today:");
     for (const h of idle) console.log(`  ${h}`);
   }
   console.log(`\n${50 - san.length} slot(s) left. A place costs 1; a category costs 1 per place it is used in.`);
