@@ -29,6 +29,9 @@ anecdote.channel
 # <pile-name>.tell.anecdote.channel — the leaf label IS the pile name. One label
 # per wildcard, so *.anecdote.channel covers the bare tell host but not names
 # under it.
+# Covers the Floor — <pile>.tell.anecdote.channel, rooms Tell serves by wildcard. Those hosts are
+# not in config/sites.txt (they are Tell's, not the directory's), so `constellation.mjs --coverage`
+# reports this as IDLE. It is not: it is the one wildcard whose occupants live outside this config.
 *.tell.anecdote.channel
 
 # --- per-state wildcards (covers <city>.<state>.anecdote.channel) --------------
