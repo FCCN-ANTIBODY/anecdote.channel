@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, claimStatus,
+import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, claimStatus, aliasConflicts,
          treeUnder, rowsUnder, placeName, monikerOf, APEX, tokenEnvFor } from "../directory.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -205,6 +205,14 @@ async function main() {
   const root = parseRoot(cfg);
   const places = parsePlaces(cfg);
   const san = parseSan(readFileSync(join(ROOT, "config/san-list.txt"), "utf8"));
+
+  // Reject a bad alias where the name is minted, not where it is read.
+  const aliasProblems = aliasConflicts(entries);
+  if (aliasProblems.length) {
+    console.error("\nconfig/sites.txt — was: conflicts:");
+    for (const p of aliasProblems) console.error(`  ${p}`);
+    process.exit(1);
+  }
 
   const sites = [];
   for (const e of entries) {

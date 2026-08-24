@@ -263,3 +263,38 @@ export function entryParts(e) {
     out: Boolean(e && e.leaves),
   };
 }
+
+// WHAT `was:` MUST NEVER BE ALLOWED TO SAY. Both of these are cheap to forbid where names are
+// minted and expensive to debug downstream, so they are rejected here rather than surfaced to a
+// consumer as ambiguity.
+//
+// A vacated name is retired, not recycled. That is the rule `was:` being permanent implies, stated
+// so it can be enforced.
+export function aliasConflicts(entries) {
+  const problems = [];
+  const current = new Set(entries.map((e) => e.host));
+  const claimedBy = new Map();
+
+  for (const e of entries) {
+    for (const old of e.was || []) {
+      // 1. The same former name claimed by two entries. A consumer cannot say which one a stale
+      //    link should be repaired to, so it would have to report ambiguity forever.
+      if (claimedBy.has(old) && claimedBy.get(old) !== e.host) {
+        problems.push(`${old} is listed as a former name of BOTH ${claimedBy.get(old)} and ${e.host}`);
+      }
+      claimedBy.set(old, e.host);
+
+      // 2. A former name that someone is using NOW. This is the one with teeth: a stale link
+      //    resolves to the WRONG site instead of breaking, and silently landing a reader
+      //    somewhere else is worse than a dead link they can see.
+      if (current.has(old)) {
+        problems.push(`${old} is a former name of ${e.host} AND a current host — a vacated name must never be reused`);
+      }
+
+      // 3. Naming yourself. Harmless but meaningless, and it makes --moves report a rename that
+      //    never happened.
+      if (old === e.host) problems.push(`${e.host} lists itself as a former name`);
+    }
+  }
+  return problems;
+}
