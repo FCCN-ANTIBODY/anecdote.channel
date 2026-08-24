@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, claimStatus,
+import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, claimStatus, aliasConflicts,
          treeUnder, rowsUnder, placeName, monikerOf, APEX, tokenEnvFor } from "../directory.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -206,6 +206,14 @@ async function main() {
   const places = parsePlaces(cfg);
   const san = parseSan(readFileSync(join(ROOT, "config/san-list.txt"), "utf8"));
 
+  // Reject a bad alias where the name is minted, not where it is read.
+  const aliasProblems = aliasConflicts(entries);
+  if (aliasProblems.length) {
+    console.error("\nconfig/sites.txt — was: conflicts:");
+    for (const p of aliasProblems) console.error(`  ${p}`);
+    process.exit(1);
+  }
+
   const sites = [];
   for (const e of entries) {
     const p = await probe(e.host);
@@ -234,6 +242,7 @@ async function main() {
       host: e.host,
       leaf: e.host.split(".")[0],           // the label at this level — a category with one thing in it
       roles,                                // what it says it is; [] is a fact, not a failure
+      was: e.was,                           // former hosts, carried forward so a move is legible
       claim,                                // where it says it belongs
       claimFrom: named ? "NAME" : decl.claim ? "role url:" : "",
       claimStatus: claimStatus(claim, e.host),
@@ -330,6 +339,7 @@ async function main() {
         category: row.category,
         entries: row.entries.map((e) => ({
           host: e.host,
+          was: e.site.was || [],
           name: e.site.label || monikerOf(e.site, place.host),
           href: e.site.leaves ? e.site.href : `https://${e.host}/`,
           linked: Boolean(e.site.served || e.site.leaves),

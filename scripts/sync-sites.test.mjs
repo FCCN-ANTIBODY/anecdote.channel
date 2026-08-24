@@ -1,6 +1,6 @@
 // scripts/sync-sites.test.mjs — the pure core of the directory resolver. No network, no fs.
 import assert from "node:assert/strict";
-import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, monikerOf, ROLE_ORDER, claimStatus, entryParts, tokenEnvFor, APEX } from "../directory.mjs";
+import { parseSites, parseRoot, parsePlaces, parseSan, wildcardFor, coveredBy, ancestorsOf, treeUnder, rowsUnder, placeName, categoryOf, monikerOf, ROLE_ORDER, claimStatus, entryParts, aliasConflicts, tokenEnvFor, APEX } from "../directory.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -8,8 +8,8 @@ const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
 t("parseSites reads hostnames, flags, repo hints and labels", () => {
   const got = parseSites("# hi\n@root x.anecdote.channel\n\na.anecdote.channel\nb.anecdote.channel draft repo:O/r = Voices  # trailing\n");
   assert.deepEqual(got, [
-    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "" },
-    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "" },
+    { host: "a.anecdote.channel", draft: false, system: false, label: "", repo: "", to: "", was: [] },
+    { host: "b.anecdote.channel", draft: true, system: false, label: "Voices", repo: "O/r", to: "", was: [] },
   ]);
 });
 
@@ -27,6 +27,45 @@ t("a @root directive is a directive, not a site", () => {
   assert.equal(parseRoot("@root colorado.anecdote.channel\n"), "colorado.anecdote.channel");
   assert.equal(parseRoot("# none here\n"), APEX, "defaults to the apex");
   assert.equal(parseSites("@root colorado.anecdote.channel\n").length, 0);
+});
+
+t("was: records a former host, repeatably, so a move is legible from outside", () => {
+  const [moved] = parseSites(
+    "north.voices.fort-collins.colorado.anecdote.channel was:voices.north.colorado.anecdote.channel\n");
+  assert.deepEqual(moved.was, ["voices.north.colorado.anecdote.channel"]);
+
+  const [twice] = parseSites("c.x.y was:a.x.y was:b.x.y\n");
+  assert.deepEqual(twice.was, ["a.x.y", "b.x.y"], "a name can move more than once");
+
+  const [never] = parseSites("a.x.y\n");
+  assert.deepEqual(never.was, [], "no history is an empty list, not undefined");
+
+  // The point of the field: from outside, a rename and a deletion are the same observation.
+  // Only the alias distinguishes them, so a consumer can repair its own links.
+  assert.ok(!moved.was.includes(moved.host), "an entry does not list itself as a former name");
+});
+
+t("a vacated name is retired, never recycled", () => {
+  // The one with teeth: a stale link would resolve to the WRONG site instead of breaking, and
+  // silently landing a reader somewhere else is worse than a dead link they can see.
+  const reused = aliasConflicts([{ host: "a.x", was: ["b.x"] }, { host: "b.x", was: [] }]);
+  assert.equal(reused.length, 1);
+  assert.match(reused[0], /must never be reused/);
+});
+
+t("one former name cannot belong to two entries", () => {
+  // A consumer could not say which entry a stale link should be repaired to, so it would have to
+  // report ambiguity forever. Cheaper to forbid where the name is minted.
+  const both = aliasConflicts([{ host: "a.x", was: ["old.x"] }, { host: "b.x", was: ["old.x"] }]);
+  assert.equal(both.length, 1);
+  assert.match(both[0], /BOTH a\.x and b\.x/);
+});
+
+t("the aliases actually in config are clean", () => {
+  assert.deepEqual(
+    aliasConflicts([{ host: "north.voices.fort-collins.colorado.anecdote.channel",
+                     was: ["voices.north.colorado.anecdote.channel"] }]), []);
+  assert.deepEqual(aliasConflicts([{ host: "a.x", was: [] }, { host: "b.x", was: [] }]), []);
 });
 
 t("a shell carries its target, and is never mistaken for something we host", () => {
