@@ -1,0 +1,8 @@
+# Fixture. Pins the reader's contract, deliberately including the states the real config must
+# never contain, so the checks stay honest when nobody is looking at production.
+@root colorado.anecdote.channel
+@place x.anecdote.channel
+
+moved.x.anecdote.channel  was:old-one.x.anecdote.channel  was:old-two.x.anecdote.channel
+plain.x.anecdote.channel
+uncovered.deep.x.anecdote.channel

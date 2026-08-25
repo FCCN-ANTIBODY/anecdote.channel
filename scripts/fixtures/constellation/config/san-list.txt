@@ -1,0 +1,4 @@
+# Deliberately does NOT cover *.deep.x.anecdote.channel, so --coverage has something to find.
+anecdote.channel
+*.anecdote.channel
+*.x.anecdote.channel
