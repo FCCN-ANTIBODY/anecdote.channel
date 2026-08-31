@@ -22,6 +22,8 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D6 — Boundary signer public half → environment-sourced.** `keys/boundary.fpr` removed; nothing pins it.
 - **D7 — Bottle self-description.** Signed macro `kind` at inception; live descriptor as self-report; the map is a device-local book, explicit-save; deletion is enumerate-and-destroy.
 - **D8 — Identity arrival.** The keeper vends the *capability*, never the secret; origin-bound at the hello; consent in the keeper's own UI; every vend chronicled.
+- **D9 — The you namespace.** `<label>.you.<apex>`: masks and per-site dossiers, kept BY the user ABOUT the web; reading one is a consented embed anchored on the asker's attested origin (D8 reversed); identity stays the keeper's.
+- **D10 — The bottles engine.** `bottles.<apex>` repo = the minting/signing machinery outlets mount; signatures cover the canonical payload, never the image container; the platform pin endorses outlet keys; receiving/browsing is D7's book, given a face.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -248,6 +250,116 @@ offline origin, the GitHub Secret (`PILE_AGE_IDENTITY`) for the workflow mirror.
 **Consequence.** The keeper page and its op catalog (`pile.read` / `pile.recipient` / `pile.adopt`)
 live on anecdote.channel; the consumer core (`feed-open`/`age-open`, data-pile's `bin/` as source of
 truth) is byte-mirrored into `composer/` under D5 with a drift guard.
+
+---
+
+## D9 · The you namespace — masks, and the dossier a user keeps about the web
+*Status: accepted 2026-08-31*
+
+**Context.** A user-account system has now been designed or built separately for two operator sites
+outside this repo, and a third was about to start. Meanwhile D8 already fixed where identity lives
+(the keeper) and D4 fixed the namespace grammar. Missing was the *user-side* namespace: where a user
+keeps profiles — records kept **by** the user **about** any site on the web — without that site
+knowing, and how a site that wants to read one is allowed to ask.
+
+**Decision.** A provisioned storage subdomain **`you.anecdote.channel`** (spelled out, never `u`),
+carrying the D4 grammar `<label>.you.<apex>`:
+
+- **A single invented label is a MASK** — a persona surface the user curates and can switch at will.
+  Recognizable the way a bottle is recognizable: one wildcard label, its own hermetic origin, and
+  always findable-by-construction — if an account surface exists, it is on a routable DNS name, never
+  behind navigation or cookie machinery.
+- **A label that is a registrable domain, kept intact left-to-right** (`example.com.you.<apex>`), is
+  the user's **DOSSIER about that site**: notes, drafts, cached finds, unreleased posts — out of
+  band, on an address that never pings the subject. The familiar reading order is the point: the
+  observant see exactly what happened, and that it is safe.
+- **A label that is a bare TLD** (`com.you.<apex>`) is a mask over everything under that TLD — and it
+  is also the **certificate seam**. A TLS wildcard covers exactly one label (`config/san-list.txt`),
+  so `*.com.you.<apex>` is the single SAN entry that makes every `<domain>.com.you.<apex>` servable.
+  TLD wildcards are demand-driven like every other wildcard in the SAN list: minted when occupied,
+  never speculatively.
+- **Depth stops at the registrable domain.** Covering `blog.example.com.you.<apex>` would take a
+  wildcard per subject domain — unbounded, against the 50-host pack cap. Anything deeper is a path
+  inside the dossier origin, never more DNS. (Rewriting deep names onto paths of one shared host was
+  considered and rejected: TLS terminates before any rewrite runs, and collapsing profiles onto one
+  origin destroys the very thing D8 authorizes against — a path is not an origin.)
+
+**Identity here is D8, not a new system.** A mask origin is a wildcard-served dumb shell holding no
+credential; the keeper vends capability. The passkey remains the gesture gate over the device's
+Ed25519 identity and is **never presented** to anyone. Scope is a configuration, not code: WebAuthn
+rpId may be the mask's full host (per-mask isolation) or a shared suffix (one identity across masks)
+— `composer/gesture.mjs` already parameterizes it. Derived per-context secrets come from the
+credential's PRF extension, not from moving the key.
+
+**Reading a mask is a consented embed, on our terms.** No site can *address* a mask — it does not
+know the label; only the user's outer tooling does. The user places a mask in an **active slot**; a
+consenting site reads it by embedding our surface (the clean-room/probe posture), and at the hello
+the browser attests *their* `event.origin` to us — D8's name-is-a-key anchor, reversed: the
+capability "the dossier about X" is offered **only to the origin whose name is on it**. Each mask
+serves its own CSP, so `frame-ancestors` is the user's per-mask allow/deny list of who may even ask.
+Anything revealed from a dossier is a forward-only disclosure act (the D7 `prove` posture) and
+carries the user's license at the point of delivery.
+
+**Posting inverts.** A "post" lands first in the user's own canonical store; the site learns of it
+only when the user marks it discoverable, and reads it through the embed above. Conventions for where
+released things live (`posts.yaml`, or whatever the ecosystem settles on) stay **emergent and
+user-side** — D7's no-enum stance again: providers read where users publish; they do not dictate
+schema, and a user who keeps things on an unadvertised label has published nothing that can be asked
+for.
+
+**The machinery is an engine.** The same you-engine that serves this namespace can be mounted by an
+outside site to serve `you.<their-domain>` — a real account system on their own registrable domain,
+passkeys under their own rpId, joining the convention with `you` leftmost. Designed blind to its
+consumers: capability, never customer.
+
+**Why.** One account system instead of three; profiles that cannot be hidden from their owner or
+discovered by their subject; the subject site controls nothing (D8); and the trust story reuses
+decisions already paid for rather than minting new ones.
+
+---
+
+## D10 · The bottles engine — minting, signing, and the outlet chain
+*Status: accepted 2026-08-31*
+
+**Context.** The bottle's carried form has settled: a stacked, zero-delay-frame QR animation at
+unscannable scale — the capsule. Kept as received, it is the proof of the original; only a fresh edit
+regenerates it. Outlets outside the constellation are preparing to distribute bottles of ejected
+pieces from marketplace-shaped hosts (`bottles.<their-domain>`), and need the minting machinery
+without hand-rolling it. Until now `bottles.anecdote.channel` existed only as the D4 DNS fact, and
+the receiving side of bottle life (naming, remembering, browsing) had no code home.
+
+**Decision.**
+1. **The repo `bottles.anecdote.channel` becomes the bottles ENGINE**, owning the domain's fact the
+   way `tell.anecdote.channel` owns `*.tell`. It is build machinery in the journal-engine mold —
+   workflows and composite actions a distributor repo mounts to mint, sign, and publish bottles —
+   kept as a declarative pipeline the offline origin can read and mirror. This is the CI layer only:
+   **runtime client code still travels solely as the D2 glove.** The engine never becomes a second
+   path for delivering executable code, or D3's trust seam forks.
+2. **The signature covers the canonicalized PAYLOAD, never the image container** (invariant #7:
+   `defaultHash(canonicalize(signed))`). The frame stack — WebP, PNG, or GIF, deliberately still
+   open — is presentation; image encoders are not deterministic across tools, so a container-byte
+   signature would break on any transcode. The received container keeps its own content-id, and
+   *that* is what "unedited since I got it" means. Authorship survives re-encoding; the capsule stays
+   load-bearing proof; the format choice stays free.
+3. **An OUTLET signs its own bottles with its own key; the platform pin ENDORSES the outlet key.**
+   The endorsement is a platform-signed statement of the outlet's public half (allowed-signers shape
+   — invariant #8, no new cryptography), and it is committable because it is signed *content*, not
+   identity configuration; every private key stays in its holder's environment per D1 (device trove /
+   Actions Secret). **An unendorsed outlet is a metadata signal, not a failure** — someone else's
+   net; verify-from-anyone, trust decides action, not admission (invariant #2). D3 is not
+   superseded: the pin remains the one root; endorsement is how it scales past first-party signing.
+4. **Receiving and naming is D7's book, and the engine gives it a face.** No registry, and no label
+   prompt fired mid-catch: a received bottle is saved into the device's own bottle-book under the
+   receiver's label, while its origin and charter ride in its own attestation (`bottle-attest`,
+   signed kind) — collisions are impossible by construction, and "what is this?" is answerable
+   before trusting it. The browsing surface for the bottle system lives with this engine and reads
+   the book over the probe (`bottles.list` / `bottles.save` / `bottles.forget`) — the "system
+   browser" job, done by the method D7 already ratified instead of a parallel tracker.
+
+**Why.** Outlets get batteries-included distribution with the trust seam in the right place —
+endorse keys, not hosts — while the capsule's proof property and the no-registry stance survive
+contact with a marketplace. The last unowned layer of bottle life gets a home consistent with every
+prior decision.
 
 ---
 
