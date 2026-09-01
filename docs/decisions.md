@@ -24,6 +24,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D8 — Identity arrival.** The keeper vends the *capability*, never the secret; origin-bound at the hello; consent in the keeper's own UI; every vend chronicled.
 - **D9 — The you namespace.** `<label>.you.<apex>`: masks and per-site dossiers, kept BY the user ABOUT the web; reading one is a consented embed anchored on the asker's attested origin (D8 reversed); identity stays the keeper's.
 - **D10 — The bottles engine.** `bottles.<apex>` repo = the minting/signing machinery outlets mount; signatures cover the canonical payload, never the image container; the platform pin endorses outlet keys; receiving/browsing is D7's book, given a face.
+- **D11 — The bottle storefront and intake.** A distributed bottle is an inert capsule at a flat path, trusted by signature not origin; a live bottle stays a D4 wildcard origin. Canonical takes in, mounted outlets give out. An embed is scoped to a named bottle — never the shelf.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -316,6 +317,29 @@ consumers: capability, never customer.
 discovered by their subject; the subject site controls nothing (D8); and the trust story reuses
 decisions already paid for rather than minting new ones.
 
+**Amendment 2026-09-01 — two implementation constraints found after acceptance.** Neither changes the
+decision; both change what has to be built before it works.
+
+1. **A `you` mount is a different origin, and every `'self'` in a mounting site's CSP refuses it — in
+   both directions.** `'self'` does not cover subdomains. A node whose policy is written in `'self'`
+   terms will refuse the mount silently, which is the worst way to find out. Relatedly, a declared
+   directive does **not** fall back to `default-src`: a policy naming `frame-src` without `'self'`
+   cannot frame its own documents either. Both want one deliberate policy decision per mounting site
+   rather than a directive edited per symptom.
+2. **The label freedom sits on top of exactly one RP ID decision.** Masks are free-form, plural and
+   disposable; the WebAuthn RP ID beneath them is single, and can only be the origin or a registrable
+   parent. That one choice decides where an account works at all — including whether a signing gesture
+   performed at the node origin is the same identity as one performed at the mount. Settle it before
+   the label design hardens; it is not a detail that follows from the naming.
+
+**Discovery without decorating DNS has a precedent already shipped.** A sibling operator site serves
+`docs/.well-known/manifest.json` with a detached `manifest.sig`: a signed document at a well-known
+path that names DNS as a *candidate* rather than carrying configuration in DNS records, templated
+per-mount from the site's own canonical name. That is the shape the `you` mount should advertise
+itself in — signed-document discovery, the same primitive D10's endorsement chain already uses, and
+no new cryptography (invariant #8). The civic node currently being prototyped against serves no
+`.well-known` path at all, so that is a prerequisite there, not an assumption.
+
 ---
 
 ## D10 · The bottles engine — minting, signing, and the outlet chain
@@ -360,6 +384,85 @@ the receiving side of bottle life (naming, remembering, browsing) had no code ho
 endorse keys, not hosts — while the capsule's proof property and the no-registry stance survive
 contact with a marketplace. The last unowned layer of bottle life gets a home consistent with every
 prior decision.
+
+---
+
+## D11 · The bottle storefront and intake — the capsule travels, the shelf never enumerates
+*Status: accepted 2026-09-01 (refines D10; does not supersede D4)*
+
+**Context.** D10 settled minting and signing. What it left open was the *interface*: how an outlet
+serves the bottles it distributes, and what happens on the receiving device when one arrives. The
+storefront the operator wants is a flat list of downloadable labels — "this is what it means to be a
+website, because I can give you stuff" — which does not look like D4's wildcard-per-origin grammar at
+all. Reconciling the two is the work here.
+
+**Decision — a bottle has TWO forms, and only one of them needs an origin.**
+
+1. **A LIVE bottle is a D4 origin.** `<label>.<storage>.<apex>`, iframed, running a probe, vending ops
+   behind the consent gate (`git-enough/bottle.mjs`). Hermetic because it *executes*. Unchanged.
+2. **A DISTRIBUTED bottle is an inert CAPSULE at a flat path.** A mounted outlet serves
+   `bottles.<their-domain>/<label>` — no file extension, the label is the whole address, and what sits
+   there is the zero-delay QR frame stack (a folder may back it; only the label is public API). Nothing
+   executes, so nothing needs isolating: **trust rides on the signature, not on the origin** — which is
+   precisely what D10 bought by signing the canonicalized payload rather than the container. The
+   capsule can therefore travel through an untrusted storefront and still be verifiable on arrival.
+   The engine's default shape is a `bottles/` folder that deploys to that subdomain; an outlet is free
+   to make it a project of its own instead.
+
+   This does **not** loosen D4. D4's wildcard exists to isolate origins that *run code*; a storefront
+   is a directory of downloads. Two grammars because there are two jobs — and the only bridge between
+   them is a signature, which is the property that makes the bridge safe.
+
+**Canonical and mounted are asymmetric.** `bottles.anecdote.channel` is the intake — where a scanned
+capsule lands, where a long import shows progress, where the device's collection lives. A mounted
+outlet is the outgoing storefront. Same engine, opposite direction; the canonical instance is not
+merely the first customer.
+
+**Getting started is a vanilla control QR** — a standard, unsigned code pointing at
+`bottles.anecdote.channel`, carrying no more than the address it needs to. It bootstraps a device that
+has nothing yet; it is not a trust anchor and must never be read as one.
+
+**An embed is scoped to a NAMED bottle. The shelf is never enumerable.** External embedding is already
+the bottle pattern (`git-enough/bottle.mjs`: "a tool iframes the bottle... and talks to its probe"), so
+an outlet asking to embed is not new. What *would* be new — and is refused here — is embedding the
+**collection**: `bottle-uri.mjs` already states the rule for the floor's adapters, that a surface
+"never ENUMERATES... (that would solicit 'which apps do you have' — a leak); it only answers 'give me
+THIS one'." The same rule governs the shelf. An outlet embeds to ask after **the bottle it already
+named**; it never receives, and cannot probe for, the set of bottles the device holds. The asking
+origin is attested at the hello and the embed is visible (D8), so a silent frame cannot stand in for
+consent. Referral context is therefore a *consequence* of the outlet naming its own bottle, not an
+extra disclosure the user makes.
+
+**Name collision on intake is resolved by a REF, and it taints the name, not the artifact.** Labels are
+free-form and distributors are strangers, so two bottles may arrive under one name. Because a bottle's
+store is a git repo and `git-enough` already carries arbitrary refs (`fastForward`, per-ref commit),
+the second arrival lands on a **new branch** rather than overwriting or being refused — which also
+covers the benign case, a new version of the same bottle. The name is thereby marked as no longer
+single-provenance, deliberately: it is one repo, and that is visible. Each capsule keeps its own
+content-id and signature on its own ref, so **what the collision costs is the name's cleanliness, never
+any artifact's proof.** The receiver may instead take a shallow copy or choose a different label. No
+registry is consulted, and none is created (D7).
+
+**Cold storage is a real limit, stated rather than assumed.** Large bottles must be able to leave hot
+storage for the device's own filesystem, reachable again only if the operator hands back a handle. That
+model — a persisted directory handle — is **Chromium-desktop only**; Safari and iOS have the
+origin-private filesystem (already anticipated as the `/storage/.opfs` facet) but no re-openable handle
+to user-visible storage. On those platforms the honest degraded path is a one-way export the operator
+re-imports by picking the file again. Design the eviction gesture so the handle is an optimization, not
+a precondition; verify current platform support before this becomes load-bearing.
+
+**Consequence — three concrete gaps this opens in existing code, none fixed here.**
+`composer/bottle-book.mjs` keys entries by a host matched against `/^<label>\.<storage>$/` — exactly
+two labels — and `composer/bottle-uri.mjs` hardcodes `APEX`. Neither can express a bottle held at a
+third-party outlet, so mounting the engine elsewhere requires admitting a foreign apex in both. And
+`isSlug` permits `storage` as a label, which would let a storefront path shadow the
+`/storage/.<adapter>` load condition; it should be reserved.
+
+**Why.** The storefront the operator wants and the isolation D4 requires turn out not to be in tension
+once the capsule is understood as an artifact rather than an address — and the signature D10 already
+put on the payload is what lets it cross. Meanwhile the two instincts that felt like open questions
+(squeamishness about being iframed; worry about naming collisions) were both already answered by rules
+this constellation had written down for other reasons.
 
 ---
 
