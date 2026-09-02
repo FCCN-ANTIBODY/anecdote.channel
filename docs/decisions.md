@@ -367,6 +367,14 @@ facts — whether it is live, at what label depth, under which RP ID — ride in
 **Correction of consequence:** the first amendment called a `.well-known` path "a prerequisite" for
 the civic node. It is not a prerequisite, because it is not the mechanism. Nothing is owed there.
 
+**The general lesson, since this cost two passes to catch.** *Repository presence is not deployment.*
+Existence, serving, and authority are three separate claims, and the superseded paragraph collapsed
+the first into the second: a file read out of a git remote is evidence that someone wrote it, and
+nothing else. For a constellation whose whole idiom is signed documents verified by the reader,
+"does anything serve this?" is the **first** question to ask of an artifact offered as precedent,
+not a later one — and when an artifact is handed between parties as evidence, whether it is
+*reachable* belongs in the handoff alongside what it contains.
+
 ---
 
 ## D10 · The bottles engine — minting, signing, and the outlet chain
