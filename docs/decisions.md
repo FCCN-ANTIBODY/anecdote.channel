@@ -25,6 +25,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D9 — The you namespace.** `<label>.you.<apex>`: masks and per-site dossiers, kept BY the user ABOUT the web; reading one is a consented embed anchored on the asker's attested origin (D8 reversed); identity stays the keeper's.
 - **D10 — The bottles engine.** `bottles.<apex>` repo = the minting/signing machinery outlets mount; signatures cover the canonical payload, never the image container; the platform pin endorses outlet keys; receiving/browsing is D7's book, given a face.
 - **D11 — The bottle storefront and intake.** A distributed bottle is an inert capsule at a flat path, trusted by signature not origin; a live bottle stays a D4 wildcard origin. Canonical takes in, mounted outlets give out. An embed is scoped to a named bottle — never the shelf.
+- **D12 — One RP ID, at the you keeper.** The keeper moves to `you.<apex>`; masks are PRF-derived from one credential, so they are unlinkable by observation and linkable by proof.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -330,7 +331,8 @@ decision; both change what has to be built before it works.
    disposable; the WebAuthn RP ID beneath them is single, and can only be the origin or a registrable
    parent. That one choice decides where an account works at all — including whether a signing gesture
    performed at the node origin is the same identity as one performed at the mount. Settle it before
-   the label design hardens; it is not a detail that follows from the naming.
+   the label design hardens; it is not a detail that follows from the naming. **Resolved by D12
+   (2026-09-02): one RP ID, at a keeper that moves to `you.<apex>`, with masks PRF-derived.**
 
 **~~Discovery without decorating DNS has a precedent already shipped.~~** *Superseded 2026-09-01 —
 see the second amendment below.* The claim was that a sibling operator site's
@@ -498,6 +500,61 @@ once the capsule is understood as an artifact rather than an address — and the
 put on the payload is what lets it cross. Meanwhile the two instincts that felt like open questions
 (squeamishness about being iframed; worry about naming collisions) were both already answered by rules
 this constellation had written down for other reasons.
+
+---
+
+## D12 · One RP ID, and the keeper moves to `you`
+*Status: accepted 2026-09-02 (resolves the RP ID question left open by D9's first amendment)*
+
+**Context.** D9's amendment recorded that the free-form mask design rests on a single WebAuthn RP ID
+choice and left it open. The apparent question was "one RP ID or one per mask." That framing was
+wrong, and saying why is the decision.
+
+**A per-mask RP ID is not available.** Under D8 a mask is a wildcard-served dumb shell that holds no
+credential, and the consent ceremony runs in the keeper's own UI — the click the room "cannot paint
+or fake." `composer/gesture.mjs` says the same: it "lives in the Elevated page (WebAuthn needs a real
+secure-context origin)." An RP ID must be the ceremony origin's host or a registrable suffix of it,
+so if the ceremony runs at the keeper, the RP ID *is* the keeper's host. Giving each mask its own
+would mean each mask origin running its own ceremony and holding its own credential, which
+contradicts D8 directly. **There is one RP ID, and it follows from where the keeper sits.**
+
+**Decision: the keeper moves to `you.<apex>`, and that is the RP ID.** D8 put it at the apex, which
+would make the credential assertable from *every* subdomain in the constellation — pile floors,
+bottles, everything. That is authority nobody asked for: the identity is used overwhelmingly in
+you-space, and a credential a bottle origin could assert is a blast radius with no corresponding
+benefit. Scoping it to `you.<apex>` costs the keeper's relocation and buys a credential that cannot
+be asserted outside the namespace it serves. D1's "identity lives in the environment" is unchanged —
+only which origin *is* that environment moves. **Supersedes D8 on the keeper's location only;** every
+other part of D8 (capability not secret, origin-bound at the hello, consent in the keeper's own UI,
+every vend chronicled) stands as written.
+
+**Masks are DERIVED, not separately enrolled.** One credential; per-mask secrets come from the
+WebAuthn PRF extension with the mask as the salt — already named in `gesture.mjs` as the intended
+follow-on ("derive an at-rest wrap key from the passkey (WebAuthn PRF)"), here promoted from a
+hardening note to the mechanism masks are built on.
+
+This is what makes the operator's stated requirement achievable at all: derived masks are
+**unlinkable by observation and linkable by proof.** Distinct public keys, nothing correlating them,
+until the holder chooses to demonstrate the derivation — sameness as a deliberate act rather than a
+property leaking out of the system. Independently enrolled per-mask keys would give unlinkability
+and then *no way to prove sameness*, which is the thing handles used to do badly and which this
+system's whole posture is built to replace.
+
+**Where a mask key lives: nowhere, until asked for.** It is recomputed from the gesture plus the
+salt, so it is never at rest. If one is ever cached it belongs in the keeper's trove, namespaced by
+mask, never in the mask origin — which is also forced rather than chosen, since IndexedDB is
+origin-scoped with no suffix rule and a key written at a mask origin would be stranded there.
+
+**The cost, and the escape hatch.** Derivation means one root compromises every mask. A mask that
+must survive the root being compelled cannot be derived: it is a **separately enrolled credential**
+— same RP ID, same keeper, simply not derived from the root. It cannot prove sameness with the
+others, and that is precisely its value; it is the deniable one. Plural credentials under one RP ID
+is already supported (`credId` / `allowCredentials`), so the hatch needs no new namespace.
+
+**Decide-once-ness is why this is recorded now.** An RP ID is baked into a credential at creation and
+cannot be changed; migrating means re-enrolling every holder. There are no `enrollGesture` call sites
+in the repo today, so the cost of this decision is currently zero and rises with the first real
+enrollment.
 
 ---
 
