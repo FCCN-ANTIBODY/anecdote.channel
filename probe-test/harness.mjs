@@ -43,8 +43,31 @@ const CANDIDATES = [
   "chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "chrome",
 ];
 
-// The Chromium to drive: $CHROMIUM wins (an explicit path), then well-known names on PATH. Returns
-// null when the environment has none — the caller's cue to skip, never to fail.
+// macOS installs browsers as app bundles and puts NOTHING on PATH, so the PATH sweep above finds
+// nothing on the machine most of this work happens on — every UI suite "skipped", green, forever.
+// These are checked after PATH so a Linux/CI box still wins on its own terms.
+//
+// ORDER IS BY WHETHER THE THING ACTUALLY DRIVES CDP, not by preference. Measured 2026-09-02:
+//   Chromium, Chrome      work.
+//   Brave                 same engine, untested here — ahead of the two known-bad ones on that basis.
+//   Edge                  LAUNCHES AND CRASHES immediately (mach_o crash-handler noise, then exit).
+//   Arc                   reaches "DevTools listening" and then never completes a navigation —
+//                         its custom shell swallows the load, so the harness times out rather than
+//                         failing fast. Last on purpose: a browser that hangs is worse than none.
+// Arc and Edge are listed anyway so the skip message can say what was found and rejected instead of
+// leaving someone to rediscover this. If you have only those two, install a real Chromium.
+const MAC_BUNDLES = [
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+  "/Applications/Arc.app/Contents/MacOS/Arc",
+];
+
+// The Chromium to drive: $CHROMIUM wins (an explicit path), then well-known names on PATH, then the
+// macOS app bundles. Returns null when the environment has none — the caller's cue to skip, never
+// to fail. $CHROMIUM is still the override for anything unusual, including a browser listed here as
+// known-bad: this function chooses a default, it does not police the choice.
 export function findChromium(env = process.env) {
   if (env.CHROMIUM && existsSync(env.CHROMIUM)) return env.CHROMIUM;
   for (const name of CANDIDATES) {
@@ -53,7 +76,16 @@ export function findChromium(env = process.env) {
       if (p) return p;
     } catch { /* not on PATH — next candidate */ }
   }
+  for (const p of MAC_BUNDLES) if (existsSync(p)) return p;
   return null;
+}
+
+// What a suite prints when findChromium() came back null. Names what was looked for, so "skipped"
+// is a diagnosis rather than a shrug — the old message left you to guess whether the browser was
+// missing, misnamed, or on a path nobody searched.
+export function noBrowserReason() {
+  return "no browser found — searched $CHROMIUM, then " + CANDIDATES.join("/") + " on PATH, then "
+    + MAC_BUNDLES.length + " macOS app bundles. Set CHROMIUM=/path/to/chrome to point at one.";
 }
 
 // ---- the multi-origin server ---------------------------------------------------------------------
