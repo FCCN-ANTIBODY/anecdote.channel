@@ -70,7 +70,7 @@
   /* The content keeps the full gutter. Headers reach OUT of it to the left; nothing pushes the
      names inward, because column width is the one thing here worth spending. */
   /* The one knob for how thick the black is. */
-  :root { --hdr-h: .5rem; }
+  :root { --hdr-h: .5rem; --rule-cat: clamp(10px, calc(var(--gutter) - 26px), 70px); }
 
   /* THE HEADER WRAPPER OWNS THE BOX.
      .hdr sets the height — one number, every level, so every black box is the same height.
@@ -86,11 +86,21 @@
   /* THE BLACK LIVES ENTIRELY IN THE GUTTER AND NEVER LEAVES IT. A header's text lands at most
      on the content line, never past it — these hang LEFT of the content, they do not indent into
      it. So the widest a border may be is the gutter itself, less the padding. */
+  /* The category rule GROWS WITH THE GUTTER, because it lives in it. Derived from --gutter rather
+     than given its own breakpoints, so the invariant above holds by construction at every width:
+     the bar is always the gutter less 26px, which is always less than the gutter less the .5rem
+     padding, so it can never reach the content line no matter how the gutter is retuned.
+     Stays stubby at 10px through mobile and small tablet (gutter <= 36px, i.e. up to ~720px wide),
+     then opens out — ~46px on a 1440px laptop, reaching its 70px ceiling exactly as the gutter
+     tops out. Same clamp() idiom as the type scale, so the page still changes uniformly. */
   .hdr-1 { border-left: 4px solid var(--ink); margin-bottom: var(--space-5); }
-  .hdr-2 { border-left: 10px solid var(--ink); }
+  .hdr-2 { border-left: var(--rule-cat) solid var(--ink); }
   .hdr > * { margin: 0; }
 
-  #directory { padding: var(--space-7) var(--gutter) var(--space-9); max-width: var(--measure); }
+  /* No max-width. --measure is 64ch, a READING width for mono body text, and this is a directory
+     listing set in display serif — a long site name wrapped early against a prose measure while
+     the desktop viewport sat half empty. The gutter already holds the page off the edge. */
+  #directory { padding: var(--space-7) var(--gutter) var(--space-9); }
   #directory[hidden] { display: none; }
 
   /* A city is a divider and a quiet label, not a headline. It was set in the display serif at
