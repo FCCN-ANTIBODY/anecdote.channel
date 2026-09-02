@@ -332,13 +332,48 @@ decision; both change what has to be built before it works.
    performed at the node origin is the same identity as one performed at the mount. Settle it before
    the label design hardens; it is not a detail that follows from the naming.
 
-**Discovery without decorating DNS has a precedent already shipped.** A sibling operator site serves
-`docs/.well-known/manifest.json` with a detached `manifest.sig`: a signed document at a well-known
-path that names DNS as a *candidate* rather than carrying configuration in DNS records, templated
-per-mount from the site's own canonical name. That is the shape the `you` mount should advertise
-itself in — signed-document discovery, the same primitive D10's endorsement chain already uses, and
-no new cryptography (invariant #8). The civic node currently being prototyped against serves no
-`.well-known` path at all, so that is a prerequisite there, not an assumption.
+**~~Discovery without decorating DNS has a precedent already shipped.~~** *Superseded 2026-09-01 —
+see the second amendment below.* The claim was that a sibling operator site's
+`docs/.well-known/manifest.json` + detached `.sig` established `.well-known` as the shape the `you`
+mount should advertise itself in. The artifact exists; the practice does not.
+
+**Second amendment 2026-09-01 — discovery is a portable artifact, not a well-known path.** The
+paragraph above verified that a signed manifest *exists* in a sibling repo and wrongly inferred from
+its existence that it was precedent. Nothing serves it: that host answers no path of its own — every
+request, `.well-known/` included, 301s to the apex — and no node in this constellation serves such a
+path either. A prototype is inspiration, not motion.
+
+`docs/origin.md` already classifies that prototype's seams as embryonic — "Origin is mostly *naming
+and hardening* them, not inventing them" — and names the two that matter here: the **resolver seam**
+(`candidates` as a strategy switch, today only `dns`, where `optical` / `blob-cache` / `peer` slot
+in) and the **verification seam** (`integrity.mjs`, fetching manifest + `.sig` and verifying through
+`crypto.subtle?.`, already anticipating a chamber without `subtle`).
+
+So the correct shape, held as a question rather than a verdict: **the signed self-description is a
+PORTABLE ARTIFACT** — a repo file, a bottle, or HOME-shaped — and **any serving location,
+`.well-known/` included, is only ever a candidate.** That is what the prototype's `candidates.dns`
+was reaching for, generalized. What survives from the superseded paragraph is only the weakest and
+truest part of it: discovery is a *signed document*, verified by the reader, needing no new
+cryptography (invariant #8).
+
+The primitives it must integrate with are the ones already in motion, not a fresh convention:
+`git-enough/seize.mjs`'s signed origin declaration as a repo artifact (`.origin.json`,
+`anecdote.origin/v1`, verified client-side — the host "stays dumb and never has to know the authority
+it cannot see"), the HOME document of `OPEN-QUESTIONS.md` §S, `bottle-attest`'s host-anchored
+self-proof at serve time, and D10's signed install manifest over the probe. The `you` mount's own
+facts — whether it is live, at what label depth, under which RP ID — ride in whatever document the
+**Origin milestone** hardens, rather than in a well-known convention invented ahead of it.
+
+**Correction of consequence:** the first amendment called a `.well-known` path "a prerequisite" for
+the civic node. It is not a prerequisite, because it is not the mechanism. Nothing is owed there.
+
+**The general lesson, since this cost two passes to catch.** *Repository presence is not deployment.*
+Existence, serving, and authority are three separate claims, and the superseded paragraph collapsed
+the first into the second: a file read out of a git remote is evidence that someone wrote it, and
+nothing else. For a constellation whose whole idiom is signed documents verified by the reader,
+"does anything serve this?" is the **first** question to ask of an artifact offered as precedent,
+not a later one — and when an artifact is handed between parties as evidence, whether it is
+*reachable* belongs in the handoff alongside what it contains.
 
 ---
 
