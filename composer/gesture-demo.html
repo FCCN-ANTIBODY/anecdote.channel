@@ -3,25 +3,108 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>the gesture gate</title>
+<style>
+  /* Phone-first on purpose: this page exists to be used on a device, standing up, one-handed.
+     No design system import — it must render if it is the only file that loaded. */
+  :root { color-scheme: light dark; }
+  body { font: 17px/1.5 system-ui, sans-serif; margin: 0; padding: 1.25rem 1.25rem 3rem; max-width: 34rem; }
+  h1 { font-size: 1.25rem; margin: 0 0 .5rem; }
+  p.lede { margin: 0 0 1.25rem; }
+  button { display: block; width: 100%; padding: 1rem; margin: 0 0 .75rem;
+           font: inherit; font-weight: 600; border: 1px solid currentColor;
+           border-radius: .5rem; background: transparent; color: inherit; }
+  button[disabled] { opacity: .4; }
+  .env { font: 13px/1.5 ui-monospace, monospace; padding: .75rem; border: 1px solid;
+         border-radius: .5rem; margin: 0 0 1.25rem; opacity: .85; }
+  .env b { font-weight: 600; }
+  #log { font: 13px/1.45 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word;
+         border-top: 1px solid; padding-top: .75rem; margin-top: 1.25rem; }
+  .ok::before  { content: "PASS  "; font-weight: 700; }
+  .bad::before { content: "FAIL  "; font-weight: 700; }
+</style>
 <body>
-<p>Gesture gate demo — enroll a passkey, then sign only behind a verified user-verification gesture.</p>
+<h1>The gesture gate</h1>
+<p class="lede">Enroll a passkey, then sign only behind a verified user-verification gesture.
+A refused gesture must produce <em>no signature at all</em> — that refusal is the thing being tested.</p>
+
+<div class="env" id="env">checking this device…</div>
+
+<button id="enroll">1 · Enroll a passkey</button>
+<button id="sign" disabled>2 · Sign behind the gesture</button>
+<button id="refuse" disabled>3 · Cancel the prompt on purpose</button>
+
+<div id="log">Ready.</div>
+
 <script type="module">
 import { generateIdentity } from "./sign.mjs";
 import { enrollGesture, gatedAttest, verifyGated } from "./gesture.mjs";
 
+const $ = (id) => document.getElementById(id);
+const log = (msg, cls = "") => {
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  $("log").appendChild(line);
+  line.scrollIntoView({ block: "nearest" });
+};
+
+// WHAT THIS DEVICE CAN ACTUALLY DO, stated before anything is attempted. A phone that cannot do
+// platform user-verification will fail step 1 with a browser error that says nothing useful; this
+// says it up front instead. rpId is shown because it is the one value that decides where a
+// credential works at all, and it cannot be changed after enrolment (decisions.md D12).
+const uvpa = (globalThis.PublicKeyCredential &&
+  await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false)) || false;
+$("env").innerHTML =
+  `<b>origin</b> ${location.origin}<br>` +
+  `<b>rpId</b> ${location.hostname}<br>` +
+  `<b>secure context</b> ${window.isSecureContext ? "yes" : "NO — WebAuthn will refuse"}<br>` +
+  `<b>WebAuthn</b> ${globalThis.PublicKeyCredential ? "present" : "ABSENT"}<br>` +
+  `<b>platform authenticator</b> ${uvpa ? "available" : "NOT available on this device"}`;
+
 // The device identity whose USE we gate (kept for Tell interop; the passkey gates it, doesn't replace it).
 const identity = await generateIdentity();
+let cred = null;
 
-window.G = {
-  enroll: () => enrollGesture({ rpId: location.hostname }),
-  // Attempt a gated signing. Returns the outcome; on a failed gesture it reports the refusal (no signature).
-  trySign: async (cred, obj) => {
-    try {
-      const r = await gatedAttest(obj, identity, cred);
-      const v = await verifyGated(r.signed, { spki: cred.spki, alg: cred.alg, rpId: cred.rpId, origin: cred.origin });
-      return { ok: true, gated: !!r.signed.gesture, verified: v.ok };
-    } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
-  },
+async function trySign(obj) {
+  const r = await gatedAttest(obj, identity, cred);
+  const v = await verifyGated(r.signed, { spki: cred.spki, alg: cred.alg, rpId: cred.rpId, origin: cred.origin });
+  return { gated: !!r.signed.gesture, verified: v.ok };
+}
+
+$("enroll").onclick = async () => {
+  log("\nEnrolling — the OS should prompt for Face ID / Touch ID / a PIN.");
+  try {
+    cred = await enrollGesture({ rpId: location.hostname });
+    log(`enrolled  credId=${cred.credId.slice(0, 16)}…  alg=${cred.alg}`, "ok");
+    log(`rpId=${cred.rpId}  origin=${cred.origin}`);
+    $("sign").disabled = $("refuse").disabled = false;
+  } catch (e) {
+    log(`enrol did not complete: ${e && e.message || e}`, "bad");
+  }
 };
+
+$("sign").onclick = async () => {
+  log("\nSigning — approve the prompt this time.");
+  try {
+    const { gated, verified } = await trySign({ hello: "device test", at: new Date().toISOString() });
+    log(`signed  gesture folded in: ${gated}  verifies: ${verified}`, gated && verified ? "ok" : "bad");
+  } catch (e) {
+    log(`no signature produced: ${e && e.message || e}`, "bad");
+  }
+};
+
+// The interesting half. A cancelled gesture must yield NOTHING — not an ungated signature.
+$("refuse").onclick = async () => {
+  log("\nSigning — now DISMISS the prompt without approving.");
+  try {
+    const { gated, verified } = await trySign({ hello: "refusal test", at: new Date().toISOString() });
+    log(`a signature was produced anyway (gated=${gated} verified=${verified}) — the gate did not hold`, "bad");
+  } catch (e) {
+    log(`refused, and no signature exists: ${e && e.message || e}`, "ok");
+  }
+};
+
+// Kept for anything driving this page programmatically rather than by hand.
+window.G = { enroll: () => enrollGesture({ rpId: location.hostname }), trySign };
 window.__ready = true;
 </script>
