@@ -18,7 +18,12 @@ set -uo pipefail
 
 DRY="${DRYRUN:-}"
 if [ -z "$DRY" ] && { [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ZONE_ID:-}" ]; }; then
-  echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ZONE_ID not set — skipping cache purge"
+  # Name what is missing, not just that something is. A silent no-op here is indistinguishable
+  # from a working purge, and looks exactly like a site that will not refresh.
+  miss=""
+  [ -z "${CLOUDFLARE_API_TOKEN:-}" ] && miss="CLOUDFLARE_API_TOKEN"
+  [ -z "${CLOUDFLARE_ZONE_ID:-}" ] && miss="${miss:+$miss and }CLOUDFLARE_ZONE_ID (as a repo Variable or Secret)"
+  echo "::warning title=Cache not purged::$miss not set — skipping cache purge, so Cloudflare will keep serving the previous bytes"
   exit 0
 fi
 
