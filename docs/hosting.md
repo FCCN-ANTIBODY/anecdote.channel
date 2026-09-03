@@ -38,6 +38,29 @@ SITES_TOKEN_<OWNER>          per-owner override, for a private repo
 
 On GitHub Actions this came free as `github.token`. Anywhere else it has to be supplied.
 
+## Credentials, and why there are two Cloudflare tokens
+
+**One token, one job.** They are deliberately not merged, and they are deliberately scoped
+differently, because they answer to different things.
+
+| name | scope | permission | used by |
+| --- | --- | --- | --- |
+| `CLOUDFLARE_API_TOKEN` | **org** secret | Account → Cloudflare Pages → Edit | deploying this site |
+| `CLOUDFLARE_ACCOUNT_ID` | **org** secret | (not a token — the account id) | deploying this site |
+| `CLOUDFLARE_ACM_TOKEN` | **repo** secret | Zone → SSL and Certificates → Edit | `acm-sync.yml` only |
+| `CLOUDFLARE_PAGES_PROJECT` | **repo** variable | `anecdote` | deploying this site |
+| `CLOUDFLARE_ZONE_ID` | variable | (not a token) | `acm-sync.yml` only |
+
+Publishing is a thing every site in the account does the same way, so its credential belongs to the
+account. Reconciling *this zone's* certificate is peculiar to this repository, so its credential
+belongs here — which is also the smaller blast radius: a leaked deploy token publishes a site, a
+leaked certificate token can reissue TLS.
+
+**They must not share a name.** A repository secret silently SHADOWS an organisation secret of the
+same name, so one called `CLOUDFLARE_API_TOKEN` in both places would hand the SSL token to the
+deploy and fail with an authentication error that names neither. That has already happened once here
+with a zone id under two names; this is the same failure wearing a different hat.
+
 ## History
 
 This was published by a GitHub Actions workflow to GitHub Pages, fronted by Cloudflare as a cache.

@@ -23,7 +23,7 @@
 #   * Stale packs are deleted only after the new pack is verified active.
 #
 # Required environment:
-#   CLOUDFLARE_API_TOKEN   zone-scoped token: SSL and Certificates:Edit + Zone:Read
+#   CLOUDFLARE_ACM_TOKEN   zone-scoped token: SSL and Certificates:Edit + Zone:Read
 #   CLOUDFLARE_ZONE_ID             the zone id for anecdote.channel
 #
 # Usage:
@@ -57,7 +57,7 @@ log() { echo "+ $*" >&2; }
 
 command -v jq   >/dev/null || die "jq is required"
 command -v curl >/dev/null || die "curl is required"
-[[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "CLOUDFLARE_API_TOKEN is not set"
+[[ -n "${CLOUDFLARE_ACM_TOKEN:-}" ]] || die "CLOUDFLARE_ACM_TOKEN is not set"
 [[ -n "${CLOUDFLARE_ZONE_ID:-}" ]]           || die "CLOUDFLARE_ZONE_ID is not set"
 [[ -f "$CONFIG" ]]                   || die "config not found: $CONFIG"
 
@@ -68,12 +68,12 @@ cf() {
   local method="$1" path="$2" body="${3:-}" resp
   if [[ -n "$body" ]]; then
     resp=$(curl -sS -X "$method" "${API}${path}" \
-      -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+      -H "Authorization: Bearer ${CLOUDFLARE_ACM_TOKEN}" \
       -H "Content-Type: application/json" \
       --data "$body")
   else
     resp=$(curl -sS -X "$method" "${API}${path}" \
-      -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+      -H "Authorization: Bearer ${CLOUDFLARE_ACM_TOKEN}")
   fi
   if [[ "$(jq -r '.success' <<<"$resp")" != "true" ]]; then
     echo "Cloudflare API error on ${method} ${path}:" >&2
