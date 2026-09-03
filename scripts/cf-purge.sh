@@ -31,11 +31,26 @@ api="https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID:-DRYRUN}/pu
 auth=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN:-}" -H "Content-Type: application/json")
 site_url="${SITE_URL:-https://anecdote.channel}"; site_url="${site_url%/}"
 
+
+# ONE CALL, AND IT CHECKS. `curl -fsS ... | jq` looks careful and is not: the pipeline's status is
+# JQ's, so a refused request leaves `set -e` untouched and the job green. That is how a 401 sat in
+# the log under a passing run — the same shape as the missing zone id it was hiding behind.
+cf_purge_call() { # $1 = json body
+  local out code
+  out="$(curl -sS -w $'\n%{http_code}' "${auth[@]}" "$api" --data "$1" 2>&1)" || true
+  code="${out##*$'\n'}"; out="${out%$'\n'*}"
+  if [ "$code" = "200" ] && printf '%s' "$out" | grep -q '"success":[[:space:]]*true'; then
+    echo "purge: ok"
+    return 0
+  fi
+  echo "::warning title=Cache not purged::Cloudflare refused the purge (HTTP ${code:-no response}) — the deploy is live but the cache still holds the previous bytes. Cloudflare reports a MISSING PERMISSION the same way it reports a bad token — HTTP 401, error 10000 \"Authentication error\" — so check the token has Zone → Cache Purge on this zone before assuming it expired. A token that works for certificate packs (acm-sync) can still be refused here. Response: ${out}"
+  return 1
+}
+
 purge_everything() {
   echo "purge: everything ($1)"
   [ -n "$DRY" ] && return 0
-  curl -fsS "${auth[@]}" "$api" --data '{"purge_everything":true}' \
-    | (jq -r 'if .success then "purge: ok" else "purge FAILED: \(.errors)" end' 2>/dev/null || cat)
+  cf_purge_call '{"purge_everything":true}' || true
 }
 
 purge_files() { # args: absolute urls; Cloudflare accepts up to 30 per request, so batch
@@ -45,8 +60,7 @@ purge_files() { # args: absolute urls; Cloudflare accepts up to 30 per request, 
     echo "purge: ${#batch[@]} url(s)"; printf '  %s\n' "${batch[@]}"
     [ -n "$DRY" ] && continue
     body="$(printf '%s\n' "${batch[@]}" | jq -R . | jq -s '{files: .}')"
-    curl -fsS "${auth[@]}" "$api" --data "$body" \
-      | (jq -r 'if .success then "purge: ok" else "purge FAILED: \(.errors)" end' 2>/dev/null || cat)
+    cf_purge_call "$body" || true
   done
 }
 
