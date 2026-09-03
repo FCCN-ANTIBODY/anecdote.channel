@@ -20,7 +20,7 @@ import { pinDecision, verifyFiles } from "/composer/firmware.mjs";
 // and the network is never consulted — and activate() only deletes caches whose key DIFFERS from
 // VERSION. So editing the shell without bumping the key strands every existing install on the old
 // copy, and no amount of edge purging reaches it: the request never leaves the browser.
-const VERSION = "anecdote-shell-v4";
+const VERSION = "anecdote-shell-v5";
 
 // Fallback shell when NO firmware.json is deployed — pinning is dormant, static precache (slice 1a note:
 // arming the guarantee is opt-in). Same set as before + the firmware verify graph so a signed manifest can
@@ -184,15 +184,40 @@ async function fresh(req) {
   return (await cache.match(req)) || Response.error();
 }
 
+// THE SHELL IS HELD; EVERYTHING ELSE IS ONLY KEPT.
+//
+// Cache-first is the offline guarantee and it is correct — for the SHELL, which is a pinned,
+// versioned artifact that must boot with a dead origin. It was wrong for everything else, because
+// handle() also cached every other successful response and then served it cache-first forever. A
+// demo page fetched once was frozen at that copy on that device: not precached, not versioned, and
+// unreachable by any redeploy or purge, because the request never left the browser again.
+//
+// So the two are separated. A shell path is served from cache and the network is never consulted.
+// Anything else is served network-first and the cached copy is the FALLBACK — you see the current
+// version whenever you are online, and the last one you saw when you are not. Nothing stops being
+// available offline; it stops being frozen.
+const SHELL = new Set(FALLBACK_SHELL);
+const isShell = (req) => {
+  const u = new URL(req.url);
+  if (u.origin !== self.location.origin) return false;
+  return SHELL.has(u.pathname) || (req.mode === "navigate" && SHELL.has(u.pathname.replace(/\/$/, "/index.html")));
+};
+
 async function handle(req) {
   const cache = await caches.open(VERSION);
-  const hit = await cache.match(req, { ignoreSearch: req.mode === "navigate" });
-  if (hit) return hit;
+
+  if (isShell(req)) {
+    const hit = await cache.match(req, { ignoreSearch: req.mode === "navigate" });
+    if (hit) return hit;
+  }
+
   try {
     const res = await fetch(req);
     if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone());
     return res;
   } catch {
+    const hit = await cache.match(req, { ignoreSearch: req.mode === "navigate" });
+    if (hit) return hit;
     if (req.mode === "navigate") return (await cache.match("/poll.html")) || (await cache.match("/index.html")) || Response.error();
     return Response.error();
   }
