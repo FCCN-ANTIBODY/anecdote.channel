@@ -26,6 +26,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D10 — The bottles engine.** `bottles.<apex>` repo = the minting/signing machinery outlets mount; signatures cover the canonical payload, never the image container; the platform pin endorses outlet keys; receiving/browsing is D7's book, given a face.
 - **D11 — The bottle storefront and intake.** A distributed bottle is an inert capsule at a flat path, trusted by signature not origin; a live bottle stays a D4 wildcard origin. Canonical takes in, mounted outlets give out. An embed is scoped to a named bottle — never the shelf.
 - **D12 — One RP ID, at the you keeper.** The keeper moves to `you.<apex>`; masks are PRF-derived from one credential, so they are unlinkable by observation and linkable by proof.
+- **D13 — Edit masks.** A signed diff stencilled over a *content-addressed version* of anything, published by anyone, owed acceptance by no one. Staleness is information; the date labels the witness, the content-id joins.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -555,6 +556,84 @@ is already supported (`credId` / `allowCredentials`), so the hatch needs no new 
 cannot be changed; migrating means re-enrolling every holder. There are no `enrollGesture` call sites
 in the repo today, so the cost of this decision is currently zero and rises with the first real
 enrollment.
+
+---
+
+## D13 · Edit masks — a diff is a way to speak about a document without changing it
+*Status: accepted 2026-09-02 (composes D4, D7, D9, D11; one invariant collision resolved below)*
+
+**Context.** Marking a correction inline is editorialising, and there is no appetite for building a
+fact-checking apparatus. The want is narrower and stranger: to say something *over* a document
+without altering it, to let anyone else do the same, and to owe no one acceptance of what they said.
+
+**Decision. An EDIT MASK is a signed diff against a content-addressed version of a target.** It is
+the annotation layer done as version control rather than as coordinates. Anyone may publish one for
+anything — a piece in this constellation, or any page on the public web. Nothing obliges a reader,
+or the target's author, to apply one.
+
+**It is witness, not judge (invariant #3).** A mask asserts "here is what I would have written over
+the version I witnessed." It does not assert that the target is false, and nothing adjudicates
+between masks. That is also invariant #2 in its usual shape: publishing a mask is *admission* and
+costs nothing; whether a reader applies it is *trust deciding action*.
+
+**Where it lives: the dossier (D9).** A mask is kept in the user's own profile about a site —
+private by construction, domain-scoped, and narrowed by subdomain when one target deserves its own.
+Masks over a whole host and masks over a single author are the same object at different label depth.
+
+**Off-ecosystem targets need your own snapshot, and it is hearsay.** To diff a page nobody here
+hosts you must have witnessed it: a snapshot kept as a **bottle in a pile**, taken on a cadence the
+operator sets rather than on every visit, so ordinary browsing does not silently become an archive.
+Nothing about such a snapshot is trustworthy — the host was not vouched for, then or now. What it
+supports is a strictly weaker and entirely honest claim: *I witnessed these bytes at this time.*
+
+**THE DATE LABELS THE WITNESS; THE CONTENT-ID JOINS (invariant #7).** The temptation, and the thing
+explicitly reconsidered here, is to let the date *be* the version — the Wayback framing, where an
+access time is the identifier. It is rejected as a second scheme. The date is testimony (*when I
+witnessed*) and belongs to the witness; the content-id is identity (*what I witnessed*) and belongs
+to the bytes.
+
+Keeping them apart is what makes third-party masks compose at all. Two strangers who snapshotted the
+same page at different moments hold the same content-id and can discover their masks target the same
+version, without coordinating and without a registry. Under date-as-version they never could — their
+dates differ, so identical bytes would look like different targets. **The invariant is not a tax
+here; it is the feature.**
+
+**Staleness is information, not failure.** A mask stencils one version. When the target moves, the
+mask is *implicitly* out of date, and that is worth displaying rather than hiding: a reader who sees
+a mask against an older version has learned something true about what its author was looking at.
+The resolution is an ordinary three-way merge, and the vocabulary lands on the editorial meaning for
+free — a conflict is a conflict *in what is being reported*, and "this edit no longer applies to the
+current version" is a real finding about a correction's fate. Not knowing whether other versions
+exist is a workflow gap, never an availability failure; treat it as an open question and say so.
+
+**It is not a pull request.** Most masks are made to comment, for friends, or as a joke, and are
+never offered for adoption. Closing one means "I am satisfied", not "you took my patch" — an
+author may address the substance without ever applying the diff.
+
+**A mask may graduate into a piece.** Where the overlay grows until it, and not the target, is the
+work — citing the original only loosely — the artifact has inverted. That inversion should be
+legible rather than surprising, and it is computable: the ratio of the target's own bytes to the
+mask's own is a measurable property of the rendered artifact, so the format flip can be *detected*
+rather than declared.
+
+**Rewrite freedom and ordering integrity live at different layers, and must not be conflated.** The
+cache vault behind a mask is a plain git repository made into a bottle, so it can be squashed,
+force-pushed, purged on a retention cadence, or replaced with a bottle carrying no git at all —
+delivery is the operator's business (D11). None of that weakens ordering, because the guarantee is
+not inside the bottle: the pile is an append-only, hash-linked log **of digests**, so what cannot be
+falsified is *when the pile witnessed each version*. Rewriting a bottle's internal history never
+rewrites that. Retention policy may therefore be as aggressive as an operator likes — including per
+top-level-domain, which is a second job for D9's TLD-level masks — without costing the timeline.
+
+**Why.** Shared-highlighter and web-annotation layers have been attempted repeatedly and failed for
+two reasons this shape does not have: they anchored to positions in a *live* document, so every
+anchor rotted the moment the page changed, and they required a central server to hold the
+annotations. Anchoring to a content-addressed snapshot cannot rot — the version is frozen by
+construction — and the dossier means the annotation was never anyone else's to host. The prior art
+was not wrong to want this; it was the wrong shape for it.
+
+**Open, and deliberately not decided here:** how a mask reaches a reader who did not make it
+(discovery and delivery are undescribed), and where the graduation threshold sits in practice.
 
 ---
 
