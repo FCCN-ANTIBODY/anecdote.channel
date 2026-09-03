@@ -27,6 +27,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D11 — The bottle storefront and intake.** A distributed bottle is an inert capsule at a flat path, trusted by signature not origin; a live bottle stays a D4 wildcard origin. Canonical takes in, mounted outlets give out. An embed is scoped to a named bottle — never the shelf.
 - **D12 — One RP ID, at the you keeper.** The keeper moves to `you.<apex>`; masks are PRF-derived from one credential, so they are unlinkable by observation and linkable by proof.
 - **D13 — Edit masks.** A signed diff stencilled over a *content-addressed version* of anything, published by anyone, owed acceptance by no one. Staleness is information; the date labels the witness, the content-id joins.
+- **D14 — The collector carries.** An anecdote is the primary type and a poll is one with fixed options; the collector holds the replies; transit is the gravel path and a separate concern from collection.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -634,6 +635,58 @@ was not wrong to want this; it was the wrong shape for it.
 
 **Open, and deliberately not decided here:** how a mask reaches a reader who did not make it
 (discovery and delivery are undescribed), and where the graduation threshold sits in practice.
+
+---
+
+## D14 · The collector carries — and transit is not collection
+*Status: accepted 2026-09-04 (retires the submit-gateway springboard; consequences noted, not all built)*
+
+**Context.** Polling was built when routing was unsolved. A QR relayed a respondent to a Tell, which
+read its destination from parameters and submitted on their behalf — opening a pull request with a
+hidden token. It worked, and every property it had was borrowed from DNS: the relay was unreachable
+without it, so the whole path was one transport wearing a product's clothes.
+
+**Decision, in three parts.**
+
+1. **The anecdote is the primary type; a poll is an anecdote with fixed options.** `anecdote/v1` is
+   already the general shape — `{schema, to, label, body:[…]}`, `body[0]` the statement, other parts
+   `ref`s carrying hash and receipt — and `answered`, `ballot` and `atlaspoll` are built on it.
+   Nothing in the schema ever made a poll primary. **A reply to a poll is an anecdote pointing at the
+   poll**, which is what lets a reply live somewhere other than a public queue.
+2. **The collector carries.** A QR shown from a device lands the respondent on the constellation and
+   the offline origin puts the app on *their* phone, at which point they are as capable as the
+   collector. Their reply goes **to the person who asked**. Holding it is the base case, not a
+   fallback.
+3. **Transit is a separate concern, and it is the gravel path.** Getting a held reply somewhere else
+   — to a node, to a pile, to a peer — is transport, and transport is chosen per situation. It is
+   never a property of having asked the question.
+
+**Why the springboard goes.** Two reasons, and the second stands even if DNS never fails.
+- **It was DNS or nothing.** Its only mechanism was a relay you could not reach without resolution.
+  A tool that cannot degrade is not a tool with a bad day; it is a dependency wearing a feature.
+- **Its failure mode was someone else's bill.** It required a worker holding a credential, and a
+  free quota exists to be transgressed — by scale, or by an attacker who understands that scale is
+  the attack. A design whose worst case is a bill is the wrong shape regardless of uptime.
+- It also could not keep its promise: replies landed in public before they were processed, so
+  privacy was never available to offer. That was known and accepted as a bridge; the bridge is done.
+
+**What this costs, stated plainly. Asynchrony.** The springboard's real value was never DNS — it was
+that a respondent could answer *later, from anywhere*, and the reply waited somewhere collectable.
+Optical carry needs co-presence. **The default poll becomes an act between two people who are
+present**, and remote answering becomes a transport question rather than a given. That is a product
+decision, not a cleanup, and it should be made in the open.
+
+**What exists and what does not.** The gravel primitives are built and tested — `fountain.mjs`
+(rateless droplets: reconstruct from any sufficient subset, "loop as many times as a bad camera
+needs"), `carrier.mjs`, `transfer.mjs`, `meet-carrier.mjs`. What `docs/gravel-whale.md` names as
+**not built** is the half this decision leans on hardest: **the receiver as a bottle** — the
+gravel-catcher. Device-to-device carry works today; a *service* catching a stream does not. Until it
+does, "walk it up and show the node a diff" is a plan rather than a path.
+
+**The diff shape is already decided elsewhere.** What travels is a capsule carrying a diff, not a
+snapshot — D11's inert signed capsule, and the fast-forward-bottle direction where a pile ingests
+the change rather than the state. So the *content* of a gravel delivery is settled; only its
+receiver is missing.
 
 ---
 
