@@ -109,8 +109,30 @@ async function checkFirmware() {
   return { mode: d.firstContact ? "pinned" : "rolled-forward", by: d.by, version: d.version };
 }
 
+// PRECACHE HAS TO SURVIVE A REDIRECTING HOST, AND HAS TO SAY WHEN IT DOES NOT.
+//
+// The host serves every `.html` path as a 308 to its extensionless form, so seven of the entries
+// below — /index.html, /poll.html and the four demo pages among them — come back REDIRECTED. Storing
+// a redirected response is at best fragile, and the old `catch {}` would have swallowed a refusal
+// without a sound: the shell would simply have been missing those files the next time the origin
+// was gone, which is the one moment nobody can debug it.
+//
+// So the bytes are re-wrapped into a plain 200 stored under the path the shell actually asks for,
+// which is correct regardless of how the host chooses to spell it, and failures are counted and
+// reported instead of vanishing.
 async function precache(cache, list) {
-  await Promise.all(list.map(async (u) => { try { const r = await fetch(u, { cache: "reload" }); if (r.ok) await cache.put(u, r); } catch {} }));
+  const failed = [];
+  await Promise.all(list.map(async (u) => {
+    try {
+      const r = await fetch(u, { cache: "reload" });
+      if (!r.ok) { failed.push(u + " (HTTP " + r.status + ")"); return; }
+      await cache.put(u, new Response(await r.blob(), { status: 200, headers: r.headers }));
+    } catch (e) {
+      failed.push(u + " (" + ((e && e.message) || e) + ")");
+    }
+  }));
+  if (failed.length) console.warn("sw precache: " + failed.length + "/" + list.length + " shell entries did not cache — the shell is incomplete offline:", failed);
+  return failed;
 }
 
 self.addEventListener("install", (e) => e.waitUntil((async () => {
@@ -213,7 +235,7 @@ async function handle(req) {
 
   try {
     const res = await fetch(req);
-    if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone());
+    if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone()).catch(() => {});
     return res;
   } catch {
     const hit = await cache.match(req, { ignoreSearch: req.mode === "navigate" });
