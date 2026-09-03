@@ -41,7 +41,7 @@ requires extending `scripts/reconcile-acm.sh`.
    Cloudflare DNS.)
 3. **Add repo settings** (Settings → Secrets and variables → Actions):
    - Secret `CLOUDFLARE_API_TOKEN` = the token above
-   - Variable `CF_ZONE_ID` = the zone id (Cloudflare dashboard → zone → Overview)
+   - Variable `CLOUDFLARE_ZONE_ID` = the zone id (Cloudflare dashboard → zone → Overview)
 4. **First run**: trigger the workflow manually with `dry_run = true`, confirm the
    planned order, then run again with `dry_run = false`.
 
@@ -53,10 +53,10 @@ requires extending `scripts/reconcile-acm.sh`.
   normal network — TLS-intercepting networks distort the cert read.
 - **Plan locally:**
   ```sh
-  export CLOUDFLARE_API_TOKEN=...   CF_ZONE_ID=...
+  export CLOUDFLARE_API_TOKEN=...   CLOUDFLARE_ZONE_ID=...
   scripts/reconcile-acm.sh --dry-run
   ```
-- **In Cloudflare:** `GET /zones/$CF_ZONE_ID/ssl/certificate_packs?status=all`
+- **In Cloudflare:** `GET /zones/$CLOUDFLARE_ZONE_ID/ssl/certificate_packs?status=all`
   shows one `advanced` pack whose `hosts` equal the config.
 - **On the wire** (once the host is proxied *and* an origin serves it):
   ```sh

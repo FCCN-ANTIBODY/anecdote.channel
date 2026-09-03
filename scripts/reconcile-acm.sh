@@ -24,7 +24,7 @@
 #
 # Required environment:
 #   CLOUDFLARE_API_TOKEN   zone-scoped token: SSL and Certificates:Edit + Zone:Read
-#   CF_ZONE_ID             the zone id for anecdote.channel
+#   CLOUDFLARE_ZONE_ID             the zone id for anecdote.channel
 #
 # Usage:
 #   scripts/reconcile-acm.sh [--dry-run] [--config PATH]
@@ -58,7 +58,7 @@ log() { echo "+ $*" >&2; }
 command -v jq   >/dev/null || die "jq is required"
 command -v curl >/dev/null || die "curl is required"
 [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "CLOUDFLARE_API_TOKEN is not set"
-[[ -n "${CF_ZONE_ID:-}" ]]           || die "CF_ZONE_ID is not set"
+[[ -n "${CLOUDFLARE_ZONE_ID:-}" ]]           || die "CLOUDFLARE_ZONE_ID is not set"
 [[ -f "$CONFIG" ]]                   || die "config not found: $CONFIG"
 
 # ---- Cloudflare API wrapper -------------------------------------------------
@@ -114,7 +114,7 @@ DESIRED_JSON=$(printf '%s\n' "${HOSTS[@]}" | jq -R . | jq -cs 'sort')
 log "desired hosts (${#HOSTS[@]}): $(jq -rc 'join(", ")' <<<"$DESIRED_JSON")"
 
 # ---- 2. list existing advanced packs ----------------------------------------
-PACKS=$(cf GET "/zones/${CF_ZONE_ID}/ssl/certificate_packs?per_page=50&status=all")
+PACKS=$(cf GET "/zones/${CLOUDFLARE_ZONE_ID}/ssl/certificate_packs?per_page=50&status=all")
 ADV=$(jq -c '[.[] | select(.type == "advanced")]' <<<"$PACKS")
 log "existing advanced packs: $(jq 'length' <<<"$ADV")"
 
@@ -132,7 +132,7 @@ if [[ -n "$MATCH_ID" ]]; then
   fi
   log "in sync (pack ${MATCH_ID}); pruning ${STALE//$'\n'/ } stale advanced pack(s)"
   if [[ $DRY_RUN -eq 1 ]]; then log "[dry-run] would delete: ${STALE//$'\n'/ }"; exit 0; fi
-  while read -r id; do [[ -n "$id" ]] && cf DELETE "/zones/${CF_ZONE_ID}/ssl/certificate_packs/${id}" >/dev/null && log "deleted $id"; done <<<"$STALE"
+  while read -r id; do [[ -n "$id" ]] && cf DELETE "/zones/${CLOUDFLARE_ZONE_ID}/ssl/certificate_packs/${id}" >/dev/null && log "deleted $id"; done <<<"$STALE"
   exit 0
 fi
 
@@ -149,7 +149,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
   exit 0
 fi
 
-NEW=$(cf POST "/zones/${CF_ZONE_ID}/ssl/certificate_packs/order" "$ORDER_BODY")
+NEW=$(cf POST "/zones/${CLOUDFLARE_ZONE_ID}/ssl/certificate_packs/order" "$ORDER_BODY")
 NEW_ID=$(jq -r '.id' <<<"$NEW")
 [[ -n "$NEW_ID" && "$NEW_ID" != "null" ]] || die "order did not return a pack id"
 log "ordered advanced pack ${NEW_ID}; waiting for it to become active"
@@ -157,7 +157,7 @@ log "ordered advanced pack ${NEW_ID}; waiting for it to become active"
 # ---- 5. poll the new pack until active --------------------------------------
 status=""
 for ((i=1; i<=POLL_ATTEMPTS; i++)); do
-  PACK=$(cf GET "/zones/${CF_ZONE_ID}/ssl/certificate_packs/${NEW_ID}")
+  PACK=$(cf GET "/zones/${CLOUDFLARE_ZONE_ID}/ssl/certificate_packs/${NEW_ID}")
   status=$(jq -r '.status' <<<"$PACK")
   log "  attempt ${i}/${POLL_ATTEMPTS}: status=${status}"
   [[ "$status" == "active" ]] && break
@@ -169,7 +169,7 @@ done
 OLD=$(jq -r --arg new "$NEW_ID" '.[] | select(.id != $new) | .id' <<<"$ADV")
 while read -r id; do
   [[ -n "$id" ]] || continue
-  cf DELETE "/zones/${CF_ZONE_ID}/ssl/certificate_packs/${id}" >/dev/null && log "deleted superseded pack $id"
+  cf DELETE "/zones/${CLOUDFLARE_ZONE_ID}/ssl/certificate_packs/${id}" >/dev/null && log "deleted superseded pack $id"
 done <<<"$OLD"
 
 log "done: pack ${NEW_ID} active and covering ${#HOSTS[@]} hosts"
