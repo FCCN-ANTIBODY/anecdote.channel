@@ -7,7 +7,7 @@
 # there's no diff to inspect (schedule / workflow_dispatch / first push) or the diff can't be read.
 #
 # Env (set by the workflow):
-#   CLOUDFLARE_API_TOKEN  token scoped to Zone > Cache Purge   (empty => no-op, unless DRYRUN)
+#   CLOUDFLARE_CACHE_TOKEN  token scoped to Zone > Cache Purge   (empty => no-op, unless DRYRUN)
 #   CLOUDFLARE_ZONE_ID    the zone id                          (empty => no-op, unless DRYRUN)
 #   SITE_URL              site origin (default https://anecdote.channel)
 #   EVENT                 github.event_name
@@ -17,18 +17,18 @@
 set -uo pipefail
 
 DRY="${DRYRUN:-}"
-if [ -z "$DRY" ] && { [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ZONE_ID:-}" ]; }; then
+if [ -z "$DRY" ] && { [ -z "${CLOUDFLARE_CACHE_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ZONE_ID:-}" ]; }; then
   # Name what is missing, not just that something is. A silent no-op here is indistinguishable
   # from a working purge, and looks exactly like a site that will not refresh.
   miss=""
-  [ -z "${CLOUDFLARE_API_TOKEN:-}" ] && miss="CLOUDFLARE_API_TOKEN"
+  [ -z "${CLOUDFLARE_CACHE_TOKEN:-}" ] && miss="CLOUDFLARE_CACHE_TOKEN"
   [ -z "${CLOUDFLARE_ZONE_ID:-}" ] && miss="${miss:+$miss and }CLOUDFLARE_ZONE_ID (as a repo Variable or Secret)"
   echo "::warning title=Cache not purged::$miss not set — skipping cache purge, so Cloudflare will keep serving the previous bytes"
   exit 0
 fi
 
 api="https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID:-DRYRUN}/purge_cache"
-auth=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN:-}" -H "Content-Type: application/json")
+auth=(-H "Authorization: Bearer ${CLOUDFLARE_CACHE_TOKEN:-}" -H "Content-Type: application/json")
 site_url="${SITE_URL:-https://anecdote.channel}"; site_url="${site_url%/}"
 
 
@@ -56,7 +56,7 @@ cf_purge_call() { # $1 = json body
   wstatus="$(printf '%s' "$who" | sed -n 's/.*"status":"\([a-z]*\)".*/\1/p' | head -1)"
   local idnote
   if [ -n "$wid" ]; then
-    idnote="Token in CLOUDFLARE_API_TOKEN: id=${wid} status=${wstatus:-unknown}."
+    idnote="Token in CLOUDFLARE_CACHE_TOKEN: id=${wid} status=${wstatus:-unknown}."
   else
     idnote="Could not identify the token: /user/tokens/verify is user-scoped and a zone-scoped token cannot call it. That is NOT evidence the token is bad — check whether acm-sync succeeded on this zone in the same period; if it did, the credential is fine and only the permission is missing."
   fi

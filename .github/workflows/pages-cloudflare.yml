@@ -9,11 +9,10 @@
 #   * it runs one build step first, because sites.json is generated and gitignored (see below).
 #
 # Needs three values, all settable from the GitHub UI:
-#   secrets.CLOUDFLARE_API_TOKEN    — needs Account → Cloudflare Pages → Edit.
-#                                     NOTE: in THIS repo that secret already exists and holds SSL
-#                                     permissions for acm-sync.yml. One token can carry both; add
-#                                     Pages → Edit to it rather than replacing it, or acm-sync
-#                                     stops reconciling the certificate.
+#   secrets.CLOUDFLARE_PAGES_TOKEN  — Account → Cloudflare Pages → Edit. An ORG secret: publishing
+#                                     is what every site in the account does, and these tokens
+#                                     cannot be scoped to one project, so scoping them by NAME to
+#                                     one job is the only scoping available.
 #   secrets.CLOUDFLARE_ACCOUNT_ID   — dash → account home, right-hand sidebar.
 #   vars.CLOUDFLARE_PAGES_PROJECT   — the Pages project's name.
 name: Deploy site
@@ -53,6 +52,6 @@ jobs:
       - name: Publish to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          apiToken: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy . --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
