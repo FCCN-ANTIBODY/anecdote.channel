@@ -20,7 +20,7 @@ import { pinDecision, verifyFiles } from "/composer/firmware.mjs";
 // and the network is never consulted — and activate() only deletes caches whose key DIFFERS from
 // VERSION. So editing the shell without bumping the key strands every existing install on the old
 // copy, and no amount of edge purging reaches it: the request never leaves the browser.
-const VERSION = "anecdote-shell-v5";
+const VERSION = "anecdote-shell-v6";
 
 // Fallback shell when NO firmware.json is deployed — pinning is dormant, static precache (slice 1a note:
 // arming the guarantee is opt-in). Same set as before + the firmware verify graph so a signed manifest can
@@ -33,7 +33,7 @@ const FALLBACK_SHELL = [
   "/assets/fonts/playfair-display.regular.ttf", "/assets/fonts/SpaceMono-Regular.woff2",
   "/assets/fonts/SpaceMono-Bold.woff2", "/assets/fonts/SpaceMono-Italic.woff2",
   "/composer/probe-line.mjs", "/composer/authorize.mjs", "/composer/consent.mjs",
-  "/composer/sign.mjs", "/composer/anecdote.mjs", "/composer/poll-answer.mjs",
+  "/composer/sign.mjs", "/composer/anecdote.mjs",
   "/composer/qr-mint.mjs", "/composer/qr-sign.mjs", "/composer/qr-mint-demo.html",
   "/composer/qr-encode.mjs",                                    // the mint demo imports it — must ride along
   "/composer/transfer.mjs", "/composer/fountain.mjs", "/composer/carrier.mjs",
