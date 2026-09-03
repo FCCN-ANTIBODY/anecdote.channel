@@ -43,7 +43,16 @@ cf_purge_call() { # $1 = json body
     echo "purge: ok"
     return 0
   fi
-  echo "::warning title=Cache not purged::Cloudflare refused the purge (HTTP ${code:-no response}) — the deploy is live but the cache still holds the previous bytes. Cloudflare reports a MISSING PERMISSION the same way it reports a bad token — HTTP 401, error 10000 \"Authentication error\" — so check the token has Zone → Cache Purge on this zone before assuming it expired. A token that works for certificate packs (acm-sync) can still be refused here. Response: ${out}"
+  # SAY WHICH TOKEN THIS IS. An account accumulates tokens, several with identical permissions,
+  # and "which one is in the secret" is otherwise answerable only by elimination. /user/tokens/verify
+  # authenticates the token against itself, so it answers even when the token lacks the permission
+  # the purge needed. The ID is an identifier, not a credential — it is the one shown in the
+  # dashboard URL — so it is safe to print and is exactly what makes the row findable.
+  local who wid wstatus
+  who="$(curl -sS "${auth[@]}" "https://api.cloudflare.com/client/v4/user/tokens/verify" 2>&1 || true)"
+  wid="$(printf '%s' "$who" | sed -n 's/.*"id":"\([0-9a-f]*\)".*/\1/p' | head -1)"
+  wstatus="$(printf '%s' "$who" | sed -n 's/.*"status":"\([a-z]*\)".*/\1/p' | head -1)"
+  echo "::warning title=Cache not purged::Cloudflare refused the purge (HTTP ${code:-no response}) — the deploy is live but the cache still holds the previous bytes. Cloudflare reports a MISSING PERMISSION the same way it reports a bad token — HTTP 401, error 10000 \"Authentication error\" — so check the token has Zone → Cache Purge on this zone before assuming it expired. A token that works for certificate packs (acm-sync) can still be refused here. Token in CLOUDFLARE_API_TOKEN: id=${wid:-unidentified} status=${wstatus:-unknown}. Response: ${out}"
   return 1
 }
 
