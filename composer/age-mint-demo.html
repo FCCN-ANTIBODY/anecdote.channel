@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mint a pile identity</title>
+<style>
+  /* Phone-first: this exists to be used standing up, on the device the identity is born on. */
+  :root { color-scheme: light dark; }
+  body { font: 17px/1.5 system-ui, sans-serif; margin: 0; padding: 1.25rem 1.25rem 3rem; max-width: 34rem; }
+  h1 { font-size: 1.25rem; margin: 0 0 .5rem; }
+  p { margin: 0 0 1rem; }
+  button { display: block; width: 100%; padding: 1rem; margin: 0 0 .75rem; font: inherit;
+           font-weight: 600; border: 1px solid currentColor; border-radius: .5rem;
+           background: transparent; color: inherit; }
+  button[disabled] { opacity: .4; }
+  .out { font: 13px/1.5 ui-monospace, monospace; word-break: break-all; border: 1px solid;
+         border-radius: .5rem; padding: .75rem; margin: 0 0 1rem; }
+  .out b { display: block; font: 600 12px/1.6 system-ui, sans-serif; letter-spacing: .04em;
+           text-transform: uppercase; opacity: .7; margin-bottom: .25rem; }
+  .warn { border-width: 2px; }
+  #env { font: 13px/1.5 ui-monospace, monospace; opacity: .85; border: 1px solid; border-radius: .5rem; padding: .75rem; margin: 0 0 1.25rem; }
+</style>
+<body>
+<h1>Mint a pile identity</h1>
+<p>An <code>age</code> keypair, generated <strong>here, on this device</strong>. The recipient is
+public and is what a pile is created with. The identity is the secret and must never leave — this
+page does not transmit, and nothing here is stored.</p>
+
+<div id="env">checking this device…</div>
+
+<button id="mint">Mint an identity</button>
+<button id="copyR" disabled>Copy the recipient</button>
+<button id="copyI" disabled>Copy the identity</button>
+
+<div id="out"></div>
+
+<script type="module">
+import { mintAgeIdentity, recipientOf, parseRecipient } from "./age-mint.mjs";
+
+const $ = (id) => document.getElementById(id);
+let minted = null;
+
+// WebCrypto X25519 is what the mint needs. A device without it fails on the button with a message
+// that names nothing useful, so say it up front instead.
+let ok = false;
+try { await crypto.subtle.generateKey({ name: "X25519" }, true, ["deriveBits"]); ok = true; } catch {}
+$("env").innerHTML =
+  `<b>secure context</b> ${window.isSecureContext ? "yes" : "NO — WebCrypto will refuse"}<br>` +
+  `<b>X25519</b> ${ok ? "available" : "NOT available on this device"}<br>` +
+  `<b>origin</b> ${location.origin}`;
+
+const show = () => {
+  $("out").innerHTML =
+    `<div class="out"><b>recipient — public, safe to paste anywhere</b>${minted.recipient}</div>` +
+    `<div class="out warn"><b>identity — secret, never paste into a repository</b>${minted.identity}</div>`;
+};
+
+$("mint").onclick = async () => {
+  try {
+    minted = await mintAgeIdentity();
+    // Prove the pair before showing it: a recipient that does not derive from this identity would
+    // create a pile nobody can ever read, and the failure would only appear at first decrypt.
+    const derived = await recipientOf(minted.identity);
+    if (derived !== minted.recipient) throw new Error("recipient does not derive from identity — refusing to show a broken pair");
+    parseRecipient(minted.recipient);   // and that it is well-formed bech32
+    show();
+    $("copyR").disabled = $("copyI").disabled = false;
+  } catch (e) {
+    $("out").innerHTML = `<div class="out warn"><b>did not mint</b>${(e && e.message) || e}</div>`;
+  }
+};
+
+const copy = async (text, btn, label) => {
+  try { await navigator.clipboard.writeText(text); btn.textContent = "copied — " + label; }
+  catch { btn.textContent = "could not copy — select it above"; }
+  setTimeout(() => { btn.textContent = label; }, 2000);
+};
+$("copyR").onclick = () => copy(minted.recipient, $("copyR"), "Copy the recipient");
+$("copyI").onclick = () => copy(minted.identity, $("copyI"), "Copy the identity");
+
+window.M = { mint: () => mintAgeIdentity() };
+window.__ready = true;
+</script>
