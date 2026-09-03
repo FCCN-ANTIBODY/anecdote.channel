@@ -29,7 +29,7 @@
 #     in front of a broken handoff.
 #
 # Required environment:
-#   CLOUDFLARE_API_TOKEN   token with Account > Rules Lists:Edit (and Account Rulesets:Edit for --ensure-rule)
+#   CLOUDFLARE_RULES_TOKEN   token with Account > Rules Lists:Edit (and Account Rulesets:Edit for --ensure-rule)
 #   CF_ACCOUNT_ID          the account id
 #
 # Usage:
@@ -62,10 +62,10 @@ die() { echo "reconcile-redirects: $*" >&2; exit 1; }
 
 [ -f "$SITES" ] || die "no $SITES — run: node scripts/sync-sites.mjs"
 if [ "$DRY_RUN" -eq 0 ]; then
-  [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || die "CLOUDFLARE_API_TOKEN not set"
+  [ -n "${CLOUDFLARE_RULES_TOKEN:-}" ] || die "CLOUDFLARE_RULES_TOKEN not set"
   [ -n "${CF_ACCOUNT_ID:-}" ] || die "CF_ACCOUNT_ID not set"
 fi
-auth=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN:-}" -H "Content-Type: application/json")
+auth=(-H "Authorization: Bearer ${CLOUDFLARE_RULES_TOKEN:-}" -H "Content-Type: application/json")
 
 # ---- desired state, straight from the directory ------------------------------------------
 # The sites map is already the record of who serves what under which name; deriving redirects

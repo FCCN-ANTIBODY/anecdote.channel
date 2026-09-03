@@ -38,28 +38,35 @@ SITES_TOKEN_<OWNER>          per-owner override, for a private repo
 
 On GitHub Actions this came free as `github.token`. Anywhere else it has to be supplied.
 
-## Credentials, and why there are two Cloudflare tokens
+## Credentials — one token, one job, and the name says which
 
-**One token, one job.** They are deliberately not merged, and they are deliberately scoped
-differently, because they answer to different things.
+**`CLOUDFLARE_API_TOKEN` is not an allowed name here.** A Cloudflare API token cannot be scoped to a
+single Pages project, so the only scoping actually available is the *name*: each token is minted for
+one job, named for that job, and used by nothing else. A name that says only "Cloudflare" tells you
+nothing about what it governs, and a drawer of those is unauditable.
 
-| name | scope | permission | used by |
-| --- | --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | **org** secret | Account → Cloudflare Pages → Edit | deploying this site |
-| `CLOUDFLARE_ACCOUNT_ID` | **org** secret | (not a token — the account id) | deploying this site |
-| `CLOUDFLARE_ACM_TOKEN` | **repo** secret | Zone → SSL and Certificates → Edit | `acm-sync.yml` only |
-| `CLOUDFLARE_PAGES_PROJECT` | **repo** variable | `anecdote` | deploying this site |
-| `CLOUDFLARE_ZONE_ID` | variable | (not a token) | `acm-sync.yml` only |
+All of these are **organisation** secrets, scoped to the `anecdote.channel` zone.
 
-Publishing is a thing every site in the account does the same way, so its credential belongs to the
-account. Reconciling *this zone's* certificate is peculiar to this repository, so its credential
-belongs here — which is also the smaller blast radius: a leaked deploy token publishes a site, a
-leaked certificate token can reissue TLS.
+| name | permission | used by |
+| --- | --- | --- |
+| `CLOUDFLARE_PAGES_TOKEN` | Account → Cloudflare Pages → Edit | deploying this site |
+| `CLOUDFLARE_ACCOUNT_ID` | (not a token — the account id) | deploying this site |
+| `CLOUDFLARE_ACM_TOKEN` | Zone → SSL and Certificates → Edit | `acm-sync.yml` |
+| `CLOUDFLARE_CACHE_TOKEN` | Zone → Cache Purge | `scripts/cf-purge.sh`, if anything ever fronts this again |
+| `CLOUDFLARE_RULES_TOKEN` | Account → Rules Lists → Edit | `scripts/reconcile-redirects.sh` |
 
-**They must not share a name.** A repository secret silently SHADOWS an organisation secret of the
-same name, so one called `CLOUDFLARE_API_TOKEN` in both places would hand the SSL token to the
-deploy and fail with an authentication error that names neither. That has already happened once here
-with a zone id under two names; this is the same failure wearing a different hat.
+Plus one repository **variable**, `CLOUDFLARE_PAGES_PROJECT` (`anecdote`), because the project name
+is not a credential and does differ per repository.
+
+**They are organisation secrets on purpose, and that is a concession rather than a preference.**
+Scoping a token to one project is impossible at Cloudflare, so a repository copy would be the same
+blast radius with more places to forget it. One definition, one place to rotate it.
+
+**Never give two of these the same name.** A repository secret silently SHADOWS an organisation
+secret of the same name, so a deploy token at the org and a certificate token at the repo, both
+called `CLOUDFLARE_API_TOKEN`, hands the certificate token to the deploy and fails with an
+authentication error naming neither. That has already happened here twice — once with a zone id
+under two names, once with a token doing two jobs.
 
 ## History
 
