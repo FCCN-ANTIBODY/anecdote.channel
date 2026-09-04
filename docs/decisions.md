@@ -30,6 +30,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D14 — The collector carries.** An anecdote is the primary type and a poll is one with fixed options; the collector holds the replies; transit is the gravel path and a separate concern from collection.
 - **D15 — Only bottles are caught.** What travels over gravel is a bottle; scanning one brings the app up and opens it in the clean room, sterile always; loaded is not persisted; a diff-type bottle fast-forwards a clone; the thin anecdote is the spec and the nested bottle is its fullest form.
 - **D16 — Registration is the back half of consent.** The respondent's install broadcasts back an acknowledgment the collector's checkout holds; it buys an address without DNS or GitHub; it is not subscription and not a mailbox.
+- **D17 — The bottle is the unit that travels, and a data bottle is the owner's to write.** Any file rides inside a bottle, so the native poll QR is fountain-only and needs no URL; a reply is an anecdote pointing at a *version* of the poll; the pile's read-only posture faces Tell, never its owner.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -850,6 +851,108 @@ or a sibling is needed is an open question; what is decided is that nothing new 
 - **The constitution as the anti-spam line.** A registered respondent can follow up on the Tell; the
   per-Tell constitution is what keeps that from being a spam channel, and it is what would let a
   strong answer be offered onward (Antidote's recontact) with consent already in hand. Not designed.
+
+---
+
+## D17 · The bottle is the unit that travels — and a data bottle is the owner's to write
+*Status: accepted 2026-09-03 (composes D4, D11, D13, D14, D15; unparks one deferral in data-pile; amends one contract sentence)*
+
+**Context.** D15 settled that only bottles are caught. Following that through exposes two things it
+did not say. First, if the fountain always carries a bottle, then **shipping any file at all — a lone
+anecdote, a poll, a photo — has to be expressible as a bottle**, or the rule has a hole exactly where
+the simplest case lives. Second, the two QR paths in the codebase have never touched: a poll goes out
+today as a plain URL (`https://tell.…/?pile=…&tok=…`, `composer/qr-mint.mjs`) that any camera can
+open, while the gravel path (`AC1|…` frames, `composer/carrier.mjs`) carries signed transfers that no
+stock camera understands. The URL path is a **DNS-dependent convenience**, and the whole design
+premise is that it may not be there.
+
+**Decision.**
+
+1. **A bottle is the unit of optical transmission, and holding a git repository is optional.** Being
+   in a bottle does not mean being version-tracked. A file may ride as the sole contents of an
+   otherwise-empty bottle, and **the empty bottle is canonical** — one known artifact, so that
+   "here is a file" and "here is a bottle" are the same act and the same code path. A server asked
+   for a single file replays the canonical empty bottle with that file inside; it fabricated the
+   container at that moment, and the provenance of *the file* is unaffected, because signatures cover
+   the payload and never the container (D10 §2).
+
+2. **The native poll QR is a bottle QR, not a URL.** A poll inside a bottle is transmittable on the
+   fountain alone. It does not need to be readable by a stock camera, because by then the app is up
+   (D15: scan → app → chamber). The URL QR is kept — it is how a device that has nothing bootstraps,
+   and D11 already calls that a vanilla control code that is *not* a trust anchor — but it is the
+   springboard, not the canonical form. **Anything that only works because DNS answered is a
+   convenience, and must have a fountain-only twin.**
+
+3. **A poll and an anecdote are one shape, and a reply is an anecdote.** This unparks
+   `data-pile/docs/anchored-piles.md`'s deferred "response-as-anecdote unification." D14 already made
+   the anecdote primary and the poll an anecdote with fixed options; the missing half is that the
+   *answer* is an anecdote too — one that **points at the poll**. It points at a *version* of the
+   poll, by content-id, which is D13's rule arriving where it was always headed: the date labels the
+   witness, the content-id joins. The consequence worth stating plainly: **an update to something you
+   hold needs only the author's identity to fast-forward it.** An Atlas may tell you an update exists.
+   It is never required to, and it is never the thing that authorizes the change.
+
+4. **A DATA BOTTLE is a bottle holding a data pile, and it is writable.** The owner is paramount:
+   **nobody can authoritatively fast-forward a data bottle without being its owner.** That is the
+   difference between a distributed capsule (inert, D11) and a released data bottle (live, addressed,
+   and identity-controlled). This is what "writable bottle" has meant in every conversation that used
+   the phrase.
+
+5. **The pile's read-only posture faces Tell, and only Tell.** `data-pile/CONTRACT.md` says a pile
+   "collects nothing… mints no QR… holds no key that seals," and that anything which would have the
+   pile *originate* data "belongs on a Tell, not here." That sentence is **correct as a statement
+   about what a Tell may do to somebody's pile** and wrong if read as a statement about the owner.
+   The owner writes into their own pile constantly, and always did: the journal engine's entire
+   affordance is that **writing and photographs go into the pile in order to be revealed** — all but
+   what the author redacts. The mailbox metaphor only holds if mail can also be sent from the box.
+   **Manifesting a poll or an anecdote to a Tell for distribution is a core pile behavior**, not an
+   exception; a Tell distributes only what some pile chose to manifest.
+
+6. **A collector's pile holds other people's bottles, whole.** Out in the world with no DNS, a
+   respondent answers on their own device, writes their reply into the copy they received, and hands
+   back **the whole bottle with their diff inside it** — every one of them still carrying the poll QR
+   they originally saw. That repetition is redundant bytes on purpose: it is the receipt, worn on the
+   outside, and it is what lets the collector prove where each answer came from. The collector drops
+   each returned bottle into their own pile as its own object. Duplicate poll bytes across them are
+   expected and are not a defect.
+
+7. **Untangling the crates is itself an act of logging.** An Atlas or an antidote pouring these out
+   is reassembling one poll's answers from disparate paths off a common parent. *If you turned them
+   into pull requests they would every one of them conflict, because they are all different answers* —
+   which is the correct outcome, not a failure. Keeping the packaging while unpacking is what lets an
+   antidote assert a ground-level truth about what it hydrated: **it still has the sources.** The
+   destination is calm — a reply standing on its own, canonically, in ordinary file formats — but the
+   route there was commingled, and the log of that commingling is the evidence.
+
+**What this forces, recorded so it is not discovered later.**
+
+- **`data-pile/CONTRACT.md` needs the pure-consumer sentence scoped** to the Tell relationship (§5
+  above). Until it is, the contract and this decision disagree in writing.
+- **`composer/answered.mjs` keeps no prior answer** — `rememberAnswer` overwrites one record per
+  `(pile, poll, round)`. Under §3 the history is not a field to add there; it is the pile's job,
+  which is the whole argument for §5.
+- **`composer/anecdote.mjs` caps inline bytes at 64 KB**, above which only a hash+source receipt
+  travels. Whether a poll capsule fits under that cap decides whether "the YAML wearing the QR bytes"
+  is a real encoding or a receipt.
+- **The two QR paths must meet.** The layout tile already carries a free-string `kind` per member,
+  readable before any member decodes (`composer/transfer.mjs`), and `"poll"`, `"anecdote"` and
+  `"data-pile"` are already in use — so this is a vocabulary and a bridge, not a new mechanism.
+- **Frame budget is untuned.** Nothing has an opinion about block size (`transfer.mjs`: "the platform
+  has NO opinion about N"); the default is 256 bytes, and QR capacity runs to ~2953. Whether a bottle
+  is heavy for a small payload is almost entirely this one unturned knob.
+- **The word "bottle" is now reserved.** `data-pile` retires its loose use of it for a sealed pile;
+  that artifact is a *bundle* (`data-pile` PR #43).
+
+**Why.** Every route in this constellation was already converging on one shippable object, and naming
+it stops the convergence from being re-derived per surface. It also removes the last place where the
+architecture quietly depended on DNS: with a fountain-only twin for the poll, two people with phones
+and no network can ask, answer, and carry a result home. And it puts version history where it can
+survive — in a pile that logs what it witnessed — instead of in a local record that overwrites itself.
+
+**Open, and deliberately not decided here.** How a released data bottle enforces "only the owner may
+advance it" from its own signed starting state, and how collaborators are ever admitted to that. That
+is a policy question about what a *valid* change is, and it is being worked as an open question in
+civic-node rather than settled by fiat here.
 
 ---
 
