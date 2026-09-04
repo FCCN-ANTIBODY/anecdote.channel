@@ -79,13 +79,13 @@ await withPage({
   // Edge 1 — asymmetric powers, attested hello.
   const elevated = await page.eval("window.H.elevated");
   ok(elevated.subtle === "object" && elevated.secure === true, "Elevated has crypto.subtle in a secure context");
-  ok(elevated.origin === "http://anecdote.channel:" + server.port, "Elevated runs on the real anecdote.channel origin");
+  ok(elevated.origin === "https://anecdote.channel:" + server.port, "Elevated runs on the real anecdote.channel origin");
   const env = await page.waitFor("window.R && window.R.env", { frame: "data:" });
   ok(env.subtle === "undefined", "chamber genuinely lacks crypto.subtle");
   ok(env.secure === false, "chamber is not a secure context");
   ok(env.origin === "null", "chamber's origin is null (a data: document)");
   const initOrigin = await page.eval("window.R.initOrigin", { frame: "data:" });
-  ok(initOrigin === "http://anecdote.channel:" + server.port,
+  ok(initOrigin === "https://anecdote.channel:" + server.port,
      "INIT's event.origin lets the chamber attest which Elevated adopted it");
 
   // Edge 2 — concurrent streams share the port yet reassemble by id.

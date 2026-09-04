@@ -13,7 +13,7 @@
 // and launches Chromium with --host-resolver-rules mapping EVERY hostname to 127.0.0.1: the pages run
 // on their true production hostnames, same-origin boundaries genuinely between them, while any request
 // to a host the test did not stand up lands on this server (recorded, refused) instead of the network.
-// Each origin is granted secure-context status (--unsafely-treat-insecure-origin-as-secure) so
+// Each origin is served over real TLS (self-signed, waved through), so it is a secure context and
 // crypto.subtle is live exactly as it is in production — the signing suite runs for real.
 //
 // Site-isolation process-splitting is disabled so every frame's JS context is reachable from one CDP
@@ -30,7 +30,6 @@
 //   await page.goto("http://anecdote.channel:" + server.port + "/poll.html?...");
 //   await page.waitFor("!!document.querySelector('h3')", { frame: "data:" });
 
-import http from "node:http";
 import https from "node:https";
 import { spawn, execFileSync } from "node:child_process";
 import { readFileSync, statSync, existsSync, mkdtempSync, rmSync } from "node:fs";
@@ -137,8 +136,14 @@ function lookup(origin, reqPath) {
 // with the browser resolving every hostname to this server, a page phoning anywhere shows up.
 //
 // Two transports:
-//   default    — plain http on an ephemeral port; pages address each other with the port stitched in.
-//                Right for single-origin suites (portable: no privileges, no certs).
+//   default    — https on an EPHEMERAL port (self-signed via the openssl CLI; the browser launches with
+//                --ignore-certificate-errors); pages address each other with the port stitched in.
+//                Right for single-origin suites (portable: no privileges). This used to be plain http
+//                with the origins granted secure-context by name — Chrome 152 ended that: HTTPS-First
+//                balanced mode rewrites http://<public hostname>:<port> to https:// before the request
+//                leaves, the plain server answers with bytes that are not TLS, and the page lands on
+//                chrome-error://chromewebdata. Every suite that then waits for a data: chamber times
+//                out on a frame that never existed. Serving real TLS means there is nothing to upgrade.
 //   tls: true  — REAL https on 443 (self-signed via the openssl CLI; the browser launches with
 //                --ignore-certificate-errors). This is for the cross-origin chains: shipped pages pin
 //                absolute production URLs (the floor's stage on https://tell.anecdote.channel, Tell's
@@ -204,25 +209,21 @@ export async function serveOrigins(origins, { tls = false } = {}) {
     res.end(found.content);
   };
 
-  let server;
-  if (tls) {
-    const dir = mkdtempSync(join(os.tmpdir(), "probe-test-tls-"));
-    try {
-      execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
-        "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem"), "-days", "2", "-nodes",
-        "-subj", "/CN=anecdote.channel"], { stdio: "ignore" });
-    } catch { rmSync(dir, { recursive: true, force: true }); return null; }
-    server = https.createServer({ key: readFileSync(join(dir, "key.pem")), cert: readFileSync(join(dir, "cert.pem")) }, handler);
-    rmSync(dir, { recursive: true, force: true });
-    const bound = await new Promise((resolve) => {
-      server.on("error", () => resolve(false));
-      server.listen(443, "127.0.0.1", () => resolve(true));
-    });
-    if (!bound) return null;
-  } else {
-    server = http.createServer(handler);
-    await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  }
+  // Both transports are TLS now; `tls` only decides the port (443, the true production scheme+port, vs
+  // ephemeral). One self-signed cert covers every served hostname — the browser is told to ignore it.
+  const dir = mkdtempSync(join(os.tmpdir(), "probe-test-tls-"));
+  try {
+    execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
+      "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem"), "-days", "2", "-nodes",
+      "-subj", "/CN=anecdote.channel"], { stdio: "ignore" });
+  } catch { rmSync(dir, { recursive: true, force: true }); return null; }
+  const server = https.createServer({ key: readFileSync(join(dir, "key.pem")), cert: readFileSync(join(dir, "cert.pem")) }, handler);
+  rmSync(dir, { recursive: true, force: true });
+  const bound = await new Promise((resolve) => {
+    server.on("error", () => resolve(false));
+    server.listen(tls ? 443 : 0, "127.0.0.1", () => resolve(true));
+  });
+  if (!bound) return null;
   const port = server.address().port;
   return {
     port,
@@ -232,7 +233,7 @@ export async function serveOrigins(origins, { tls = false } = {}) {
     noise,
     apiCalls,
     hosts: Object.keys(origins),
-    urlFor: (host, path = "/") => (tls ? `https://${host}${path}` : `http://${host}:${port}${path}`),
+    urlFor: (host, path = "/") => (tls ? `https://${host}${path}` : `https://${host}:${port}${path}`),
     close: () => new Promise((r) => server.close(r)),
   };
 }
@@ -248,11 +249,10 @@ export async function launch({ server, chromium, timeout = 90000 } = {}) {
   const bin = chromium || findChromium();
   if (!bin) throw new Error("harness: no chromium (findChromium() first and skip)");
   const profile = mkdtempSync(join(os.tmpdir(), "probe-test-"));
-  // On the plain-http transport the served origins are granted secure-context by name; on the tls
-  // transport they are genuinely secure and only the self-signed cert needs waving through.
-  const trust = server.tls
-    ? ["--ignore-certificate-errors"]
-    : [`--unsafely-treat-insecure-origin-as-secure=${server.hosts.map((h) => `http://${h}:${server.port}`).join(",")}`];
+  // Every served origin is genuinely secure (TLS on both transports); only the self-signed cert needs
+  // waving through. (--unsafely-treat-insecure-origin-as-secure is gone with the plain transport — it
+  // granted secure-context status but never exempted an origin from Chrome 152's https upgrade.)
+  const trust = ["--ignore-certificate-errors"];
   const proc = spawn(bin, [
     "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
     "--remote-debugging-port=0",
