@@ -28,6 +28,8 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D12 — One RP ID, at the you keeper.** The keeper moves to `you.<apex>`; masks are PRF-derived from one credential, so they are unlinkable by observation and linkable by proof.
 - **D13 — Edit masks.** A signed diff stencilled over a *content-addressed version* of anything, published by anyone, owed acceptance by no one. Staleness is information; the date labels the witness, the content-id joins.
 - **D14 — The collector carries.** An anecdote is the primary type and a poll is one with fixed options; the collector holds the replies; transit is the gravel path and a separate concern from collection.
+- **D15 — Only bottles are caught.** What travels over gravel is a bottle; scanning one brings the app up and opens it in the clean room, sterile always; loaded is not persisted; a diff-type bottle fast-forwards a clone; the thin anecdote is the spec and the nested bottle is its fullest form.
+- **D16 — Registration is the back half of consent.** The respondent's install broadcasts back an acknowledgment the collector's checkout holds; it buys an address without DNS or GitHub; it is not subscription and not a mailbox.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -676,6 +678,13 @@ Optical carry needs co-presence. **The default poll becomes an act between two p
 present**, and remote answering becomes a transport question rather than a given. That is a product
 decision, not a cleanup, and it should be made in the open.
 
+> **Amended 2026-09-03 (D15).** The cost above is narrower than it was written. Co-presence is the
+> price of the **hand-off**, not of the answer: once the respondent has been handed the app and the
+> bottle, they hold both, and they can answer later, from anywhere, exactly as before — the offline
+> origin is the async option. What needs co-presence (or DNS) is the *return* trip, and D16 records
+> how the hand-off buys the address for that. "An act between two present people" describes the
+> onboarding, not the poll.
+
 **What exists and what does not.** The gravel primitives are built and tested — `fountain.mjs`
 (rateless droplets: reconstruct from any sufficient subset, "loop as many times as a bad camera
 needs"), `carrier.mjs`, `transfer.mjs`, `meet-carrier.mjs`. What `docs/gravel-whale.md` names as
@@ -687,6 +696,160 @@ does, "walk it up and show the node a diff" is a plan rather than a path.
 snapshot — D11's inert signed capsule, and the fast-forward-bottle direction where a pile ingests
 the change rather than the state. So the *content* of a gravel delivery is settled; only its
 receiver is missing.
+
+---
+
+## D15 · Only bottles are caught — the onboarding path is a bottle landing in the clean room
+*Status: accepted 2026-09-03 (reconciles polls, anecdotes, bottles and piles onto one path; the catcher is unbuilt)*
+
+**Context.** Onboarding has been glossed for a long time. The poll QR pointed at a DNS-routable
+Tell because a vanilla camera can open a URL and nothing else, and the Tell's page then did the real
+work of standing the app up. D14 retired the springboard behind that URL but left the question it was
+answering: *what does a person who scans something of ours get, and what happens next?* Meanwhile
+the gravel frames (`AC1|d|…`) carry whatever bytes a sender chose, which made "what am I decoding"
+a judgment the receiver had to make from the outside.
+
+**Decision.**
+
+1. **Only bottles are caught.** We are not in the business of decoding freeform bytes and deciding
+   what to do with them. What travels over gravel is a bottle — a signed, content-addressed
+   serialization of a data-pile (or of a diff to one, below) — and a receiver recognizes it *as it
+   decodes*: the layout tile already names each member's `kind` before any member finishes
+   (`carrier.test.mjs`: "the layout tile alone yields the expected shape … BEFORE any member
+   decodes"), so the intake's rule is one line: a member whose kind is not a bottle kind is not
+   caught. Bytes may be sent that are not bottles; nothing of ours will pick them up.
+
+2. **Scanning a bottle brings the anecdote subsystem up, then loads the bottle in the clean room.**
+   "Up" means: install if it is not installed, refresh if it is stale and has lost its resources.
+   That is the whole onboarding act, and it is the same act whether the bottle is a poll, an ejected
+   article, or a stranger's data. The bottle's own host does this (`<label>.<storage>.<apex>` serves
+   the page that stands the app up), so **the bottle subdomain is an onboarding surface** — Tell is
+   one host that does it, not the only one.
+
+3. **Viewing a bottle is always the sterile experience.** A bottle opens in the `data:` chamber:
+   no origin, no storage, no network, no keys, and no WebCrypto — so there is no way to engineer a
+   reply from inside it. This is not a first-contact precaution; it is the only way a bottle is ever
+   viewed. Anything more capable happens by talking to it over the probe from outside, never by
+   augmenting the chamber. The bottle's filesystem supplies its own UI (an ejected piece decides what
+   it looks like when opened); the chamber is the preview browser that runs it. That is exactly why
+   opening an unknown bottle is safe: *welcome to the data chamber — you are not going anywhere, you
+   cannot ask for anything, and you have no keys.*
+
+4. **Loaded is not persisted.** A decoded bottle is a zip opened into temp: it is viewed, and when
+   closed it is gone — but the **seed** (the bytes that were caught: the QR-video track, the frames'
+   reassembled payload) is what was actually received, and it is kept as the thing that can be
+   verified and re-opened. Persisting is a deliberate act (the bottle-book's explicit-save rule,
+   never ambient), and what is persisted is the seed *with* its unpacking: "this is the original,
+   this is where I came from, you can verify it." The seed represents all prior history whether or
+   not it carries git history.
+
+5. **A versioned bottle that fits our clone fast-forwards it.** If what was caught names something
+   we already hold and carries a newer version, that is compelling by itself — it is how an update is
+   absorbed — and it did not have to arrive as a diff. When brevity matters, a **diff-type bottle**
+   carries only the change: a transient bottle whose content is a patch that applies to a base the
+   receiver is known to hold. The bottle's *type* controls what soaking it up means; the delivery
+   grammar does not change per type.
+
+6. **Witnessing a poll is an onboarding checkpoint with a defined end state.** After the hand-off
+   the respondent holds the app and the bottle the poll rides in, and "they have seen this poll" is
+   recorded in their offline origin — as if they had pulled it from a Tell they are registered to and
+   found it left there for them. There is no poll cache as such: **a poll is an anecdote affixed to a
+   data-pile to shape what may come in** (`data-pile/CONTRACT.md`: "a poll is a data pile with the
+   question attached"), and an answer is a reply to that anecdote. The in-person hand-off is assisted,
+   active distribution; the end state is the same as finding it.
+
+7. **The thin anecdote is the spec; the full anecdote is the bottle that redeems it.** `anecdote/v1`
+   already says the pointed-at thing rides as a *receipt* — content hash, provenance, an optional
+   pointer to the pile that holds the bytes. That thin YAML is the right thing to attach to a pile,
+   because it is the shape rule and it lives in the repository that holds the pile anyway. The
+   **fullest serialization** of an anecdote is the bottle of a data-pile that contains the bottle of
+   the thing it points at — nested, because the inner thing gets to be a filesystem (a git repository:
+   rewritable, living, its history its own), and the diffs are what we compile. Thin and full are one
+   object at two fidelities: the receipt, and the receipt with the bytes that satisfy it.
+   Consequently a **bottle may be attached to a pile**, not only an anecdote — and an attached bottle
+   dictates that only diffs to *it* are admissible, the same shaping role the poll's options play.
+
+**What this reconciles.** The floor is a bottle (`composer/bottle-uri.mjs`); the chamber is the one
+clean room; D11's capsule carries a diff; D14 made the anecdote primary. This entry only says the
+same thing about *arrival*: what arrives is a bottle, it lands in the chamber, and persisting it is a
+choice. The gravel-catcher `docs/gravel-whale.md` names as unbuilt is therefore not a new component
+— it is the onboarding surface, catching a bottle, for anyone who finds one and can read it.
+
+**Collisions recorded, not resolved.**
+- **Two kinds.** `transfer.mjs` envelopes carry a `kind` ("data-pile", "poll"); D7 signs a bottle
+  KIND in its attestation. A caught bottle must satisfy the intake by the first and identify itself by
+  the second. They should be one vocabulary or one should derive from the other.
+- **"The diff of the QR."** Fountain droplets are seeded XOR combinations; a diff *of frames* is
+  meaningless. What is small is the diff of the bottle's bytes, and the frames are re-derived from
+  it. It is the QR of the diff, not the diff of the QR — the sender's side is unchanged by this.
+- **Two roll calls.** The service worker's `FALLBACK_SHELL` and the signed install manifest
+  (`composer/install.mjs`, one entry, every blob pinned) are both "the list of what an install
+  needs." Onboarding by calling one thing up and provisioning yourself is the install manifest's
+  job; the shell list should be derived from it or retired into it. See civic-node
+  `OPEN-QUESTIONS.md` §Z.
+- **Remembered answers are not yet replies.** `composer/answered.mjs` keeps the exact submission
+  per (pile, poll, round). A reply anecdote must be *hydratable* from that record — it is not the
+  native form and need not be, but it must be reachable. Proposed without a schema change: a reply is
+  an anecdote whose body carries a `ref` part for the thing it answers (the poll's content hash and
+  provenance), which is what "pointing at the poll" already means under invariant #7.
+- **Antidote's contract stands.** Antidote takes the slim YAML, deliberately destroys it, and proves
+  both that it did and what the original was. The bottled form is a *distribution* serialization —
+  what is shuttled, boxed — not how anything is natively kept on either end.
+
+---
+
+## D16 · Registration is the back half of consent, shown back optically
+*Status: accepted 2026-09-03 (direction; the artifact and the respondent-side registry are unbuilt)*
+
+**Context.** A pile registers with a Tell by opening a pull request that a maintainer merges
+(`tell CONTRACT.md` "Registration (the consent gesture)"): outreach, then confirmation, with the PR
+standing in for the second half because GitHub is asynchronous. The public poll QR had the opposite
+problem — it could not check constituency at all, because the respondent was not on the platform.
+That made it an *external* channel, and it is why the scribe's metadata had to vouch: "I witnessed
+this." With D14 retiring the relay and D15 making the hand-off an install, the internal case is
+finally available.
+
+**Decision.** When the collector hands a poll to a respondent in person, the respondent's device,
+having finished installing from the bottle, **broadcasts back** — before they have turned the phone
+around to look at what they got — a short signed acknowledgment: *this is who I am, and I would like
+to be registered to the data-pile this poll is on.* The collector's device catches it. That broadcast
+is the opening of the pull request; the collector holding the local checkout of the Tell is the
+merge. **The consent handshake keeps both halves; only the medium changes.**
+
+- **Registration is what solves addressing without DNS or GitHub.** "If you want to talk to us, you
+  do it from this registration on the Tell." The collector is authoritative only because they hold
+  the checkout and the pile the poll is asked for; a poll found elsewhere still names *its* pile, and
+  the respondent is invited to register there — or not.
+- **Registration is not subscription, and it is not a mailbox.** The collector gains a way to
+  follow up and a proof of having witnessed a specific install — nothing more. They do not know the
+  respondent's offline origin, will not presume to receive mail for it, and will not write into
+  mailboxes they cannot address. A registered respondent is not discoverable on an Atlas; the Tell
+  holds ids, not content.
+- **The vouching goes.** The scribe's "I witnessed this" was carrying the weight of an unverifiable
+  channel. A registered install is its own witness.
+- **The clean case is the original architecture.** A registered respondent submits their reply to
+  the Tell as a response to the poll — the path polling was designed around, now with the respondent
+  actually on the platform. Carrying the reply by hand (D14) remains available; it was never meant to
+  be the only way.
+
+**No new crypto (invariant #8).** The acknowledgment is a met-record with the roles turned around:
+`composer/met.mjs` already makes "a body scanned a Tell-signed token here" a co-signed, publicly
+re-verifiable artifact. Here the collector is the one keeping it. Whether the same artifact serves
+or a sibling is needed is an open question; what is decided is that nothing new is minted to do this.
+
+**Collisions recorded, not resolved.**
+- **"No registry in the respondent path."** `tell docs/per-poll-registry.md`'s load-bearing decision
+  is that the respondent-facing poll is self-contained in its QR and unbacked. This entry does not
+  touch the *showing* path — the QR still carries everything a respondent is shown — but it does put
+  a registry in the **reply** path for the in-person case. The two coexist: registered replies land
+  by address; unregistered ones are the public-QR case, which still needs an answer for "I shared
+  this QR online" (civic-node `OPEN-QUESTIONS.md` §Z).
+- **Who registers.** Today's registries are pile→Tell and Tell→Atlas. Respondent→Tell is new, and it
+  is held by the collector's local checkout, not published — its shape, its lifetime, and whether it
+  ever leaves the device are open.
+- **The constitution as the anti-spam line.** A registered respondent can follow up on the Tell; the
+  per-Tell constitution is what keeps that from being a spam channel, and it is what would let a
+  strong answer be offered onward (Antidote's recontact) with consent already in hand. Not designed.
 
 ---
 
