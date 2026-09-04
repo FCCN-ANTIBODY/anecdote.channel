@@ -30,7 +30,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D14 — The collector carries.** An anecdote is the primary type and a poll is one with fixed options; the collector holds the replies; transit is the gravel path and a separate concern from collection.
 - **D15 — Only bottles are caught.** What travels over gravel is a bottle; scanning one brings the app up and opens it in the clean room, sterile always; loaded is not persisted; a diff-type bottle fast-forwards a clone; the thin anecdote is the spec and the nested bottle is its fullest form.
 - **D16 — Registration is the back half of consent.** The respondent's install broadcasts back an acknowledgment the collector's checkout holds; it buys an address without DNS or GitHub; it is not subscription and not a mailbox.
-- **D17 — The bottle is the unit that travels, and a data bottle is the owner's to write.** Any file rides inside a bottle, so the native poll QR is fountain-only and needs no URL; a reply is an anecdote pointing at a *version* of the poll; the pile's read-only posture faces Tell, never its owner.
+- **D17 — The bottle is the unit that travels, and a data-bottle is the owner's to write.** Any file rides inside a bottle, so the native poll QR is fountain-only and needs no URL; a reply is an anecdote pointing at a *version* of the poll; the pile's read-only posture faces Tell, never its owner.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -854,7 +854,7 @@ or a sibling is needed is an open question; what is decided is that nothing new 
 
 ---
 
-## D17 · The bottle is the unit that travels — and a data bottle is the owner's to write
+## D17 · The bottle is the unit that travels — and a data-bottle is the owner's to write
 *Status: accepted 2026-09-03 (composes D4, D11, D13, D14, D15; unparks one deferral in data-pile; amends one contract sentence)*
 
 **Context.** D15 settled that only bottles are caught. Following that through exposes two things it
@@ -892,9 +892,10 @@ premise is that it may not be there.
    hold needs only the author's identity to fast-forward it.** An Atlas may tell you an update exists.
    It is never required to, and it is never the thing that authorizes the change.
 
-4. **A DATA BOTTLE is a bottle holding a data pile, and it is writable.** The owner is paramount:
-   **nobody can authoritatively fast-forward a data bottle without being its owner.** That is the
-   difference between a distributed capsule (inert, D11) and a released data bottle (live, addressed,
+4. **A DATA-BOTTLE is a bottle holding a data pile, and it is writable.** (Hyphenated, deliberately,
+   to mirror `data-pile` — the two names are a pair and should read as one.) The owner is paramount:
+   **nobody can authoritatively fast-forward a data-bottle without being its owner.** That is the
+   difference between a distributed capsule (inert, D11) and a released data-bottle (live, addressed,
    and identity-controlled). This is what "writable bottle" has meant in every conversation that used
    the phrase.
 
@@ -949,7 +950,7 @@ architecture quietly depended on DNS: with a fountain-only twin for the poll, tw
 and no network can ask, answer, and carry a result home. And it puts version history where it can
 survive — in a pile that logs what it witnessed — instead of in a local record that overwrites itself.
 
-**Open, and deliberately not decided here.** How a released data bottle enforces "only the owner may
+**Open, and deliberately not decided here.** How a released data-bottle enforces "only the owner may
 advance it" from its own signed starting state, and how collaborators are ever admitted to that. That
 is a policy question about what a *valid* change is, and it is being worked as an open question in
 civic-node rather than settled by fiat here.
