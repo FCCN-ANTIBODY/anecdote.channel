@@ -299,8 +299,32 @@ export const _lens = { toGray, binarize, findFinders, quadToQuad, apply };
 
 // Decode from pixels. `data` is RGBA (w*h*4) or grayscale (w*h). Returns decodeMatrix's result + geometry,
 // or null. Tries a couple of threshold biases and the mirrored orientation before giving up.
-export function decodeImage({ data, width, height }) {
+// Under this many pixels per module the geometry estimate and the one-sample-per-
+// module read have no room to be wrong in, even when the code is perfectly intact.
+const RETRY_UNDER_PX = 8;    // located a code this small and failed → worth another look
+const TARGET_MODULE_PX = 10; // measured: 7px→72%, 8.8px→92%, 10.5px→99% on the same bits
+
+// Crop a region and blow it up nearest-neighbour. Adds NO information — it buys
+// spatial room. Cropping first keeps the cost proportional to the code, not the
+// frame, which is what makes this affordable on a phone at camera frame rates.
+function cropUp({ data, width, height }, box, n) {
+  const chans = data.length / (width * height);
+  const x0 = Math.max(0, box.x | 0), y0 = Math.max(0, box.y | 0);
+  const cw = Math.min(width - x0, Math.ceil(box.w)), ch = Math.min(height - y0, Math.ceil(box.h));
+  const w = cw * n, h = ch * n, out = new Uint8ClampedArray(w * h * chans);
+  for (let y = 0; y < h; y++) {
+    const sy = y0 + ((y / n) | 0);
+    for (let x = 0; x < w; x++) {
+      const s = (sy * width + x0 + ((x / n) | 0)) * chans, d = (y * w + x) * chans;
+      for (let c = 0; c < chans; c++) out[d + c] = data[s + c];
+    }
+  }
+  return { img: { data: out, width: w, height: h }, x0, y0 };
+}
+
+export function decodeImage({ data, width, height }, opts = {}) {
   const gray = toGray(data, width, height);
+  let weakest = null;                  // smallest code we LOCATED but could not read
   for (const frac of [0.85, 1.0, 0.72]) {
     const bin = binarize(gray, width, height, frac);
     const finders = findFinders(bin, width, height);
@@ -369,6 +393,26 @@ export function decodeImage({ data, width, height }) {
       if (r) r.mirrored = true;
     }
     if (r) return { ...r, dim, moduleSize: mSize, finders: { TL, TR, BL } };
+    if (!weakest || mSize < weakest.mSize) weakest = { mSize, pts: [TL, TR, BL, Q4] };
+  }
+  // We FOUND a code and could not read it, and its modules are only a couple of
+  // pixels across — the failure is scale, not damage. Blowing up nearest-neighbour
+  // gives the geometry and the sampler room without inventing detail: measured
+  // 0% → 99% on a loop that SMS had shrunk to 2.6 px/module, whose data OpenCV
+  // could read all along. Gated on finders having been located, so a frame with
+  // no code in it costs nothing extra — which matters at camera frame rates.
+  if (!opts.rescaled && weakest && weakest.mSize < RETRY_UNDER_PX) {
+    const n = Math.min(6, Math.max(2, Math.round(TARGET_MODULE_PX / weakest.mSize)));
+    const xs = weakest.pts.map((p) => p.x), ys = weakest.pts.map((p) => p.y);
+    const pad = 5 * weakest.mSize;                                  // quiet zone + slack
+    const box = { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad,
+                  w: Math.max(...xs) - Math.min(...xs) + 2 * pad,
+                  h: Math.max(...ys) - Math.min(...ys) + 2 * pad };
+    const { img, x0, y0 } = cropUp({ data, width, height }, box, n);
+    const r = decodeImage(img, { rescaled: true });
+    if (r) return { ...r, moduleSize: r.moduleSize / n, rescaledBy: n,
+      finders: Object.fromEntries(Object.entries(r.finders).map(([k, f]) =>
+        [k, { ...f, x: x0 + f.x / n, y: y0 + f.y / n, m: f.m / n }])) };
   }
   return null;
 }
