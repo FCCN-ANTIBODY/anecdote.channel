@@ -152,5 +152,41 @@ const rnd = (s) => () => (s = (Math.imul(s, 48271) >>> 0)) / 4294967296;
   ok(r.ok && r.transfers[0].verify.trusted && rt === payload, "…and the transfer verifies TRUSTED with the exact payload");
 }
 
+// 6. small AND soft: the condition a loop meets after somebody else's codec has had it.
+// Neither alone defeats the lens — scale 2 crisp reads fine, scale 6 blurred reads fine — but a few
+// pixels per module TOGETHER with softened edges does, because the geometry estimate and the
+// one-sample-per-module read have no room left. Measured on a real SMS round trip of a droplet loop:
+// 0% of 261 frames at 2.6 px/module, 99% of the same file blown up, same bits. So the lens crops to
+// the code it located and looks again bigger. Costs nothing when nothing was located.
+{
+  const text = "AC1|d|-|sha256:" + "a".repeat(64) + "|128|17|" + "Zm9vYmFy".repeat(12);
+  const q = encodeQR(text, { ecLevel: "M" });
+  const paint = (modules, scale, quiet = 4) => {
+    const n = modules.length, W = (n + 2 * quiet) * scale;
+    const data = new Uint8ClampedArray(W * W).fill(230);
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (modules[r][c])
+      for (let dy = 0; dy < scale; dy++) for (let dx = 0; dx < scale; dx++)
+        data[((r + quiet) * scale + dy) * W + (c + quiet) * scale + dx] = 25;
+    return { data, width: W, height: W };
+  };
+  const soften = ({ data, width, height }, k) => {
+    const out = new Uint8ClampedArray(width * height);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      let sum = 0, n = 0;
+      for (let dy = -k; dy <= k; dy++) for (let dx = -k; dx <= k; dx++) {
+        const yy = y + dy, xx = x + dx;
+        if (yy >= 0 && xx >= 0 && yy < height && xx < width) { sum += data[yy * width + xx]; n++; }
+      }
+      out[y * width + x] = sum / n;
+    }
+    return { data: out, width, height };
+  };
+  const soft = decodeImage(soften(paint(q.modules, 3), 1));
+  ok(soft && soft.text === text, "small AND soft still reads (3 px/module, edges blurred)");
+  ok(soft && soft.rescaledBy >= 2, `…by looking again bigger at the code it found (rescaledBy=${soft ? soft.rescaledBy : "-"})`);
+  const crisp = decodeImage(paint(q.modules, 6));
+  ok(crisp && crisp.text === text && !crisp.rescaledBy, "…and a comfortable code never pays for the retry");
+}
+
 if (fails) { console.error(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nall qr-decode tests passed");

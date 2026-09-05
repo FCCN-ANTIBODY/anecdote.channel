@@ -1,49 +1,50 @@
-Measure what a real SMS round trip does to a droplet loop
+The lens looks again bigger when it found a code it could not read
 
-A rendered QR droplet loop went over SMS and came back. This writes down what
-survived, what predicts survival, and which encoder defaults I think should
-change. Doc only — no code, no default actually changed yet.
+Found by pointing decodeImage at a real video: a droplet loop that went over SMS
+and came back at 192x192. The data was intact — OpenCV read 95% of the frames and
+reassembled the whole 16,358-byte payload from that file. Our lens read 0 of 261.
 
-**The good news, and it is real:** 584×584 → 192×192, and it still reassembled
-the whole 16,358-byte payload with a verified signature in a single pass. Of 234
-frames that decoded before and after, all 234 agreed byte for byte. SMS dropped
-no frames and changed no timing; the damage was purely spatial, and QR
-binarization plus Reed-Solomon ate all of it.
+Blowing the same file up 4x nearest-neighbour, which adds no information
+whatsoever, took our lens from 0% to 98.9% and it caught and verified the payload.
+So this was never damage. It was scale.
 
-**The finding I did not expect, and the reason this is a doc rather than a
-message:** at our 1.5x overhead default, a loop needs ~80% of its frames to
-decode or it can never reassemble — the fountain needs ~1.2*K distinct droplets,
-so the required decode rate is 1.2/overhead. SMS delivered 95%, so this one had
-room. A worse channel would not, and there is no warning before it stops working.
+Diagnosis: findFinders locates the code fine at 2.6 px/module — 19 candidates on
+the failing frames. What breaks is downstream: mSize is ~2.6, dimEst divides
+distances by it, and the one-sample-per-module read then lands on the wrong side
+of module boundaries. Neither smallness nor softness alone does it — the torture
+row's "scale 2" case is crisp and passes today, and a blurred scale-6 code passes
+too. It takes both, which is exactly what somebody else's codec hands you.
 
-Two thresholds predict every result I measured:
-- px/module >= 2.0 (Nyquist). Above it the stream lives; below it 40 passes
-  never reassemble, because the failures are deterministic and looping adds no
-  information. It is a cliff, not a slope.
-- usable frames >= 1.2 * K. This one caught a case px/module alone gets wrong:
-  at 144px, EC L decoded 64.4% (168 frames, under K=174) and died forever, while
-  EC M decoded 82.4% (215 frames) and caught in one pass.
+The change: when the loop ends having LOCATED a code (finders resolved to a trio)
+whose modules are under 8px, crop to that code, blow the crop up nearest-neighbour
+to ~10 px/module, and look once more. Returned geometry is mapped back to original
+coordinates, with rescaledBy set so callers can tell.
 
-Decisive experiment for the recommendation: same payload, same EC, same 144px,
-same ~65% decode rate — overhead 1.5x never reassembles, overhead 3x is caught
-in one pass and verified.
+Measured 7px -> 72%, 8.8px -> 92%, 10.5px -> 99% on identical bits, which is where
+the 10px target comes from.
 
-Recommended (not applied here, they are defaults in the render tool which lives
-in the workspace, not this repo): overhead 1.5 -> 2.5, EC M -> L, a ~50-frame
-minimum, record minOutputWidth in the manifest, and raise the catch test's miss
-rate from 25% to ~40% since it passed everything and did not predict the failure
-above.
+Two things keep the cost honest:
+- It only fires when finders were already found and decode still failed. A frame
+  with no code in it does no extra work at all, which is what matters at camera
+  frame rates.
+- It crops to the code before scaling, so memory is proportional to the code and
+  not the frame. A naive whole-frame 4x on a 1280x720 camera buffer would be
+  59MB per attempt; this is a few hundred KB.
 
-Verification note: decoding used OpenCV's detector, which at these module sizes
-is the limiting factor rather than the damage — the SMS copy scored *higher*
-than the pristine original (95.0% vs 93.9%) and their failure sets overlap in 2
-frames of 261. So every number here is a floor; a phone does better.
+Tests: added case 6 to qr-decode.test.mjs — small AND soft (3 px/module, edges
+blurred) now reads, asserts rescaledBy fired, and asserts a comfortable code never
+pays for the retry. qr-decode, qr-encode, carrier, fountain, transfer, sneakernet
+and meet-carrier suites all pass.
 
-Flagged, unsolved, and worse than anything SMS did: dwell time. At 4fps, K=707
-(impact-of-ai) needs 3.5 minutes of continuous filming to catch. Overhead does
-not help — dwell scales with payload size. That needs a decision about payload
-sizing before anything ships as "point your camera at this".
+Worth knowing separately, not changed here: a standalone carrierSession only
+reports complete when every member it has SEEN is done (isComplete, the no-layout
+branch). Point a camera at a page running nine loops and the session never says
+complete until the slowest one lands, even though eight are sitting there
+finished. present[].done is the per-bottle signal; anything with several emitters
+on screen should read that instead. Flagging rather than touching it, since the
+set semantics are presumably deliberate for layout-attested sets.
 
-Raw data, scripts and the SMS sample are in the workspace at
-renders/lucky-sevens/_degradation-study/ (FINDINGS.md has the full tables), since
-that tree is not a repo.
+The harness that found this is catch-video.mjs, in the FCCN-ANTIBODY workspace
+under renders/lucky-sevens/_degradation-study/ (not a repo, so it cannot come
+along in this PR). It streams a video through ffmpeg into decodeImage and
+carrierSession and reports what got caught and when.
