@@ -1,0 +1,49 @@
+Measure what a real SMS round trip does to a droplet loop
+
+A rendered QR droplet loop went over SMS and came back. This writes down what
+survived, what predicts survival, and which encoder defaults I think should
+change. Doc only — no code, no default actually changed yet.
+
+**The good news, and it is real:** 584×584 → 192×192, and it still reassembled
+the whole 16,358-byte payload with a verified signature in a single pass. Of 234
+frames that decoded before and after, all 234 agreed byte for byte. SMS dropped
+no frames and changed no timing; the damage was purely spatial, and QR
+binarization plus Reed-Solomon ate all of it.
+
+**The finding I did not expect, and the reason this is a doc rather than a
+message:** at our 1.5x overhead default, a loop needs ~80% of its frames to
+decode or it can never reassemble — the fountain needs ~1.2*K distinct droplets,
+so the required decode rate is 1.2/overhead. SMS delivered 95%, so this one had
+room. A worse channel would not, and there is no warning before it stops working.
+
+Two thresholds predict every result I measured:
+- px/module >= 2.0 (Nyquist). Above it the stream lives; below it 40 passes
+  never reassemble, because the failures are deterministic and looping adds no
+  information. It is a cliff, not a slope.
+- usable frames >= 1.2 * K. This one caught a case px/module alone gets wrong:
+  at 144px, EC L decoded 64.4% (168 frames, under K=174) and died forever, while
+  EC M decoded 82.4% (215 frames) and caught in one pass.
+
+Decisive experiment for the recommendation: same payload, same EC, same 144px,
+same ~65% decode rate — overhead 1.5x never reassembles, overhead 3x is caught
+in one pass and verified.
+
+Recommended (not applied here, they are defaults in the render tool which lives
+in the workspace, not this repo): overhead 1.5 -> 2.5, EC M -> L, a ~50-frame
+minimum, record minOutputWidth in the manifest, and raise the catch test's miss
+rate from 25% to ~40% since it passed everything and did not predict the failure
+above.
+
+Verification note: decoding used OpenCV's detector, which at these module sizes
+is the limiting factor rather than the damage — the SMS copy scored *higher*
+than the pristine original (95.0% vs 93.9%) and their failure sets overlap in 2
+frames of 261. So every number here is a floor; a phone does better.
+
+Flagged, unsolved, and worse than anything SMS did: dwell time. At 4fps, K=707
+(impact-of-ai) needs 3.5 minutes of continuous filming to catch. Overhead does
+not help — dwell scales with payload size. That needs a decision about payload
+sizing before anything ships as "point your camera at this".
+
+Raw data, scripts and the SMS sample are in the workspace at
+renders/lucky-sevens/_degradation-study/ (FINDINGS.md has the full tables), since
+that tree is not a repo.
