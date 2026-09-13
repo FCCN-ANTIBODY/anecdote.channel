@@ -61,8 +61,20 @@ const b64decode = (s) => typeof Buffer !== "undefined" ? new Uint8Array(Buffer.f
 // ---- bin/verify, in the room ---------------------------------------------------------------------
 // manifest: the parsed manifest.json. blocks: { name -> Uint8Array } (every file the entries name).
 // verifySignature: the injected seam (required unless allowUnsigned — fail closed, like the bash).
-// Returns { ok:true, digest, entries, signed } or { ok:false, reason } — never a silent pass.
-export async function verifyFeed({ manifest, blocks, source = "tell", verifySignature = null, allowUnsigned = false } = {}, opts = {}) {
+//
+// partial: for a reader that holds only SOME blocks — a disclosed excerpt, an ejected piece, a
+// player that has fetched eight chunks of ninety-three. An absent block becomes "not held" rather
+// than fatal. This is NOT a relaxed verifier; it verifies a strictly SMALLER claim:
+//   with no block bytes at all -> the signer committed to this exact ordered list of N block
+//                                 hashes (digest + signature + prev_hash linkage)
+//   per block actually held    -> these bytes are the block committed at seq K
+// Both halves together are exactly the whole check, so nothing is given up by fetching lazily.
+// The result always carries `complete` and the `notHeld` seqs, so a caller can never report a
+// partial verification as a full one. Absent blocks WITHOUT partial stay fatal, as before.
+//
+// Returns { ok:true, digest, entries, signed, complete, held, notHeld } or { ok:false, reason }
+// — never a silent pass.
+export async function verifyFeed({ manifest, blocks, source = "tell", verifySignature = null, allowUnsigned = false, partial = false } = {}, opts = {}) {
   const subtle = subtleOf(opts);
   if (!manifest || !Array.isArray(manifest.entries) || !manifest.head) return { ok: false, reason: "not a feed manifest" };
 
@@ -83,20 +95,33 @@ export async function verifyFeed({ manifest, blocks, source = "tell", verifySign
   }
 
   let prev = "null";
+  const held = [], notHeld = [];
   for (let i = 0; i < manifest.entries.length; i++) {
     const e = manifest.entries[i];
+    // Checkable from the manifest alone. Fatal in every mode: the signed digest covers these,
+    // so a reader holding no bytes whatsoever can still be lied to here if we skipped them.
     if (e.seq !== i) return { ok: false, reason: `entry ${i} out of order (seq=${e.seq})` };
     const ph = e.prev_hash == null ? "null" : String(e.prev_hash);
     if (ph !== prev) return { ok: false, reason: `broken chain at seq ${i} (prev_hash=${ph} expected=${prev})` };
-    const bytes = blocks && blocks[e.block];
-    if (!bytes) return { ok: false, reason: `missing block file ${e.block} at seq ${i}` };
-    const got = "sha256:" + (await sha256hex(subtle, bytes));
-    if (got !== e.this_hash) return { ok: false, reason: `block ${e.block} tampered at seq ${i} (${got} != ${e.this_hash})` };
     if (!/^sha256:[0-9a-f]{64}$/.test(e.ratchet_pub || "")) return { ok: false, reason: `bad ratchet_pub at seq ${i}` };
+    // Channel 2: every entry must NAME its key. Naming is a manifest property and stays fatal;
+    // HAVING the file is a holding property, which is the only thing partial relaxes.
     if (source === "drop" && !e.key) return { ok: false, reason: `drop entry ${i} carries no key file (channel 2 requires one)` };
+
+    const bytes = blocks && blocks[e.block];
+    if (bytes) {
+      const got = "sha256:" + (await sha256hex(subtle, bytes));
+      if (got !== e.this_hash) return { ok: false, reason: `block ${e.block} tampered at seq ${i} (${got} != ${e.this_hash})` };
+      held.push(e.seq);
+    } else if (partial) {
+      notHeld.push(e.seq);
+    } else {
+      return { ok: false, reason: `missing block file ${e.block} at seq ${i} (pass partial:true if you hold only some)` };
+    }
     prev = e.this_hash;
   }
-  return { ok: true, digest, entries: manifest.entries.length, signed };
+  return { ok: true, digest, entries: manifest.entries.length, signed,
+           complete: notHeld.length === 0, held, notHeld };
 }
 
 // ---- bin/decrypt, in the room --------------------------------------------------------------------
