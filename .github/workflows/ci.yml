@@ -15,7 +15,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # `submodules: recursive` because the -enough family is moving out into its own
+      # repositories and mounting back at the same paths. Without this the mount is an empty
+      # directory, and an empty directory is not an error to anything here — scripts/test.mjs now
+      # fails on one rather than skipping it, and this is the other half of that pair.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 22       # DecompressionStream / CompressionStream (git-enough) need a modern Node

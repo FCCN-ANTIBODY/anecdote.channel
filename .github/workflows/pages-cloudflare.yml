@@ -30,7 +30,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # `submodules: recursive`, and here it is not a test-coverage question but an OUTAGE one.
+      # The deploy step below is `pages deploy .` — it uploads the working tree, so an unfilled
+      # mount publishes an empty directory. The site imports across those paths (viewer/ pulls
+      # git-enough/read.mjs, sw.js caches it), so the browser would 404 on a deploy that reported
+      # success. Hydrate before uploading.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

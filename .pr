@@ -1,50 +1,113 @@
-The lens looks again bigger when it found a code it could not read
+Make an unfilled submodule loud, before the -enough family starts leaving
 
-Found by pointing decodeImage at a real video: a droplet loop that went over SMS
-and came back at 192x192. The data was intact — OpenCV read 95% of the frames and
-reassembled the whole 16,358-byte payload from that file. Our lens read 0 of 261.
+Adopts the petition `extract-the-enough-family.md` and does the half that has to
+come **first**. No code moves in this PR. What changes is that this repository can
+survive having a submodule, which today it cannot.
 
-Blowing the same file up 4x nearest-neighbour, which adds no information
-whatsoever, took our lens from 0% to 98.9% and it caught and verified the payload.
-So this was never damage. It was scale.
+## Why this is the first PR and not the second
 
-Diagnosis: findFinders locates the code fine at 2.6 px/module — 19 candidates on
-the failing frames. What breaks is downstream: mSize is ~2.6, dimEst divides
-distances by it, and the one-sample-per-module read then lands on the wrong side
-of module boundaries. Neither smallness nor softness alone does it — the torture
-row's "scale 2" case is crisp and passes today, and a blurred scale-6 code passes
-too. It takes both, which is exactly what somebody else's codec hands you.
+A folder and a submodule are byte-identical to an importer — `../git-enough/read.mjs`
+resolves the same either way — which is what makes the whole extraction affordable.
+It is also why the failure mode is so quiet: **nothing changes until a mount is
+empty, and then everything changes at once, with no error message.**
 
-The change: when the loop ends having LOCATED a code (finders resolved to a trio)
-whose modules are under 8px, crop to that code, blow the crop up nearest-neighbour
-to ~10 px/module, and look once more. Returned geometry is mapped back to original
-coordinates, with rescaledBy set so callers can tell.
+Two defaults here compose into exactly that:
 
-Measured 7px -> 72%, 8.8px -> 92%, 10.5px -> 99% on identical bits, which is where
-the 10px target comes from.
+1. **`scripts/test.mjs` skipped a directory it could not find.**
 
-Two things keep the cost honest:
-- It only fires when finders were already found and decode still failed. A frame
-  with no code in it does no extra work at all, which is what matters at camera
-  frame rates.
-- It crops to the code before scaling, so memory is proportional to the code and
-  not the frame. A naive whole-frame 4x on a 1280x720 camera buffer would be
-  59MB per attempt; this is a few hundred KB.
+       try { entries = readdirSync(join(root, d)); } catch { continue; }
 
-Tests: added case 6 to qr-decode.test.mjs — small AND soft (3 px/module, edges
-blurred) now reads, asserts rescaledBy fired, and asserts a comfortable code never
-pays for the retry. qr-decode, qr-encode, carrier, fountain, transfer, sneakernet
-and meet-carrier suites all pass.
+   Right for an optional folder, wrong for a submodule. An unfilled `jekyll-enough`
+   made four suites vanish and the run still printed `N/N passed`. A green check for
+   a build that tested less than it did yesterday is the one failure nobody
+   investigates.
 
-Worth knowing separately, not changed here: a standalone carrierSession only
-reports complete when every member it has SEEN is done (isComplete, the no-layout
-branch). Point a camera at a page running nine loops and the session never says
-complete until the slowest one lands, even though eight are sitting there
-finished. present[].done is the per-bottle signal; anything with several emitters
-on screen should read that instead. Flagging rather than touching it, since the
-set semantics are presumably deliberate for layout-attested sets.
+2. **Neither workflow fetched submodules.** `actions/checkout@v4` does not unless
+   asked. Compose that with #1 and you get a build that silently stops testing.
 
-The harness that found this is catch-video.mjs, in the FCCN-ANTIBODY workspace
-under renders/lucky-sevens/_degradation-study/ (not a repo, so it cannot come
-along in this PR). It streams a video through ffmpeg into decodeImage and
-carrierSession and reports what got caught and when.
+And a third that is worse than either, because it is user-visible:
+
+3. **`pages-cloudflare.yml` runs `pages deploy .`** — it uploads the working tree.
+   An unfilled mount publishes an *empty directory* into the live site. `viewer/`
+   imports `git-enough/read.mjs` and `sw.js` caches it, so the browser 404s on a
+   deploy that reported success.
+
+So: the runner now **fails** on a missing listed directory and names the fix, and
+both workflows hydrate. None of this is speculative — it is what would have broken,
+found by doing the extraction and looking back.
+
+## What else is in here
+
+`docs/origin.md` gains **The family gets addresses**, which is what the petition
+asked to land: the boundary table and the order.
+
+The finding that most changes what "extract git-enough" means is that the folder is
+**at least four things wearing one name** — git transport, a workflow runner
+(`docs/actions-enough.md` already calls it `actions-enough`), a scheduler that is
+already `cron-enough` in everything but name, and shims for `node:*` that should be
+called **`node-enough`, not `shell-enough`**: there is no `ls`, no `grep`, no
+pipeline in there, and in this family the lowercase word has to read as the thing it
+replaces. One-repo-per-folder would ship a `git-enough` containing a scheduler.
+
+Two things in it need you rather than me:
+
+- **The bottle cluster is bigger than the petition thought.** *Leave them behind*
+  over *invert the dependency* — `bottle.mjs` and `seize.mjs` are this repository's
+  bottle and attestation concerns using git plumbing, not the reverse, and
+  `composer/` already holds `bottle-attest`, `bottle-embed` and `bottle-uri`. But it
+  is not two files: `bottle-boot.mjs` imports `serveOnHello` from `bottle.mjs` and
+  **`bottle-boot.mjs` is served** — `probe-test/glove.ui.test.mjs` boots a page
+  against `/git-enough/bottle-boot.mjs`. Moving only `bottle.mjs` relocates the
+  outward import instead of removing it. The clean cut takes `bottle.mjs`,
+  `bottle-boot.mjs`, `bottle-inception.mjs`, `bottle.html` and `seize.mjs`, which
+  **changes a served URL path.** Named here, not done.
+- **`yaml-enough` is a merge, not an extraction.** `jekyll-enough/yaml.mjs` (172
+  lines) and `advocate.anecdote.channel/bin/yaml-enough.mjs` (144) are different code
+  for the same job and the second already owns the name.
+
+Also recorded because a first pass misses it: **the tests reach further than the
+code.** `probe-ops.mjs` imports nothing outward and would extract without comment,
+while `probe-ops.test.mjs` imports `composer/probe-line.mjs` and would stop running
+the moment the folder moved. `composer/bottle-uri.mjs` appears in the test layer and
+nowhere in the module graph. Survey both layers or ship a repository whose suite is
+decoration.
+
+## Verified
+
+`node scripts/test.mjs` → **117/117 suites passed** on this branch.
+
+The new failure path was tested by actually hiding the directory:
+
+    $ mv jekyll-enough .je-hidden && node scripts/test.mjs
+    test: 1 listed directory is missing: jekyll-enough
+          If it is a submodule, it is not hydrated:  git submodule update --init --recursive
+          In CI, that is `submodules: recursive` on actions/checkout.
+          If it was renamed or removed, update the list in this file.
+    exit=1
+
+The workflow changes are not exercised until a run happens; they are two `with:`
+blocks and the reasoning is in a comment beside each.
+
+## Blocked, and it needs your hands
+
+**`jekyll-enough` is already extracted** — 13 commits, authors intact, the 4 original
+suites passing standalone plus a new `dependencies.test.mjs` that makes the family's
+promise a test (a production module may import a sibling and nothing else; today the
+four import zero `node:` builtins between them). It also carries `docs/mounting.md`,
+the four silent-failure places written up from what would have broken here.
+
+It is parked at **`~/Project/FCCN-ANTIBODY/jekyll-enough`** with its remote set and
+nothing pushed, because **creating the GitHub repository was denied by this session's
+permission classifier.** Create `FCCN-ANTIBODY/jekyll-enough` (public, no license —
+matching `anecdote.channel` and `bottles.anecdote.channel`) or allow me to, and the
+swap here is two commands: `git rm -r jekyll-enough` and `git submodule add`. The
+hardening in this PR is what makes that swap safe, and it is worth landing either way.
+
+## Not in scope
+
+`civic-node` does **not** need a library engine for any of this — I checked, since it
+came up. Its only references to the family are prose in `AGENTS.md` and
+`OPEN-QUESTIONS.md`; no code consumes it and no workflow builds with it. The library
+layer can name these and say where to get them, but it cannot put bytes in a build —
+that is the consumer's job, which is the whole point of `docs/mounting.md`. A library
+on `civic-node` is a real want and a separate one.
