@@ -263,6 +263,9 @@ Refinements toward deliverables (still vision, but sharpening):
   encryption factory: each is a **narrow client compatible with the features actually used — not API
   parity**. `git-enough` is shaped in [`docs/git-enough.md`](git-enough.md) (the staging beat, the op set,
   the history-pile, and the seal-enough analysis); `jekyll-enough` is scoped by the study below.
+  **Where each member LIVES is settled separately** — see *The family gets addresses* below, which
+  names the repository boundaries and the order. `jekyll-enough` is extracted and waiting on its
+  remote; the rest have not moved.
 
 ## Research idiom — the "subsystem-surface study" (reusable brief)
 
@@ -302,6 +305,130 @@ collections, pagination, Sass, or Ruby. `jekyll-enough` is genuinely small.
   submodule's *own* templates aren't in this workspace, so the surface above is measured from the
   constellation's shared Liquid usage (Tell/Atlas/civic-node) plus what's visible — **re-run the study
   against the journal-engine repo once it's in scope** to confirm nothing exotic hides there.
+
+## The family gets addresses — the boundary table, and the order
+
+> Status: **decided in outline, one item needs the operator.** Adopted 2026-09-13 from the petition
+> `extract-the-enough-family.md`, filed to this repository from the station node's library because
+> the library group `build/enough/` was carved out to hold these and had nothing to hold.
+
+The family has been a set of folders in this repository. It becomes a set of repositories, mounted
+back **at the same paths**, because a folder and a submodule are byte-identical to an importer:
+`../git-enough/read.mjs` resolves the same either way. Nothing that imports these has to change,
+which is the entire reason this is affordable.
+
+**`jekyll-enough` goes first**, and it is already extracted — thirteen commits with their authors
+intact, its 4 suites plus a new one passing standalone, parked on this machine awaiting
+`FCCN-ANTIBODY/jekyll-enough`. It was chosen because it cost nothing to find out: its four modules
+import each other and nothing else, not even a `node:` builtin. It carries two things a folder never
+needed, and both are the real product of going first:
+
+- **`dependencies.test.mjs`** — the family's promise as a test. A production module may import a
+  sibling and nothing else. `-enough` is a claim about *where the thing runs*, so the failure that
+  would end it is not a bad feature, it is an import, and that failure is invisible from inside the
+  repository.
+- **`docs/mounting.md`** — the four places an unfilled mount fails **silently**. Read it before
+  mounting any of these anywhere.
+
+### What the folder called `git-enough` actually contains
+
+This is the finding that changes what "extract git-enough" means. One folder, at least four things:
+
+| | modules | wants to be |
+|---|---|---|
+| git transport and objects | `fetch-pack`, `send-pack`, `pack`, `unpack`, `objects`, `inflate`, `read`, `repo`, `git-client` | **`git-enough`** — the whole name, and nothing else under it |
+| a workflow runner | `workflow`, `run-action` | **`actions-enough`** — [`docs/actions-enough.md`](actions-enough.md) already calls it that |
+| a scheduler | `scheduler`, `staging-beat` | **`cron-enough`** — it already has a `minGap` and a `maxCommits` cap and no-ops when its authority gate declines. Best-effort-and-say-so is already its design |
+| shims for `node:*` | `node-compat`, `shim-fs`, `shim-path`, `shim-os`, `shim-url` | **`node-enough`**, not `shell-enough`. There is no `ls`, no `grep`, no pipeline — it stands in for `node:*`, and in this family the lowercase word has to read as the thing it replaces |
+| this repository's own concerns | the bottle cluster, `publish-cli`, `verify-cli` | **stay here.** See below |
+
+Defaulting to one-repo-per-folder would ship a `git-enough` containing a scheduler and a workflow
+engine — the exact thing a family of small primitives exists to avoid.
+
+### The bottle cluster leaves `git-enough`, and that is the recommendation
+
+Two modules hold the other 1,850 lines in place: `bottle.mjs` imports five things from `composer/`
+and `seize.mjs` imports one. **148 lines pinning 1,850.**
+
+Of the petition's two options — *leave them behind* or *invert the dependency* — **leave them
+behind**, and the reason is no longer only about the import graph. `bottle.mjs` and `seize.mjs` are
+not git plumbing that happens to sign things; they are *this repository's bottle and attestation
+concerns* that happen to use git plumbing. `composer/` already holds `bottle-attest`, `bottle-embed`
+and `bottle-uri`, and since 2026-09-08 the vocabulary itself has an owner in
+[`bottles.anecdote.channel`](https://github.com/FCCN-ANTIBODY/bottles.anecdote.channel). Inverting
+the dependency would make the new repository's API bigger in order to keep a boundary in the wrong
+place.
+
+**The part that needs the operator, because it is bigger than the petition said.** It is not two
+modules. `bottle-boot.mjs` imports `serveOnHello` from `bottle.mjs`, and `bottle-boot.mjs` is
+*served* — `probe-test/glove.ui.test.mjs` boots a page against `/git-enough/bottle-boot.mjs`. So
+moving only `bottle.mjs` relocates the outward import rather than removing it. The clean cut takes
+the whole cluster:
+
+    bottle.mjs · bottle-boot.mjs · bottle-inception.mjs · bottle.html · seize.mjs  (+ their tests)
+
+That changes a served URL path, which is a bigger decision than a file move and is why it is named
+here rather than done.
+
+### The tests reach further than the code, and a test that cannot run is a repository that cannot be trusted
+
+A first pass over the modules misses this entirely. Eight things outside the folder are needed, and
+the module graph names only six of them:
+
+    bottle.test.mjs        composer/{bottle-attest, bottle-uri, probe-line, sign}
+    seize.test.mjs         composer/sign
+    probe-ops.test.mjs     composer/probe-line          ← probe-ops.mjs itself is CLEAN
+    bundle-action.test.mjs scripts/bundle-action
+    run-antidote.test.mjs  scripts/bundle-action
+
+`probe-ops.mjs` is the instructive one: the module imports nothing outward and would extract without
+comment, while its test stops running the moment the folder moves. `composer/bottle-uri.mjs` appears
+here and nowhere in the module graph at all. **Survey both layers or the extraction ships a repository
+whose suite is decoration.** A fixture may legitimately be duplicated where a module may not.
+
+### Two more members, and one of them is a merge
+
+- **`liquid-enough`** is a *file* — `jekyll-enough/liquid.mjs`, 430 lines. It is the biggest thing in
+  the repository that just shipped and it may want its own address eventually. Not now: splitting it
+  on day one would mean the first mount of the first member was itself a two-submodule affair.
+- **`yaml-enough` already exists twice.** `jekyll-enough/yaml.mjs` (172 lines) and
+  `advocate.anecdote.channel/bin/yaml-enough.mjs` (144 lines) are different code for the same job,
+  and the second **already has the name**. So this member is a *merge*, not an extraction, and
+  whichever survives has to satisfy both callers. A third reader — `station-node/bin/services.read_block`,
+  ~45 lines of Python — should stay: system python has no yaml and putting a package manager on that
+  node's boot path was refused deliberately. Worth knowing there are three, because *"the parser is
+  shared by every repository that mounts the engine"* is true of one of them and reads as though it
+  were true of the format.
+
+### The order
+
+**Harden every consumer before moving any code.** A runner that skips a missing directory and a
+checkout that does not fetch submodules compose into a build that silently stops testing; a
+`pages deploy .` over an unfilled mount publishes the hole into a live site. Both are fixed in this
+repository *now*, ahead of anything needing them — which is why this document lands before the first
+folder leaves rather than after.
+
+1. **`jekyll-enough`** — extracted; the folder here becomes a submodule at the same path as soon as
+   the repository exists.
+2. **Re-run the full suite across the swap.** 117/117 today. The number must not move, and if a
+   suite disappears instead of failing, step 2 of the hardening did not work.
+3. **`cron-enough` and `node-enough`** next, not `git-enough`. They are small, they have no outward
+   imports, and each one settles a *naming* question that is cheaper to settle before the big move.
+4. **The bottle cluster's relocation**, once the served-path question is answered.
+5. **`git-enough`**, which by then is only the transport and objects — the name finally meaning one
+   thing.
+6. **`actions-enough`**, whose boundary is clearest after `cron-enough` has left.
+7. **`yaml-enough`**, as a merge, whenever both callers can be satisfied at once.
+
+`liquid-enough` and a genuine `sh-enough` are **new work, not extractions**, and neither is on this
+list. The 105 lines of `node-compat` and its shims would be a shell tool's substrate, not its
+content.
+
+### What this does not ask for
+
+Not a monorepo split on a schedule. Not a package published anywhere — submodule pins are the
+versioning and that is already exact. Not a rename of anything already right: `git-enough` and
+`jekyll-enough` keep their names, and the naming findings above are about parts that never had one.
 
 ## Broad-strokes contract (the invariants this milestone must keep)
 
