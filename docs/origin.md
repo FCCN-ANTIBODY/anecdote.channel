@@ -317,11 +317,11 @@ back **at the same paths**, because a folder and a submodule are byte-identical 
 `../git-enough/read.mjs` resolves the same either way. Nothing that imports these has to change,
 which is the entire reason this is affordable.
 
-**`jekyll-enough` goes first**, and it is already extracted — thirteen commits with their authors
-intact, its 4 suites plus a new one passing standalone, parked on this machine awaiting
-`FCCN-ANTIBODY/jekyll-enough`. It was chosen because it cost nothing to find out: its four modules
-import each other and nothing else, not even a `node:` builtin. It carries two things a folder never
-needed, and both are the real product of going first:
+**`jekyll-enough` went first** — [FCCN-ANTIBODY/jekyll-enough](https://github.com/FCCN-ANTIBODY/jekyll-enough),
+thirteen commits with their authors intact, mounted back here as a submodule at the same path. It was
+chosen because it cost nothing to find out: its four modules import each other and nothing else, not
+even a `node:` builtin, and every file went across byte-identical. It carries two things a folder
+never needed, and both are the real product of going first:
 
 - **`dependencies.test.mjs`** — the family's promise as a test. A production module may import a
   sibling and nothing else. `-enough` is a claim about *where the thing runs*, so the failure that
@@ -408,10 +408,13 @@ checkout that does not fetch submodules compose into a build that silently stops
 repository *now*, ahead of anything needing them — which is why this document lands before the first
 folder leaves rather than after.
 
-1. **`jekyll-enough`** — extracted; the folder here becomes a submodule at the same path as soon as
-   the repository exists.
-2. **Re-run the full suite across the swap.** 117/117 today. The number must not move, and if a
-   suite disappears instead of failing, step 2 of the hardening did not work.
+1. **`jekyll-enough`** — done. 117 suites before, 118 after: the same four ran out of the
+   submodule and `dependencies.test.mjs` came with it.
+2. **Prove the guard on a real submodule, not a renamed folder.** The first version of the
+   hardening tested for a *missing* directory, and an unhydrated submodule is an **empty directory
+   that exists** — `readdirSync` returns `[]` rather than throwing. It reported `113/113 passed`
+   having run none of the five. The test is *no suites*, never *no directory*, and that is only
+   findable by deinit-ing an actual mount.
 3. **`cron-enough` and `node-enough`** next, not `git-enough`. They are small, they have no outward
    imports, and each one settles a *naming* question that is cheaper to settle before the big move.
 4. **The bottle cluster's relocation**, once the served-path question is answered.

@@ -9,30 +9,40 @@ import { join, dirname } from "node:path";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dirs = ["reducer", "composer", "git-enough", "viewer", "jekyll-enough", "probe-test", "vault", "scripts"];
 
-// A LISTED DIRECTORY THAT IS NOT THERE IS A FAILURE, NOT A SKIP.
+// A LISTED DIRECTORY THAT CONTRIBUTES NO SUITES IS A FAILURE, NOT A SKIP.
 //
-// This used to `continue` past a missing directory, which is the right call for a folder that is
-// optional and the wrong one for a folder that is a SUBMODULE. `actions/checkout` does not fetch
-// submodules unless asked; an unfilled mount is an empty directory; an empty directory used to
-// mean the suites inside it silently vanished and the run still reported `N/N passed`. A green
-// check for a build that tested less than it did yesterday is the one failure nobody investigates.
+// This used to `continue` past a directory it could not read, which is the right call for a folder
+// that is optional and the wrong one for a folder that is a SUBMODULE. `actions/checkout` does not
+// fetch submodules unless asked, so the suites inside one silently vanished and the run still
+// reported `N/N passed` — a green check for a build that tested less than it did yesterday, which
+// is the one failure nobody investigates.
 //
-// The list above is hand-maintained, so "missing" genuinely means something went wrong — either
-// the mount is unhydrated or the directory was renamed and this line was not.
-const missing = [];
+// THE TEST IS "NO SUITES", NOT "NO DIRECTORY", AND THAT DISTINCTION IS THE WHOLE POINT.
+// An unhydrated submodule is an EMPTY DIRECTORY THAT EXISTS: git creates the mount point and puts
+// nothing in it. `readdirSync` on it does not throw, it returns []. Checking for a missing
+// directory therefore catches a rename and misses the actual case — measured, on the commit that
+// made jekyll-enough a submodule: `git submodule deinit` then this runner, and it reported
+// 113/113 passed having run none of that module's five suites.
+//
+// Every directory in the list above has suites today (64, 20, 10, 7, 5, 5, 5, 2). A member that
+// legitimately has none does not belong in a list whose only purpose is to find them.
+const barren = [];
 const files = [];
 for (const d of dirs) {
   let entries = [];
-  try { entries = readdirSync(join(root, d)); } catch { missing.push(d); continue; }
-  for (const f of entries) if (f.endsWith(".test.mjs")) files.push(`${d}/${f}`);
+  try { entries = readdirSync(join(root, d)); } catch { entries = []; }
+  const suites = entries.filter((f) => f.endsWith(".test.mjs"));
+  if (suites.length === 0) { barren.push(d); continue; }
+  for (const f of suites) files.push(`${d}/${f}`);
 }
 files.sort();
 
-if (missing.length) {
-  console.error(`\ntest: ${missing.length} listed director${missing.length === 1 ? "y is" : "ies are"} missing: ${missing.join(", ")}`);
-  console.error("      If it is a submodule, it is not hydrated:  git submodule update --init --recursive");
-  console.error("      In CI, that is `submodules: recursive` on actions/checkout.");
-  console.error("      If it was renamed or removed, update the list in this file.");
+if (barren.length) {
+  console.error(`\ntest: ${barren.length} listed director${barren.length === 1 ? "y contributes" : "ies contribute"} no suites: ${barren.join(", ")}`);
+  console.error("      An unhydrated submodule looks exactly like this — the directory is there and empty:");
+  console.error("        git submodule update --init --recursive");
+  console.error("      In CI that is `submodules: recursive` on actions/checkout.");
+  console.error("      If a directory was renamed or genuinely has no tests, update the list in this file.");
   process.exit(1);
 }
 
