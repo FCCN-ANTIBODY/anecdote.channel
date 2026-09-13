@@ -1,0 +1,3 @@
+[submodule "jekyll-enough"]
+	path = jekyll-enough
+	url = https://github.com/FCCN-ANTIBODY/jekyll-enough.git
