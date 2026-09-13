@@ -386,6 +386,55 @@ comment, while its test stops running the moment the folder moves. `composer/bot
 here and nowhere in the module graph at all. **Survey both layers or the extraction ships a repository
 whose suite is decoration.** A fixture may legitimately be duplicated where a module may not.
 
+### `age-enough` already exists, and somebody already vendored it by hand
+
+Found 2026-09-13 while counting the shell gap, and it is the sharpest argument in this document
+because **it is the failure the extraction exists to prevent, already committed.**
+
+`composer/` holds a working age implementation — `age-mint.mjs` (178), `age-seal.mjs` (151),
+`age-open.mjs` (89), `chacha20poly1305.mjs` (107) — with `age-mint.test.mjs` asserting that WebCrypto
+derives the same recipient the real `age-keygen -y` does. That is the family's health test, met
+against the actual tool.
+
+`FCCN-ANTIBODY/data-pile` needed it. There was no address to point at, so it **inlined the code**,
+and its own headers say so:
+
+    bin/age-open.mjs    "the age battery (anecdote.channel/composer/age-seal.mjs + age-mint.mjs), inlined"
+    bin/age-keygen.mjs  "A trimmed slice of anecdote.channel/composer/age-mint.mjs"
+
+Two copies, cross-referencing each other in comments, with nothing that fails when they drift.
+**This is not the `yaml-enough` situation** — there are not two rival implementations to reconcile.
+There is one implementation and a hand-cut slice of it, which means `age-enough` needs no merge at
+all: extract the origin, mount it, delete the inline copy. It may be the cheapest member after
+`jekyll-enough`.
+
+`data-pile/bin/prove.mjs` calls it **"the vendored age battery"** — and `git-enough/workflow.mjs`
+names the shell gap as needing *"a JS battery."* Same word, arrived at independently, for a thing
+with no address.
+
+#### What it is already worth, measured
+
+Of the 13 `hosted-only` steps in [the count](actions-enough.md#the-shell-gap-counted), **five are
+`sudo apt-get install age`** — and the battery has already made most of them unnecessary without
+anyone noticing:
+
+| workflow | installs `age` for | state |
+|---|---|---|
+| `ingest.yml` | `bin/ingest` | **nothing** — `bin/ingest` and `bin/lib.sh` make zero `age` calls |
+| `report.yml` | `bin/ingest`, `bin/report` | **nothing** — same |
+| `prove.yml` | `bin/prove` (bash), which shells to `age -d` | replaceable: `bin/prove.mjs` is a byte-compatible port cross-verified against the bash bin in `test/prove.test.mjs` |
+| `setup.yml` | `age-keygen` | replaceable: `bin/age-keygen.mjs` |
+| `test.yml` | `test/run.sh`, making fixtures with the real tool | **keep it.** Generating a fixture with the tool and asserting the port reads it is how parity is proven |
+
+Two installs are vestigial, two are replaceable by JS that is already written and already tested,
+one is load-bearing and should stay. **That is not a build; it is a deletion and two path changes**,
+which is what the closing note of the shell count meant by *the cheapest way to shrink this gap is
+not to build anything.*
+
+**It is `data-pile`'s call, not this repository's.** Recorded here because the family boundary is
+defined here and because the inlining is evidence about *this* repository's missing address, not
+about their judgement — they did the correct thing with the options they had.
+
 ### Two more members, and one of them is a merge
 
 - **`liquid-enough`** is a *file* — `jekyll-enough/liquid.mjs`, 430 lines. It is the biggest thing in
@@ -422,6 +471,10 @@ folder leaves rather than after.
    thing.
 6. **`actions-enough`**, whose boundary is clearest after `cron-enough` has left.
 7. **`yaml-enough`**, as a merge, whenever both callers can be satisfied at once.
+
+**`age-enough` is unplaced in this order on purpose.** It needs no merge and has a proven consumer,
+so it could go second — but it is `composer/`'s code rather than `git-enough/`'s, and whether the
+family takes members from outside that folder is a question this list has not had to answer before.
 
 `liquid-enough` and a genuine `sh-enough` are **new work, not extractions**, and neither is on this
 list. The 105 lines of `node-compat` and its shims would be a shell tool's substrate, not its
