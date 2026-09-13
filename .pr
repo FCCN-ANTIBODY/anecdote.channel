@@ -1,1 +1,97 @@
-no draft yet - replace this file: line 1 becomes the PR title, the rest the body
+Count the shell gap: it is 29% of every step, and one third of it is not a shell problem
+
+`docs/actions-enough.md` has carried this open item since it was written:
+
+> **Shell steps with no capability yet** — enumerate **the handful** that aren't
+> node/jekyll/git and decide per-case.
+
+It is not a handful. **41 of 141 steps**, the second-largest kind after `checkout`,
+and every one of them lands on `runWorkflow`'s *"named gap — a bash/program step."*
+
+## Enumerated by the interpreter, not by me
+
+`scripts/workflow-gaps.mjs` runs `parseWorkflowSteps` and `planSteps` out of
+`git-enough/workflow.mjs` over every workflow it is pointed at. The classification is
+the runner's own, so the count cannot drift from what the runner would actually do —
+and it is a script rather than a list, so re-running it is cheaper than trusting it.
+
+    node scripts/workflow-gaps.mjs ~/Project/FCCN-ANTIBODY/* ~/Project/NCCV/* ~/Project/station-node
+
+Nine repositories, 31 workflow files, 141 steps, 2026-09-13:
+
+| kind | steps | |
+|---|---:|---:|
+| `checkout` | 42 | 30% |
+| **`run-shell`** | **41** | **29%** |
+| `action` | 19 | 13% |
+| `run-node` | 14 | 10% |
+| `publish` | 11 | 8% |
+
+## Why it was ever estimated as a handful
+
+**Because the estimate was made from inside the least representative repository we
+have.** Point the same script at `anecdote.channel` alone: **48% `run-node`, 21%
+`run-shell`, six steps.** This repo is dependency-free on purpose, so its workflows are
+mostly `node bin/x.mjs` — exactly the case the interpreter already handles. Everywhere
+else the ratio inverts.
+
+A survey of the thing you built the tool inside is the one survey guaranteed to
+flatter it. Worth keeping as a note about method, not just about this number.
+
+## It is four problems and only one of them is a shell
+
+A step is classified but `run: |` holds a *block*, so the script counts a step in
+**every** bucket it touches rather than the first. **29 need one answer; 12 need
+several** — and a step needing several is not several small decisions, it is one step
+that cannot run until the last of them lands.
+
+| bucket | steps | who answers it |
+|---|---:|---|
+| `shell` | 24 | control flow, `test`, `echo`, assignment. The **only** bucket a shell interpreter closes — and it is real: 58 lines of it in a single `platform/checkpoint.yml` step |
+| `hosted-only` | 13 | `sudo apt-get install age`, `npm test`. No device answer, and there should not be one — the argument for the hybrid, not for a bigger shim |
+| `routes` | 9 | `git submodule update --init`, `git config --file .gitmodules`. git-enough's, and mostly *submodule* plumbing rather than transport |
+| `program` | 7 | a repo program. Already resolvable when it is an `exec node X.mjs` shim; a named gap when it is bash — `bin/cf-purge.sh`, `bash test/run.sh` |
+
+Seven `sudo apt-get install` steps is also why one sentence in the doc had to change.
+It said *"nothing here needs a container or a POSIX shell."* Seven steps are a
+container by definition. I struck that clause and left the rest, which still stands.
+
+## The part worth reading if you read nothing else
+
+**13 of the 41 write `$GITHUB_OUTPUT` or `$GITHUB_STEP_SUMMARY.`**
+
+    echo "matrix=$(node .advocate-engine/bin/seats.mjs --matrix)" >> "$GITHUB_OUTPUT"
+
+That file is created and read back **by the runner**, between steps. It is how one step
+tells the next one anything. A shell interpreter would execute that line perfectly and
+the value would go **nowhere** — which is worse than refusing, because a named gap is
+visible and a silently empty output is a workflow that runs green and does the wrong
+thing.
+
+So `sh-enough` does not close even the `shell` bucket on its own. **actions-enough owns
+the inter-step contract, and it has to own it before it grows any shell at all.** That
+reorders the phased plan and it is the most useful thing the count produced.
+
+## And the cheapest fix is not to build anything
+
+`npm test` is bucketed `hosted-only` because it assumes an installed dependency tree,
+not because running tests is inherently hosted. A repository that went dependency-free
+the way this one did would move those six steps out of the gap entirely. That is a
+per-repository choice rather than a runner feature, and it is worth saying out loud
+next to a table that otherwise reads like a build list.
+
+## Verified
+
+`node scripts/test.mjs` → **118/118**.
+
+Incidentally: the first run in a fresh worktree **failed**, because `git worktree add`
+does not populate submodules and #234's guard caught the empty `jekyll-enough` mount
+and named the fix. Working as intended, one day old, on its first unplanned encounter.
+
+## Not in scope
+
+No capability is built here and no decision is made. This turns "enumerate the handful
+and decide" into a counted list, a reproducible command, and a reordering argument —
+the deciding is still yours. `cron-enough` and `node-enough` remain next in the family;
+the count does not change that, though it does suggest `node-enough`'s shims are the
+substrate a shell tool would eventually sit on rather than a step toward one.
