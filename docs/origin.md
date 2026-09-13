@@ -396,21 +396,83 @@ because **it is the failure the extraction exists to prevent, already committed.
 derives the same recipient the real `age-keygen -y` does. That is the family's health test, met
 against the actual tool.
 
-`FCCN-ANTIBODY/data-pile` needed it. There was no address to point at, so it **inlined the code**,
-and its own headers say so:
+> **Corrected 2026-09-13, same day.** This section first said the copies had *"nothing that fails
+> when they drift"* and that `composer/` was the source for all of it. **Both were wrong.** There is
+> a drift guard, the direction is per-file, and the real finding is sharper than the one it replaced
+> — see [D5's guard cannot run where it matters](#d5s-guard-cannot-run-where-it-matters) below.
 
-    bin/age-open.mjs    "the age battery (anecdote.channel/composer/age-seal.mjs + age-mint.mjs), inlined"
-    bin/age-keygen.mjs  "A trimmed slice of anecdote.channel/composer/age-mint.mjs"
+`FCCN-ANTIBODY/data-pile` shares this code, and the sharing is a **documented discipline, not an
+improvisation**: [`docs/decisions.md`](decisions.md#d5--mirror-discipline) **D5 · Mirror discipline**
+— *"the copy is byte-identical to its single source of truth, and its provenance is recorded."*
 
-Two copies, cross-referencing each other in comments, with nothing that fails when they drift.
-**This is not the `yaml-enough` situation** — there are not two rival implementations to reconcile.
-There is one implementation and a hand-cut slice of it, which means `age-enough` needs no merge at
-all: extract the origin, mount it, delete the inline copy. It may be the cheapest member after
-`jekyll-enough`.
+The direction is **per-file and it runs both ways**, which is the part easiest to get backwards:
+
+| module | source of truth | mirror |
+|---|---|---|
+| `chacha20poly1305.mjs` | `composer/` | `data-pile/bin/`, *"VENDORED verbatim"* |
+| `age-open.mjs` | **`data-pile/bin/`** | `composer/`, *"VENDORED verbatim"* |
+| `feed-open.mjs` | **`data-pile/bin/`** | `composer/`, *"VENDORED verbatim"* |
+| `age-keygen.mjs` | `composer/age-mint.mjs` | `data-pile/bin/`, a *"trimmed slice"* — D5's one allowed exception |
+
+**This is not the `yaml-enough` situation** — there are no rival implementations to reconcile, only
+one source per module and verbatim copies of it. So `age-enough` needs no merge: extract, mount,
+delete the mirrors. It may still be the cheapest member after `jekyll-enough`.
+
+And the mirroring is not the problem. **The absence of an address is**, because it is what forces a
+byte-identical copy plus a guard to exist at all — which brings us to the guard.
 
 `data-pile/bin/prove.mjs` calls it **"the vendored age battery"** — and `git-enough/workflow.mjs`
 names the shell gap as needing *"a JS battery."* Same word, arrived at independently, for a thing
 with no address.
+
+#### D5's guard cannot run where it matters, and the mirror has already drifted
+
+D5 is enforced by `composer/pile-keeper.test.mjs`, which asserts the mirrors are byte-identical to
+`data-pile/bin/` after the provenance line. It is a real guard and it works. It also **cannot run in
+CI**, and it resolves its subject like this:
+
+    const dp = process.env.DP_REPO || join(root, "..", "data-pile");
+    if (existsSync(join(dp, "bin", "feed-open.mjs"))) { …assert… }
+    else console.log("  note: mirror drift guard skipped (no data-pile checkout; set DP_REPO)");
+
+A **sibling checkout on disk.** `actions/checkout` gives a job one repository, `.gitmodules` here
+names only `jekyll-enough`, and no workflow sets `DP_REPO` — so in CI the `existsSync` is false, the
+guard prints a note, and the suite passes. It holds only on a workstation that happens to have both
+repositories side by side, which is to say it holds by coincidence.
+
+**And it has already caught something nobody saw.** Run on this machine, 2026-09-13:
+
+    FAIL: composer/feed-open.mjs is byte-identical to data-pile/bin/feed-open.mjs
+      ok: composer/age-open.mjs is byte-identical to data-pile/bin/age-open.mjs
+
+39 lines of drift. `data-pile/bin/feed-open.mjs` grew a **`partial: true` verification mode** — for
+*"a reader that holds only SOME blocks: a disclosed excerpt, an ejected piece, a player that has
+fetched eight chunks of ninety-three"* — and `composer/`'s mirror does not have it. The half that
+most needs partial verification is the browser half, and the browser half is the one that missed it.
+
+D5's stated reason is *"avoids two copies drifting into two behaviors — **especially dangerous for
+crypto/verify code**."* `feed-open.mjs` is verify code. The discipline was right, the guard was
+written, and it still happened, because **the guard was conditional on something CI does not have.**
+
+This is the same shape as the submodule guard in #233: a check that silently becomes a no-op when
+what it needs is not on disk, reporting a pass for work it did not do. Two instances in two days is
+a pattern worth naming — **a guard that can skip is a guard that will skip, and the skip is the
+state nobody reads.** Whatever else happens, the skip branch should be a failure unless something
+explicitly declares the subject absent on purpose.
+
+**The drift itself is repaired in the same change that records this** — `composer/feed-open.mjs`
+re-copied verbatim from the source of truth, which is what D5 says to do when the source moves. Its
+one consumer (`composer/pile-keeper.mjs`) passes no `partial`, and the new parameter defaults to
+`false`, so behaviour is unchanged and the browser half now *has* the mode it was missing. 118/118
+with the guard armed via `DP_REPO`.
+
+What is **not** repaired is the guard's reach, and it should not be papered over from this side:
+making the skip fatal would fail every CI run, because CI genuinely has no `data-pile`. The fix is
+the address. Until then this drift can recur at any time and the only thing standing between it and
+production is whether someone runs the suite on a workstation with both repos checked out.
+
+It is also the strongest argument in this document for the family's whole premise: an address would
+make this a submodule pin, and a pin cannot drift.
 
 #### What it is already worth, measured
 
