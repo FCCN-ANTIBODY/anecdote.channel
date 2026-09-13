@@ -58,8 +58,11 @@ checkout  →  setup-node (/ setup-ruby)  →  a composite action in an engine s
   `.antidote-engine`, `.journal-engine`) that a checkout pulls in — *the operator's point: the action code
   is right there in the submodule checkout, ready to be interpreted rather than re-authored.*
 - **The genuinely shell-shaped steps** (jekyll build, a few git plumbing calls) route to the *-enough*
-  siblings: jekyll-enough for the site build, git-enough for the git plumbing. Nothing here needs a
-  container or a POSIX shell; it needs a small map from "GitHub step" to "the capability it stands for."
+  siblings: jekyll-enough for the site build, git-enough for the git plumbing.
+  > **This bullet used to end "nothing here needs a container or a POSIX shell." It was measured on
+  > 2026-09-13 and that is not true** — see [The shell gap, counted](#the-shell-gap-counted). Seven
+  > steps are `sudo apt-get install`, which is a container by definition. The rest of the sentence
+  > stands: what the others need is a map from "GitHub step" to "the capability it stands for."
 
 ## actions-enough — the runner
 
@@ -145,8 +148,10 @@ A demo page in the spirit of the civic-node workspace, but the **view surfaces t
 
 - **The fragment's exact shape** — what an offline-origin identity signs, how narrowly it scopes a run,
   expiry/replay, and where the verify lives (a shared composite action vs inline).
-- **Shell steps with no capability yet** — enumerate the handful that aren't node/jekyll/git and decide
-  per-case (reimplement small, or keep on GitHub cron behind the fragment).
+- ~~**Shell steps with no capability yet** — enumerate the handful that aren't node/jekyll/git and
+  decide per-case.~~ **Enumerated 2026-09-13; it is not a handful.** See below. What is still open is
+  the per-case decision, and the enumeration changes its shape: the question is no longer *which few
+  steps to reimplement* but *whether `$GITHUB_OUTPUT` is the runner's contract to keep.*
 - **Background compute** — how much the crown can promise off-focus; whether a Service Worker / a small
   native helper ever earns its place, or foreground-only stays the honest floor.
 - **Submodule engines as the action source** — pinning: which engine commit the interpreter reads the
@@ -154,6 +159,78 @@ A demo page in the spirit of the civic-node workspace, but the **view surfaces t
   (`Maintain · module pins`).
 - **What stays on GitHub forever** — the tasks that are genuinely better as an addressable cron (public
   Pages, peer-facing ingress) vs the ones that should only ever run under the crown.
+
+
+## The shell gap, counted
+
+`scripts/workflow-gaps.mjs` runs **this repository's own classifier** — `parseWorkflowSteps` and
+`planSteps` out of `git-enough/workflow.mjs` — over every workflow it is pointed at, so the answer
+belongs to the interpreter rather than to a reader:
+
+    node scripts/workflow-gaps.mjs ~/Project/FCCN-ANTIBODY/* ~/Project/NCCV/* ~/Project/station-node
+
+Across nine repositories on 2026-09-13 — 31 workflow files, 141 steps:
+
+| kind | steps | |
+|---|---:|---:|
+| `checkout` | 42 | 30% |
+| **`run-shell`** | **41** | **29%** |
+| `action` | 19 | 13% |
+| `run-node` | 14 | 10% |
+| `publish` | 11 | 8% |
+| `setup` | 9 | 6% |
+| `uses-other` | 5 | 4% |
+
+**`run-shell` is the second-largest kind and the only one with no capability behind it.** Every one
+of those 41 reaches `runWorkflow`'s *"named gap — a bash/program step (needs a JS battery or stays on
+GitHub)"*.
+
+### Why it was estimated as "a handful"
+
+Because the estimate was made from inside the least representative repository in the constellation.
+Run the same script against `anecdote.channel` alone and it is **48% `run-node` and 21% `run-shell`,
+six steps** — this repo is dependency-free on purpose, so its workflows are mostly `node bin/x.mjs`,
+which is precisely the case the interpreter already handles. Everywhere else the ratio inverts.
+
+A survey of the thing you built the tool inside is the one survey guaranteed to flatter it.
+
+### It is at least four problems, and only one is a shell
+
+A step is classified, but `run: |` holds a *block* — and a block that runs `git submodule update`,
+tests a path with `[ -f ]`, and appends to `$GITHUB_OUTPUT` is three problems wearing one
+`run-shell`. So the script counts a step in **every** bucket it touches. **29 steps need one answer;
+12 need several**, and a step needing several does not become several small decisions — it cannot run
+until the last of them lands.
+
+| bucket | steps | what would have to answer it |
+|---|---:|---|
+| **`shell`** | 24 | control flow, `test`, `echo`, assignment, redirection. **The only bucket a shell interpreter closes** — this is the `sh-enough` shape, and it is real: 58 lines of it in one `platform/checkpoint.yml` step |
+| **`hosted-only`** | 13 | `sudo apt-get install age`, `npm test`, `npm run build`. There is no device answer and there should not be one — these are the argument for the **hybrid**, not for a bigger shim |
+| **`program`** | 7 | invokes a repo program. Already resolvable when it is an `exec node X.mjs` shim (`composite.mjs` does this today); a named gap when it is bash or ruby — `bin/cf-purge.sh`, `bash test/run.sh`, `bin/ingest` |
+| **`routes`** | 9 | `git submodule update --init`, `git config --file .gitmodules` — git-enough's territory, and mostly *submodule* plumbing rather than transport |
+
+### The finding that a shell interpreter would not fix
+
+**13 of the 41 write a hosted-runner file** — `$GITHUB_OUTPUT`, and `$GITHUB_STEP_SUMMARY` next to it:
+
+    echo "matrix=$(node .advocate-engine/bin/seats.mjs --matrix)" >> "$GITHUB_OUTPUT"
+
+That file is created and read back **by the runner**, between steps. It is how one step tells the next
+one anything at all. A shell interpreter would execute that line perfectly and the value would go
+nowhere — **which is worse than refusing**, because a named gap is visible and a silently empty output
+is a workflow that runs to completion and does the wrong thing.
+
+So `sh-enough` is not the whole answer even for the `shell` bucket. **actions-enough owns the
+inter-step contract**, and it has to own it before it grows any shell at all. That is a change to the
+order this document proposes, and it is the most useful thing the count produced.
+
+### What the count does not settle
+
+Whether `npm test` belongs in `hosted-only` forever. It is bucketed there because it assumes an
+installed dependency tree, not because running tests is inherently hosted — a repository that went
+dependency-free the way this one did would move those six steps into `run-node` and out of the gap
+entirely. That is a per-repository choice, not a runner feature, and it is worth noticing that **the
+cheapest way to shrink this gap is not to build anything.**
 
 ## See also
 - [`docs/origin.md`](origin.md) — the milestone: held origin, no upstream, consent-only.

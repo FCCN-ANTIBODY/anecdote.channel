@@ -427,6 +427,13 @@ folder leaves rather than after.
 list. The 105 lines of `node-compat` and its shims would be a shell tool's substrate, not its
 content.
 
+**`sh-enough` now has a measured size and a warning attached.** 41 of 141 workflow steps across nine
+repositories are shell the interpreter cannot run, and 13 of them write `$GITHUB_OUTPUT` — a file the
+hosted runner owns, which a shell interpreter would write into the void. Counted by
+[`scripts/workflow-gaps.mjs`](../scripts/workflow-gaps.mjs) and argued in
+[`docs/actions-enough.md`](actions-enough.md#the-shell-gap-counted). The order that falls out: **the
+runner's inter-step contract comes before any shell at all.**
+
 ### What this does not ask for
 
 Not a monorepo split on a schedule. Not a package published anywhere — submodule pins are the
