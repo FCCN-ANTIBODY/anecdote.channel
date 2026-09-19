@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<!-- anecdote.channel/shell.html — THE CONTROL PAGE: what you are holding, and the lever to move it.
+     The shell is deliberately hard to dislodge — sw.js is cache-first over FALLBACK_SHELL and the
+     network is never consulted for a hit — which is the possession guarantee working. But the
+     aggression had no lever pointed at the HOLDER: short of destruct.html there was no way to ask the
+     cache to go forward, and two signals the worker already records were going nowhere (precache's
+     failure count into console.warn, the firmware pin's `rejected` record into IndexedDB, read by
+     nothing). This page is where both surface, and where you can refresh the shell without demolishing
+     anything.
+
+     IN FALLBACK_SHELL, ON PURPOSE — the opposite of destruct.html, and the distinction is the verb.
+     destruct.html stays OFF the shell so you cannot destroy your only copy while the origin is dead.
+     This page only LOOKS and REFRESHES, and looking is exactly what you need when the origin is gone,
+     so it has to boot offline like everything else. It says which cache served it rather than pretending
+     to be fresh.
+
+     IT NEVER REFUSES TO SHOW YOU SOMETHING. Every probe is independent and every failure renders as
+     text in its own section; there is no path here that ends in a blank screen. If the worker is absent
+     or silent, the page reads the Cache API and IndexedDB directly and says that is what it did.
+
+     Zero imports, like destruct.html: the surface that diagnoses a broken cache must not be served by
+     the modules a broken cache would hand it. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — your shell</title>
+<meta name="theme-color" content="#293033">
+<link rel="icon" href="/icon.svg">
+<style>
+  :root { --bg:#293033; --panel:#1f2528; --fg:#dfdfdf; --muted:#9aa4a6; --accent:#990049; --line:#3a4145; --warn:#ffb02e; --ok:#7bc98a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+  header a { color: var(--fg); text-decoration: none; font-weight: 700; }
+  header .tag { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-left: .6rem; }
+  main { max-width: 44rem; margin: 1.5rem auto; padding: 0 1.25rem; }
+  .lede { color: var(--muted); font-size: .95rem; }
+  .card { border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); padding: .8rem 1rem; margin-top: 1rem; }
+  .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  pre { font: .78rem/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; color: var(--fg); margin: .5rem 0 0; }
+  button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--fg); border-radius: .5rem; padding: .6rem 1rem; cursor: pointer; margin: .6rem .4rem 0 0; }
+  button[disabled] { opacity: .5; cursor: default; }
+  .note { color: var(--muted); font-size: .85rem; margin-top: .5rem; }
+  .warn { color: var(--warn); } .ok { color: var(--ok); }
+  a.home, a.hatch { color: var(--fg); }
+</style>
+<body>
+<header><a href="/">anecdote.channel</a><span class="tag">your shell</span></header>
+<main>
+  <p class="lede">What this device is holding, where it came from, and the lever to ask it to go
+  forward. Nothing here touches your data — the trove is a separate store the worker never opens.</p>
+
+  <div class="card">
+    <div class="k">What served this page</div>
+    <pre id="served">reading…</pre>
+  </div>
+
+  <div class="card">
+    <div class="k">The shell</div>
+    <pre id="shell">reading…</pre>
+    <button id="refresh">Refresh the shell</button>
+    <div class="note">Re-fetches every shell file and overwrites it in place. Does not unregister the
+    worker, touch the pin, or touch your data. Worst case: you re-download the shell.</div>
+    <pre id="refresh-out"></pre>
+  </div>
+
+  <div class="card">
+    <div class="k">The firmware pin</div>
+    <pre id="pin">reading…</pre>
+    <button id="check">Check for a signed update</button>
+    <div class="note">Asks the worker to re-read <code>/firmware.json</code> and decide against the pin.
+    A refusal is shown here with its reason rather than kept to itself.</div>
+    <pre id="check-out"></pre>
+  </div>
+
+  <div class="card">
+    <div class="k">The hatch</div>
+    <div class="note">If the shell is wedged past refreshing, <a class="hatch" href="/destruct.html">self
+    destruct</a> unregisters the worker, drops every cache and forgets the pin. It always comes from the
+    network on purpose, so it is unreachable while the origin is gone — and it spares your data.</div>
+  </div>
+</main>
+
+<script>
+// Zero imports on purpose (see the header comment).
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var PIN_DB = "anecdote-firmware";
+  var SHELL_PREFIX = "anecdote-shell-";
+
+  // Ask the controlling worker something over a private port. Resolves to null when there is no
+  // controller or it does not answer in time — a silent worker is a FINDING, not an exception, so
+  // every caller renders the fallback instead of dying.
+  function askWorker(message, ms) {
+    return new Promise(function (resolve) {
+      var c = navigator.serviceWorker && navigator.serviceWorker.controller;
+      if (!c) return resolve(null);
+      var ch = new MessageChannel(), done = false;
+      var finish = function (v) { if (!done) { done = true; resolve(v); } };
+      ch.port1.onmessage = function (e) { finish(e.data); };
+      setTimeout(function () { finish(null); }, ms || 8000);
+      try { c.postMessage(message, [ch.port2]); } catch (e) { finish(null); }
+    });
+  }
+
+  // ---- where this copy of the page came from ---------------------------------------------------
+  async function renderServed() {
+    var lines = [];
+    try {
+      var c = navigator.serviceWorker && navigator.serviceWorker.controller;
+      lines.push("controller : " + (c ? c.scriptURL + " [" + c.state + "]" : "none — this load came straight from the network"));
+      var regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+      lines.push("registered : " + (regs.length ? regs.map(function (r) {
+        var w = r.active || r.waiting || r.installing;
+        return r.scope + (w ? " [" + w.state + "]" : " [empty]");
+      }).join("  ") : "none"));
+      if (regs.some(function (r) { return r.waiting; })) lines.push("             a newer worker is WAITING — it takes over when every tab of this site closes");
+    } catch (e) { lines.push("service worker probe failed: " + e); }
+    try {
+      var names = (await caches.keys()).filter(function (n) { return n.indexOf(SHELL_PREFIX) === 0; });
+      var holder = null;
+      for (var i = 0; i < names.length; i++) if (await (await caches.open(names[i])).match("/shell.html")) { holder = names[i]; break; }
+      lines.push("this page  : " + (holder ? "held in " + holder : "not in any shell cache — served from the network"));
+      // navigator.onLine is the NETWORK INTERFACE, not whether this origin answers. Saying "online"
+      // flatly would overclaim: the origin can be gone while the interface is up, which is exactly the
+      // case this page is for. Name what is actually measured.
+      lines.push("interface  : " + (navigator.onLine ? "up (this says nothing about whether the origin answers)" : "DOWN — everything below is what you hold, with no origin to ask"));
+    } catch (e) { lines.push("cache probe failed: " + e); }
+    $("served").textContent = lines.join("\n");
+  }
+
+  // ---- the shell: ask the worker (it owns the list), else read the caches directly ---------------
+  async function renderShell() {
+    var status = await askWorker({ type: "shell-status" });
+    var lines = [];
+    if (status && !status.error) {
+      lines.push("cache      : " + status.version);
+      lines.push("held       : " + (status.total - status.missing.length) + "/" + status.total + " shell files");
+      if (status.missing.length) {
+        lines.push("MISSING    : " + status.missing.length + " — these will not be there if the origin goes away:");
+        for (var i = 0; i < status.missing.length; i++) lines.push("             " + status.missing[i]);
+      } else {
+        lines.push("             complete — this boots with the origin dead");
+      }
+    } else {
+      // No worker, or it did not answer. Say so, and report what the caches hold anyway.
+      lines.push("the worker did not answer — reading the caches directly");
+      try {
+        var names = (await caches.keys()).filter(function (n) { return n.indexOf(SHELL_PREFIX) === 0; });
+        if (!names.length) lines.push("caches     : none held");
+        for (var j = 0; j < names.length; j++) {
+          var keys = await (await caches.open(names[j])).keys();
+          lines.push("cache      : " + names[j] + " — " + keys.length + " entries");
+        }
+        lines.push("(the shell's own file list lives in the worker, so completeness cannot be judged from here)");
+      } catch (e) { lines.push("cache probe failed: " + e); }
+    }
+    $("shell").textContent = lines.join("\n");
+    return status;
+  }
+
+  // ---- the pin: prefer the worker's read, fall back to opening the store here --------------------
+  async function renderPin(status) {
+    var lines = [];
+    var pin = status && status.pin;
+    if (!pin) {
+      pin = await readPinDirect().catch(function () { return null; });
+      if (pin) lines.push("(read directly from " + PIN_DB + " — the worker did not answer)");
+    }
+    if (!pin) {
+      lines.push("pin        : could not be read");
+    } else if (!pin.by) {
+      lines.push("pin        : none — firmware pinning is DORMANT");
+      lines.push("             no /firmware.json adopted — the shell is held by its cache key");
+      lines.push("             alone. Refreshing the shell is the way forward while that is so.");
+    } else {
+      lines.push("pinned to  : " + pin.by);
+      lines.push("held ver   : v" + pin.held);
+      lines.push("             only a manifest signed by this same key, at a higher version, will be adopted.");
+    }
+    if (pin && pin.rejected) {
+      var r = pin.rejected;
+      lines.push("");
+      lines.push("LAST REFUSAL — the worker turned something away and kept what you hold:");
+      lines.push("  reason   : " + (r.reason || "(none recorded)"));
+      if (r.by) lines.push("  signer   : " + r.by);
+      if (r.at) lines.push("  when     : " + new Date(r.at).toISOString());
+    }
+    $("pin").textContent = lines.join("\n");
+  }
+
+  function readPinDirect() {
+    return new Promise(function (resolve, reject) {
+      var rq = indexedDB.open(PIN_DB);
+      rq.onerror = function () { reject(rq.error); };
+      rq.onsuccess = function () {
+        var db = rq.result;
+        if (!db.objectStoreNames.contains("pin")) return resolve({ by: null, held: 0, rejected: null });
+        var out = {}, store = db.transaction("pin").objectStore("pin"), left = 3;
+        var grab = function (key, as) {
+          var g = store.get(key);
+          g.onsuccess = function () { out[as] = g.result === undefined ? null : g.result; if (--left === 0) resolve({ by: out.by, held: out.held || 0, rejected: out.rejected }); };
+          g.onerror = function () { out[as] = null; if (--left === 0) resolve({ by: out.by, held: out.held || 0, rejected: out.rejected }); };
+        };
+        grab("by", "by"); grab("version", "held"); grab("rejected", "rejected");
+      };
+    });
+  }
+
+  // ---- levers ------------------------------------------------------------------------------------
+  $("refresh").addEventListener("click", async function () {
+    var b = $("refresh"), out = $("refresh-out");
+    b.disabled = true; out.textContent = "refetching the shell…";
+    var r = await askWorker({ type: "shell-refresh" }, 60000);
+    if (!r) out.textContent = "no worker answered — nothing was changed. If no worker is registered, reload this page from the network first.";
+    else if (r.mode === "refused") out.textContent = "REFUSED: " + r.reason;
+    else if (r.mode === "error") out.textContent = "error: " + r.reason;
+    else if (r.mode === "partial") out.textContent = "refreshed with gaps — " + r.failed.length + "/" + r.total + " did not come back:\n  " + r.failed.join("\n  ");
+    else out.textContent = "refreshed — all " + r.total + " shell files re-fetched into " + r.version;
+    b.disabled = false;
+    renderPin(await renderShell());
+  });
+
+  $("check").addEventListener("click", async function () {
+    var b = $("check"), out = $("check-out");
+    b.disabled = true; out.textContent = "asking…";
+    var r = await askWorker({ type: "firmware-check" }, 30000);
+    if (!r) out.textContent = "no worker answered — nothing was changed.";
+    else if (r.mode === "unpinned") out.textContent = "no /firmware.json is deployed — pinning stays dormant and the shell is unchanged.";
+    else if (r.mode === "refused") out.textContent = "REFUSED: " + r.reason + (r.by ? "\n  offered by: " + r.by : "") + "\nWhat you hold was kept.";
+    else if (r.mode === "pinned") out.textContent = "first contact — pinned to " + r.by + " at v" + r.version;
+    else if (r.mode === "rolled-forward") out.textContent = "rolled forward to v" + r.version + " (same key: " + r.by + ")";
+    else out.textContent = JSON.stringify(r, null, 2);
+    b.disabled = false;
+    renderPin(await renderShell());
+  });
+
+  // Each section renders independently: one failing probe must not blank the others.
+  renderServed().catch(function (e) { $("served").textContent = "failed: " + e; });
+  renderShell().then(function (s) { return renderPin(s); }).catch(function (e) {
+    $("shell").textContent = "failed: " + e; $("pin").textContent = "failed: " + e;
+  });
+})();
+</script>
+</body>
+</html>
