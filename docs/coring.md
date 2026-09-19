@@ -65,6 +65,32 @@ subset then asserts three things at once:
 Ballpark size disclosure is a **feature** here, not a leak to be minimized. Without it an author can hide
 anything; the box communicating roughly how much is gone is the point.
 
+## When the payload is a git repo, git *is* the chain
+
+Everything above describes building a chunk chain. For a git payload you do not build one — **git
+already is one**, and using it instead collapses a whole layer:
+
+- **The grid is the object graph**, not byte spans. Core by ref, tree and blob — names git already
+  gives you, which stay stable when packfile offsets move. That is the direct answer to "their inner
+  byte ranges change and move for HEAD despite being stable": offsets were never the addressing
+  scheme.
+- **A tree hash commits to its contents**, so revealing a subtree under a committed root proves that
+  subtree genuinely belongs to it, with no structure added by us.
+- **"Faking a submodule" is not a fake.** A tree object is a legitimate root; publishing a subtree as
+  its own repo yields a real repo that verifies against the parent's committed hash for anyone holding
+  both. Per-branch, per-subtree, per-anything access control falls out of this.
+- **The lower-bound claim comes free.** A revealed subtree proves possession of exactly itself and
+  says nothing about its siblings — the sidecar's "(and there could be more)" as a structural property
+  rather than a promise we have to keep.
+
+So a published bottle need not carry the whole repository. It carries the part the holder is expected
+to reach, and the rest is simply not disclosed.
+
+**The judge already exists.** "A fast-forward that makes no sense for the state it has as canonical"
+is an ancestry check against the merge base — git's own rule, not a policy we invent, and
+[`git-enough/`](../git-enough/) already has the object and pack machinery for it. A partial or hostile
+bottle is refused on git-shaped grounds.
+
 ## The plexed-map
 
 Text is easy — already sequential, chunks are byte spans. Audio normalizes to real time, so chunk on the
