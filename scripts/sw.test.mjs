@@ -23,9 +23,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sw = readFileSync(join(ROOT, "sw.js"), "utf8");
 
 // ---- parse, rather than import: sw.js is a worker module and touches self/caches at load ----------
-const version = sw.match(/const VERSION = "([^"]+)"/)?.[1];
-assert.ok(version, "sw.js: could not find VERSION");
-assert.match(version, /^anecdote-shell-v\d+$/, "sw.js: VERSION is not shaped anecdote-shell-v<n>");
+const version = sw.match(/const SHELL_VERSION = "([^"]+)"/)?.[1];
+assert.ok(version, "sw.js: could not find SHELL_VERSION");
+assert.match(version, /^v\d+$/, "sw.js: SHELL_VERSION is not shaped v<n>");
 
 const listSrc = sw.match(/const FALLBACK_SHELL = \[([\s\S]*?)\n\];/)?.[1];
 assert.ok(listSrc, "sw.js: could not find FALLBACK_SHELL");
@@ -41,18 +41,19 @@ assert.ok(shell.length > 10, `sw.js: FALLBACK_SHELL parsed as only ${shell.lengt
 // just parsed would compare a number to itself and pass forever — which is exactly the kind of green
 // check this file exists to prevent.
 const PINNED = {
-  "anecdote-shell-v7": "sha256:54149854117e1582ec14099267bca9353bf533bad0ead7156c222aefaf711654",
+  "v8": "sha256:54149854117e1582ec14099267bca9353bf533bad0ead7156c222aefaf711654",
 };
 const EXPECTED_SHELL_DIGEST = "sha256:" + createHash("sha256").update(shell.join("\n")).digest("hex");
 assert.ok(
   PINNED[version],
-  `sw.js: VERSION is ${version} but scripts/sw.test.mjs pins no digest for it — add one when you bump.`,
+  `sw.js: SHELL_VERSION is ${version} but scripts/sw.test.mjs pins no digest for it — add one when you bump.`,
 );
 assert.equal(
   EXPECTED_SHELL_DIGEST,
   PINNED[version],
-  `FALLBACK_SHELL changed without a VERSION bump. Every existing install is strict cache-first on the\n` +
-  `old key and will never see the new list. Bump VERSION in sw.js and pin the new digest here.`,
+  `FALLBACK_SHELL changed without a SHELL_VERSION bump. The generation label is what the control\n` +
+  `page shows and what makes a list change a recorded act. Bump SHELL_VERSION in sw.js and pin the\n` +
+  `new digest here.`,
 );
 
 // ---- 2. every shell path resolves to a real file ---------------------------------------------------
@@ -81,16 +82,71 @@ assert.ok(
 );
 
 // ---- the control page's wiring exists on both ends ---------------------------------------------------
-for (const t of ["shell-status", "shell-refresh", "firmware-check"]) {
+for (const t of ["shell-status", "shell-refresh", "shell-promote", "shell-mode", "firmware-check"]) {
   assert.ok(sw.includes(`"${t}"`), `sw.js: no handler for the "${t}" message the control page sends`);
 }
 const page = readFileSync(join(ROOT, "shell.html"), "utf8");
-for (const t of ["shell-status", "shell-refresh", "firmware-check"]) {
+for (const t of ["shell-status", "shell-refresh", "shell-promote", "shell-mode", "firmware-check"]) {
   assert.ok(page.includes(t), `shell.html: never sends "${t}"`);
 }
 // The refusal path is the one that must not be silent: a pinned shell declines a raw refetch, and the
 // page has to render that reason rather than looking like nothing happened.
 assert.ok(/mode: "refused"/.test(sw), "sw.js: shellRefresh must be able to refuse under a live pin");
 assert.ok(/REFUSED/.test(page), "shell.html: a refusal must be rendered, not swallowed");
+
+// ---- the two-slot decisions, as assertions ----------------------------------------------------------
+//
+// These are the conclusions of a long design conversation. Each is cheap to re-break by accident and
+// expensive to notice, so each gets a line here.
+
+// STILLNESS. A new worker waits for every tab to close rather than seizing control; the holder pulls it
+// forward from /shell.html when they want it. skipWaiting() belongs only in that user-directed path.
+// Comments are stripped first: the install handler explains in prose that it deliberately does NOT
+// call skipWaiting, and a naive search would match that sentence and fail on the correct code.
+const decomment = (s) => s.replace(/\/\/[^\n]*/g, "");
+const install = decomment(sw.match(/addEventListener\("install"[\s\S]*?\}\)\(\)\)\);/)?.[0] ?? "");
+assert.ok(install, "sw.js: could not find the install handler");
+assert.ok(
+  !/skipWaiting/.test(install),
+  "sw.js: install() calls skipWaiting(). The worker is meant to sit still like firmware — a new one\n" +
+  "waits until every tab closes, and /shell.html's take-waiting is the only way to hurry it.",
+);
+assert.ok(/take-waiting/.test(sw), "sw.js: no take-waiting handler — the holder has no way to pull a waiting worker forward");
+
+// DELETION FOLLOWS A PROVEN FLOOR, NEVER ACTIVATION. The old worker deleted the previous shell on
+// activate, so a network that died mid-install destroyed the only complete copy. Cache deletion now
+// lives in retireLegacy() alone, behind a completeness check.
+const activate = decomment(sw.match(/addEventListener\("activate"[\s\S]*?\}\)\(\)\)\);/)?.[0] ?? "");
+assert.ok(activate, "sw.js: could not find the activate handler");
+assert.ok(
+  !/caches\.delete/.test(activate),
+  "sw.js: activate() deletes a cache directly. That is the lockout bug: kill the network mid-install\n" +
+  "and the previous floor is gone. Deletion belongs in retireLegacy(), behind a whole-floor check.",
+);
+assert.ok(
+  /async function retireLegacy[\s\S]*?missingFrom\(held\)\)\.length\) return/.test(sw),
+  "sw.js: retireLegacy() must refuse to delete while the floor is incomplete",
+);
+
+// PROMOTION IS A MERGE, so a partial rolling can never punch a hole in the floor.
+assert.ok(/copyShell\(rolling, held, \{ overwrite: true \}\)/.test(sw), "sw.js: promote() must merge rolling into held");
+assert.ok(/overwrite \? /.test(sw) || /!overwrite &&/.test(sw), "sw.js: copyShell must support gap-filling without overwrite");
+
+// THE SWITCH IS ONE AXIS WITH THREE STOPS, and the page offers all three.
+const modes = sw.match(/const MODES = \[([^\]]+)\]/)?.[1] ?? "";
+assert.deepEqual(
+  [...modes.matchAll(/"([^"]+)"/g)].map((m) => m[1]),
+  ["free", "hold", "guard"],
+  "sw.js: MODES must be exactly free, hold, guard — ordered least to most restrictive",
+);
+for (const m of ["free", "hold", "guard"]) {
+  assert.ok(page.includes('id="m-' + m + '"'), `shell.html: no ${m} button on the switch`);
+}
+
+// AN UNREADABLE MODE MUST FAIL OPEN. A setting we cannot parse must not be able to lock anybody down.
+assert.ok(
+  /MODES\.includes\(m\) \? m : "free"/.test(sw),
+  'sw.js: getMode() must fall back to "free" — an unrecognised mode must never be more restrictive',
+);
 
 console.log(`sw.test: ok — ${version}, ${shell.length} shell paths, all present`);
