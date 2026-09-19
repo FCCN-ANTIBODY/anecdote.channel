@@ -20,13 +20,14 @@ import { pinDecision, verifyFiles } from "/composer/firmware.mjs";
 // and the network is never consulted — and activate() only deletes caches whose key DIFFERS from
 // VERSION. So editing the shell without bumping the key strands every existing install on the old
 // copy, and no amount of edge purging reaches it: the request never leaves the browser.
-const VERSION = "anecdote-shell-v6";
+const VERSION = "anecdote-shell-v7";
 
 // Fallback shell when NO firmware.json is deployed — pinning is dormant, static precache (slice 1a note:
 // arming the guarantee is opt-in). Same set as before + the firmware verify graph so a signed manifest can
 // be checked offline too.
 const FALLBACK_SHELL = [
   "/", "/index.html", "/poll.html", "/manifest.webmanifest", "/icon.svg",
+  "/shell.html",                                // the control page — legible when the origin is gone (docs/origin.md)
   "/directory.mjs",                             // the directory renders offline like everything else
   "/assets/ds/colors.css", "/assets/ds/spacing.css", "/assets/ds/typography.css",
   "/assets/ds/fonts.css",                       // the design system is vendored, so it boots dark-origin too
@@ -180,8 +181,54 @@ self.addEventListener("message", (e) => {
     e.waitUntil((async () => { const r = await checkFirmware().catch((err) => ({ mode: "error", reason: String(err) })); if (port) port.postMessage(r); })());
   } else if (e.data.type === "firmware-offer") {
     e.waitUntil((async () => { const r = await adoptOffer(e.data.manifest, e.data.files).catch((err) => ({ mode: "error", reason: String(err) })); if (port) port.postMessage(r); })());
+  } else if (e.data.type === "shell-status") {
+    e.waitUntil((async () => { const r = await shellStatus().catch((err) => ({ error: String(err) })); if (port) port.postMessage(r); })());
+  } else if (e.data.type === "shell-refresh") {
+    e.waitUntil((async () => { const r = await shellRefresh().catch((err) => ({ mode: "error", reason: String(err) })); if (port) port.postMessage(r); })());
   }
 });
+
+// WHAT THE SHELL ACTUALLY HOLDS — the read the control page (/shell.html) renders.
+//
+// FALLBACK_SHELL lives here and nowhere else, so the page cannot be handed a stale copy of the list:
+// it asks the worker that is actually serving it. `missing` is computed LIVE against the cache rather
+// than read from a stored install report, so it stays true after an eviction the install never saw.
+// precache() has always counted its failures (it returns them) and install() has always thrown them
+// away into console.warn — this is where that number finally reaches a person.
+async function shellStatus() {
+  const cache = await caches.open(VERSION);
+  const missing = [];
+  for (const p of FALLBACK_SHELL) if (!(await cache.match(p))) missing.push(p);
+  return {
+    version: VERSION,
+    total: FALLBACK_SHELL.length,
+    missing,
+    pin: {
+      by: await pinGet("by"),
+      held: (await pinGet("version")) || 0,
+      rejected: await pinGet("rejected"),      // written by checkFirmware/adoptOffer, never read until now
+    },
+  };
+}
+
+// ASK THE CACHE TO GO FORWARD — the gentle lever, the one destruct.html was standing in for.
+//
+// Re-fetch every shell path and overwrite it in place. It does not unregister anything, does not touch
+// the pin, and does not touch the trove: worst case you re-download the shell. This is what "roll
+// forward" means while firmware pinning is dormant (no /firmware.json deployed), which is the state
+// production is actually in.
+//
+// REFUSED UNDER A LIVE PIN, and that is not a formality. The pin's whole promise is that what you hold
+// cannot be swapped by a server you no longer trust; an unsigned byte-for-byte overwrite from that same
+// origin would walk straight around it. Under a pin the only way forward is a signed manifest, so the
+// refusal names itself and the page says so rather than failing quietly.
+async function shellRefresh() {
+  const pinnedBy = await pinGet("by");
+  if (pinnedBy) return { mode: "refused", reason: "a firmware pin is held — roll forward with a signed manifest, not a raw refetch", by: pinnedBy };
+  const cache = await caches.open(VERSION);
+  const failed = await precache(cache, FALLBACK_SHELL);
+  return { mode: failed.length ? "partial" : "refreshed", version: VERSION, total: FALLBACK_SHELL.length, failed };
+}
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
