@@ -1,87 +1,58 @@
-Two slots: a floor that cannot be taken from you, and a switch that says so
+docs: labels, names, and what belongs in DNS
 
-`sw.js` kept the shell in one cache, keyed by a `VERSION` constant, holding the
-shell *and* every runtime response — told apart only by whether a path happened
-to be in the shell list. That made "go forward" inexpressible, and it shipped a
-real lockout.
+A shaping note from the namespace conversation. Doc-only.
 
-## The lockout, which was live
+The criterion the rest of it hangs on: **a label belongs in DNS if and only if
+it needs its own origin; otherwise it is a path.** A hostname buys exactly one
+thing a path does not — an origin, with its own storage partition, passkey scope
+and same-origin boundary. Everything else it appears to buy (hierarchy,
+legibility, grouping) a path gives for free and without a certificate row.
 
-The old `activate()` deleted every shell cache whose key differed from `VERSION`
-the moment a new worker took over. Kill the network mid-install and the holder
-was left with a half-filled new cache and **no floor** — the system locking
-someone out of their own copy, which is the one outcome this design exists to
-prevent.
+That resolves the Atlas question: library labels need origins (per-label storage,
+a passkey scoped to one editable data-bottle rather than all of them), so they
+are hostnames. Atlas category views do not — a category board is a `/`-separated
+label list unioned into a filter over a shared index, read-only, no per-view
+storage or credential — so they are paths. Minting sub-sub-domains to look deeper
+at a town is path information wearing a hostname, and unwinds back to a folder
+having cost a SAN row on the way.
 
-Deletion is now a **consequence of a proven floor** (`retireLegacy()`, gated on
-the floor being whole, reachable from both activate and promote) and never of
-activation.
+Also in the note:
 
-**Verified in Chromium against the real failure:** an upgrade from the one-cache
-worker on a crippled network **rescued 46 of 49 files** out of the old cache into
-the floor and **kept the old cache** because the floor was still three short. A
-later refresh completed the floor, and only then was the old cache retired.
+- **Labels are not names.** Three things holding `north` is a set, not a
+  collision. A label is many-to-many and pointless to reserve; a name is one
+  holder, established by signature. So an address is a rendezvous coordinate, not
+  a claim — which is what `composer/bottle-book.mjs` already says — and the
+  squatting race dissolves, because linkage between two `north`s is signed
+  content rather than a fact in DNS. It also unifies an Atlas category path and a
+  library label: same structure, differing only in whether storage is involved.
 
-## The two slots
+- **The apex keeps its bottle space deliberately empty**, so the label space is
+  the visitor's and there is nothing to arbitrate. Canonical bottles stay
+  distributable — a bottle travels by its bytes, not its address.
 
-- **`anecdote-held`** — the floor. Proven-whole, boots with the origin dead,
-  moves only on a deliberate promote.
-- **`anecdote-rolling`** — what you run. Always accumulating, allowed to be
-  partial.
-- **`anecdote-runtime`** — everything not shell, network-first as before.
+- **`library` is a name, not a level.** If a node can publish `library1` and
+  `library2` there is no plain `library`. Keeping it out of the hostname halves
+  the SAN row count, against a pack capped at 50 that aborts rather than
+  truncates.
 
-Slot names are **not versioned**. A cache key carrying the version is exactly
-what stranded installs, so a generation change is a merge rather than a discard.
+- **A matrix, and DNS is a tree.** moniker × facet can only be expressed in one
+  ordering. Facet-as-parent costs rows = cities × facets (closed set);
+  moniker-as-parent costs cities × monikers (open-ended). The current orientation
+  is already the cheap one, so the tempting inversion is the expensive direction.
 
-**Promotion is a merge, never a swap:** rolling's bytes where it has them, held's
-where it does not. The floor is whole by construction and cannot acquire a hole —
-which is why completeness is a number the control page *shows* rather than a veto
-anywhere in the code.
+- **Wildcard fall-through** works the way it was hoped: DNS consults a wildcard
+  only with no exact match and no closer enclosing node (RFC 1034), so served
+  names win automatically. The limit is that a wildcard covers exactly one label,
+  so an apex catch-all is a floor for one level, not a contraction of the deeper
+  scheme.
 
-## One axis, three stops
+- **Nodes publish their own configuration** — wings live on non-main branches, so
+  a small signed manifest (branch → wing name, readable via `git-enough`) answers
+  both "what are your wings" and "what rows would you cost", the latter being
+  what the row budget needs before onboarding rather than after.
 
-`free` / `hold` / `guard`, monotone in how much motion is allowed, surfaced as a
-switch in the apex masthead and on `shell.html`.
-
-The setting governs what may **replace** what you hold. It never governs what you
-may **see**: every mode reaches every slot, every read is layered (rolling → held
-→ network → navigate fallback), and an unparseable mode reads as `free`, so a
-setting we cannot understand can never lock anybody down.
-
-*Verified:* in `guard`, with the origin killed outright, the control page still
-boots, reports both slots truthfully, and `/poll.html` still serves 200.
-
-## Stillness
-
-`install()` no longer calls `skipWaiting()`. A new worker waits until every tab
-closes, the way firmware should sit still — confirmed in Chromium, where the
-upgrade sat in `waiting` rather than seizing control. Skew between a held shell
-and a newer worker is the **steady state**, not an error, so nothing gates on it
-and an *old* worker is never treated as a foreign one. The holder pulls a waiting
-worker forward from `shell.html` when they want it.
-
-## Tests
-
-`scripts/sw.test.mjs` grows the conversation's decisions into assertions, each
-negative-tested to confirm it actually fails when violated:
-
-- `install()` must not call `skipWaiting` (comments stripped first — the handler
-  explains in prose that it deliberately does not, and a naive search matched
-  that sentence).
-- `activate()` must not call `caches.delete` directly; `retireLegacy()` must
-  refuse while the floor is incomplete.
-- Promotion must merge; `MODES` must be exactly free/hold/guard; the page must
-  offer all three; `getMode()` must fall back to the most permissive.
-
-`119/119` suites pass.
-
-## Also
-
-- The apex masthead gets the posture switch — the thing you can point people at
-  next month. Hidden until a worker actually controls the page, because a switch
-  wired to nothing is worse than no switch, and re-probed on `controllerchange`
-  so it appears on a *first* visit rather than only the second.
-- `docs/origin.md` records the two-slot change, the lockout it fixes, and the
-  see/replace invariant.
+Open items are kept open, including the one that blocks all of it: neither GitHub
+Pages nor Cloudflare Pages will take a wildcard custom domain, so an unbounded
+label space needs a Worker, and that decision is independent of the naming.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
