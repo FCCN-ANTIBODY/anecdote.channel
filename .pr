@@ -35,6 +35,15 @@ bottle is served from — and is the record `library/OPEN.md` §1 said was owed 
 (`bottle-uri.mjs`'s `BOTTLES`, the `models/` CSP, the missing SAN line) and **fixes none of it**; it names
 "who owns the player" as still open and says what arrangement the press took in the meantime.
 
+## Also: the certificate half of the library's floor
+
+`config/san-list.txt` gains `*.library.anecdote.channel`, **as its own commit** so it can be dropped or
+timed separately — merging it changes the real ACM pack via `acm-sync`. `docs/flooring.md` gains "Laying one
+on Cloudflare": the operator confirmed no floor has ever actually been served, at `*.tell` or anywhere; the
+certificate and the serving are independent halves; and two sources disagree on whether a Pages project
+takes a wildcard custom domain under ACM — so it records the one-minute test that settles it, and the
+assets-only-Worker fallback if it fails.
+
 ## The four skins
 
 `halt` (single attention: arrive at nothing; one line is the whole interface) · `bench` (bed · sheet · rack)

@@ -1010,8 +1010,8 @@ library is the library's own *no front desk* rule expressed in DNS (`docs/floori
 shelf already answers, a miss is an invitation rather than a 404, and what is shelved at a name is the
 library's to say.
 
-**Consequence — what this forces in code, recorded so it is not discovered later. None fixed here except
-where noted.**
+**Consequence — what this forces, recorded so it is not discovered later. None fixed here except where
+noted.**
 
 - **`composer/bottle-uri.mjs` exports `BOTTLES = "bottles"`** and `engineBottleUrl()` resolves a storage
   adapter to `<adapter>.bottles.<apex>`. Under this decision an engine bottle is shelved like any other,
@@ -1019,9 +1019,11 @@ where noted.**
   it moves in both places or neither.
 - **`models/index.html`'s CSP names `frame-src https://*.bottles.anecdote.channel`.** It will refuse the
   new host silently — the empty-rectangle failure D9's amendment already warns about.
-- **`config/san-list.txt` carries no `*.library.anecdote.channel`.** A TLS wildcard covers exactly one
-  label, so `*.anecdote.channel` covers the bare `library` host and **nothing under it**. Until that line
-  exists, no shelved bottle can be served over TLS. (`*.bottles…` was never in the list either.)
+- **`config/san-list.txt` carried no `*.library.anecdote.channel`** — *fixed alongside this entry, as its
+  own commit.* A TLS wildcard covers exactly one label, so `*.anecdote.channel` covers the bare `library`
+  host and **nothing under it**. (`*.bottles…` was never in the list, and now never will be.) The
+  certificate is half of a floor; the serving half is unbuilt for `*.library` **and for `*.tell`** — see
+  `docs/flooring.md`, "Laying one on Cloudflare".
 - **`press/hosts.mjs` is written to this decision** (`SHELF = "library"`; `<label>.bottles` classifies as
   nothing in particular), and `press/floor/` is a **stand-in** for the floor the library will lay.
 
