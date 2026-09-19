@@ -1,1 +1,80 @@
-no draft yet - replace this file: line 1 becomes the PR title, the rest the body
+shell.html: a control page for what this device is holding
+
+The shell is deliberately hard to dislodge — `sw.js` is cache-first over
+`FALLBACK_SHELL` and never consults the network on a hit, which is the possession
+guarantee working as designed. But the aggression had no lever pointed at the
+**holder**: short of `destruct.html` there was no way to ask the cache to go
+forward, and two signals the worker already records went nowhere.
+
+- `precache()` counts its failures and returns them; `install()` threw them into
+  `console.warn`, so "the shell is incomplete offline" was invisible at exactly
+  the moment nobody can debug it.
+- `checkFirmware()` / `adoptOffer()` write the pin's `rejected` record on a
+  refusal. Nothing has ever read it back — a possessed-origin refusal was silent.
+
+Both surface on `/shell.html` now, alongside what served the page and what the
+cache actually holds.
+
+## The two levers
+
+**Refresh the shell** re-fetches every shell path in place. No unregister, no pin
+change, no trove access; worst case you re-download the shell. This is what "roll
+forward" means while firmware pinning is dormant — which is the state production
+is actually in, since no `firmware.json` is deployed.
+
+**Check for a signed update** renders the decision the worker was already
+replying with and nothing displayed.
+
+`shellRefresh()` **refuses under a live pin** rather than walking around it. An
+unsigned byte-for-byte overwrite from the same origin would defeat exactly what
+the pin promises, so under a pin the only way forward is a signed manifest — and
+the page names the refusal instead of failing quietly.
+
+## Why this page is in the shell and the hatch is not
+
+`/shell.html` is in `FALLBACK_SHELL`; `/destruct.html` deliberately is not. The
+distinction is the verb. The hatch stays off the shell so you cannot destroy your
+only copy while the origin is dead. This page only **looks** and **refreshes**,
+and looking is precisely what you need when the origin is gone.
+
+It never refuses to show you something. Every probe renders independently, the
+page falls back to reading the Cache API and IndexedDB directly when the worker
+is silent, and failures render as text. There is no path here that ends in a
+blank screen.
+
+## Tests
+
+`scripts/sw.test.mjs` makes three of `sw.js`'s prose invariants executable:
+
+1. The **VERSION / FALLBACK_SHELL bump rule**, via a pinned digest literal.
+   Editing the list without bumping the key strands every existing install on the
+   old copy where no edge purge can reach them. The digest is a literal on
+   purpose — computing it from the list the test just parsed would compare a
+   value to itself and pass forever.
+2. **Every shell path exists.** A typo'd entry cannot be precached, so the
+   offline shell is quietly incomplete.
+3. **The verb split** — `shell.html` in, `destruct.html` out.
+
+Verified in Chromium: v7 installs, the page reports 49/49 held, the refresh lever
+round-trips, and the page still boots and renders correctly **with the origin
+killed**. `119/119` suites pass.
+
+## Also in here
+
+`docs/coring.md` — a shaping note capturing the redaction/disclosure layer this
+work sits under. Coring proves *possession of the rest*, not derivation, so it
+needs no zero-knowledge machinery; the format's grid picks the redaction size
+rather than the author; chunk chaining asserts edges and count without content.
+Companion to `data-pile/CONTRACT.md` Layer 3, which it does not replace.
+
+## Deliberately not in here
+
+- The **held / rolling two-slot split** and the rolling-by-default, latch-on-
+  intent policy.
+- `sw.js`'s `activate()` deleting the previous shell on a VERSION bump before the
+  replacement is proven whole. That is a live lockout path: kill the network
+  mid-install and the old floor is already gone. This page makes it observable,
+  which is the right order, but the fix changes the possession guarantee's
+  default and wants its own note in `origin.md`.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
