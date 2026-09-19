@@ -86,7 +86,8 @@ function readerFor(origin) {
   return read;
 }
 
-export async function createPress({ stage, skin = "press", storage = globalThis.localStorage, store = null, on = {} } = {}) {
+// `memory: false` is a skin that keeps no view between visits (the counter: you come back to the two verbs).
+export async function createPress({ stage, skin = "press", storage = globalThis.localStorage, store = null, memory = true, on = {} } = {}) {
   if (!stage) throw new Error("press: a stage element is required");
   const where = standing();
   const tell = (name, detail) => { try { on[name] && on[name](detail); } catch (e) { console.error(e); } };
@@ -164,7 +165,7 @@ export async function createPress({ stage, skin = "press", storage = globalThis.
 
     state = { view: { ...view, mode }, face, exhibit: door.exhibit, door };
     if (!view.caught) {
-      if (keep) remember(storage, skin, state.view);
+      if (keep && memory) remember(storage, skin, state.view);
       const hash = viewToHash(state.view);
       if (push && location.hash !== hash) history.pushState(null, "", hash);
     }
@@ -202,7 +203,7 @@ export async function createPress({ stage, skin = "press", storage = globalThis.
   }
 
   function restore() {
-    const from = hashToView(location.hash) || recall(storage, skin);
+    const from = hashToView(location.hash) || (memory ? recall(storage, skin) : null);
     return from ? go(from, { push: false }) : null;
   }
   addEventListener("popstate", () => { const v = hashToView(location.hash); if (v) go(v, { push: false }); else halt({ push: false }); });

@@ -1,0 +1,115 @@
+<!doctype html>
+<!-- press/bench.html — THE PRESS. One of several total-experience demos over press/press.mjs (press/README.md).
+
+     "We want to be an anecdote printing press to our own piles." So the page is a press, left to right:
+
+       THE BED     where a statement is set, with its object
+       THE SHEET   what is in front of you — a bottle on ice, a neighbour live, a pile of your own
+       THE RACK    what is within reach — your piles, the bottles you chose to remember, the neighbours,
+                   and any name at all on the library's shelf
+
+     Everything you print can be ABOUT the sheet: the statement carries a receipt for the version you were
+     reading. On a wide screen all three are visible at once. On a phone they are three panes you swipe
+     between, and the sheet is the one you land on — reading first, because that is what arrives first. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>anecdote — the press</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/assets/ds/colors.css">
+<link rel="stylesheet" href="/assets/ds/spacing.css">
+<link rel="stylesheet" href="/assets/ds/typography.css">
+<link rel="stylesheet" href="/assets/ds/fonts.css">
+<link rel="stylesheet" href="press.css">
+<style>
+  body { height: 100vh; height: 100dvh; display: grid; grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr) minmax(15rem, 19rem); grid-template-rows: 100%; }
+  .pane { min-height: 0; overflow: auto; }
+  #bedpane { border-right: var(--rule) solid var(--border); padding: var(--space-6) var(--space-5); display: flex; flex-direction: column; gap: var(--space-5); }
+  #bedpane .loud { font-size: var(--display-2); }
+  #sheet { display: flex; flex-direction: column; overflow: hidden; }
+  #sheet .stage { flex: 1; display: flex; } #sheet .stage > iframe { flex: 1; }
+  #blank { flex: 1; display: grid; place-content: center; text-align: center; padding: var(--space-7); gap: var(--space-3); color: var(--text-muted); }
+  #blank .loud { font-size: var(--display-2); color: var(--ink-faint); }
+  #rackpane { border-left: var(--rule) solid var(--border); padding: var(--space-6) var(--space-5); }
+  #dots { display: none; }
+  @media (max-width: 60rem) {
+    body { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+    body::-webkit-scrollbar { display: none; }
+    .pane { flex: 0 0 100vw; scroll-snap-align: start; scroll-snap-stop: always; height: 100%; border: 0 !important; padding-bottom: var(--space-9) !important; }
+    #sheet { padding-bottom: 0 !important; }
+    #dots { display: flex; position: fixed; left: 0; right: 0; bottom: calc(var(--space-3) + env(safe-area-inset-bottom)); justify-content: center; gap: var(--space-2); pointer-events: none; z-index: 5; }
+    #dots a { pointer-events: auto; font-size: var(--mono-caption); letter-spacing: var(--tracking-caps); text-transform: uppercase; text-decoration: none;
+      padding: var(--space-1) var(--space-3); background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-full); }
+    #dots a[aria-current="true"] { background: var(--ink); color: var(--paper); }
+  }
+</style>
+</head>
+<body>
+<section class="pane" id="bedpane" aria-label="the bed">
+  <div><p class="eyebrow">the bed</p><h2 class="loud">Set it.</h2></div>
+  <div id="bed"></div>
+  <div id="pourwrap" class="slate" style="padding:var(--space-5)" hidden>
+    <p class="eyebrow" style="margin-bottom:var(--space-3)">the last sheet, leaving as light</p>
+    <div id="pour"></div>
+    <p style="margin:var(--space-3) 0 0"><button type="button" class="chip" id="pourstop">stop pouring</button></p>
+  </div>
+  <details>
+    <summary class="eyebrow" style="cursor:pointer">read a bottle instead</summary>
+    <div id="catch" style="margin-top:var(--space-4)"></div>
+  </details>
+  <p class="note" style="margin-top:auto">Signed by a key minted for this session. The real press asks your keeper, behind a passkey. <a href="./">Other ways to stand here.</a></p>
+</section>
+
+<section class="pane" id="sheet" aria-label="the sheet">
+  <header class="ribbon" id="ribbon"></header>
+  <div id="leaving" hidden></div>
+  <nav id="strip" aria-label="this bottle's pages" hidden></nav>
+  <div id="blank"><p class="loud">No sheet on the press.</p><p>Pick something off the rack, or print something and read it back.</p></div>
+  <main class="stage" id="stage" hidden></main>
+</section>
+
+<aside class="pane" id="rackpane" aria-label="the rack"><div id="rack"></div></aside>
+
+<nav id="dots" aria-label="panes"><a href="#bedpane" data-pane="bedpane">bed</a><a href="#sheet" data-pane="sheet" aria-current="true">sheet</a><a href="#rackpane" data-pane="rackpane">rack</a></nav>
+
+<script type="module">
+import { createPress } from "./press.mjs";
+import { ribbon, strip, leaving, bed, pourPanel, catchPanel, rack, wire } from "./ui.mjs";
+
+const $ = (id) => document.getElementById(id);
+const parts = {};
+const show = (pane) => { if (matchMedia("(max-width: 60rem)").matches) $(pane).scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }); };
+
+const press = await createPress({ stage: $("stage"), skin: "bench", on: {
+  view: (info) => { $("blank").hidden = !!info; $("stage").hidden = !info; parts.ribbon.update(info); parts.strip.update(info); parts.leaving.hide(); parts.bed.setAbout(!!info && !info.view.caught); if (info) show("sheet"); },
+  leaving: (l) => parts.leaving.show(l), refused: ({ reason }) => parts.leaving.say(reason),
+  struck: (s) => { parts.rack.update(); $("pourwrap").hidden = false; parts.pour.show(s); press.go({ pile: s.pile, path: "" }); },
+  kept: () => parts.rack.update(),
+  catching: (d) => parts.catch.on.catching(d), catchUnavailable: (d) => parts.catch.on.catchUnavailable(d),
+  progress: (d) => parts.catch.on.progress(d), passed: (d) => parts.catch.on.passed(d), caught: (d) => parts.catch.on.caught(d),
+} });
+globalThis.__press = press;
+
+parts.ribbon = ribbon($("ribbon"), press, { halted: "the sheet" });
+parts.strip = strip($("strip"), press);
+parts.leaving = leaving($("leaving"));
+parts.bed = bed($("bed"), press, { pile: "field-notes", about: true, placeholder: "Say a thing once. It is signed here and printed into your own pile." });
+parts.bed.setAbout(false);
+parts.pour = pourPanel($("pour"), press);
+parts.catch = catchPanel($("catch"), press, { pile: "field-notes" });
+parts.rack = rack($("rack"), press);
+wire(document.body, press);
+
+$("pourstop").addEventListener("click", () => { parts.pour.stop(); $("pourwrap").hidden = true; });
+$("catch").parentElement.addEventListener("toggle", (e) => (e.target.open ? parts.catch.start() : parts.catch.stop()));
+
+// The pane dots: real anchors; scroll position decides which is current.
+for (const a of document.querySelectorAll("#dots a")) a.addEventListener("click", (e) => { e.preventDefault(); show(a.dataset.pane); });
+const seen = new IntersectionObserver((es) => { for (const e of es) if (e.isIntersecting) for (const a of document.querySelectorAll("#dots a")) a.setAttribute("aria-current", String(a.dataset.pane === e.target.id)); }, { threshold: 0.6 });
+for (const id of ["bedpane", "sheet", "rackpane"]) seen.observe($(id));
+
+if (!(await press.restore()) && matchMedia("(max-width: 60rem)").matches) $("sheet").scrollIntoView({ inline: "start" });
+</script>
+</body>
+</html>

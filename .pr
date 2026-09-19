@@ -1,80 +1,81 @@
-shell.html: a control page for what this device is holding
+press/: the total experience, four ways, over one engine — and D18
 
-The shell is deliberately hard to dislodge — `sw.js` is cache-first over
-`FALLBACK_SHELL` and never consults the network on a hit, which is the possession
-guarantee working as designed. But the aggression had no lever pointed at the
-**holder**: short of `destruct.html` there was no way to ask the cache to go
-forward, and two signals the worker already records went nowhere.
+The demo shelf proves capabilities one at a time. This composes them into the thing they were for: **one
+page that feels like one place, while every view under it is a frame onto another origin in the subdomain
+world.** Four skins over one engine, so the same machinery can be stood in four ways and compared by feel.
+No new mechanism and no new cryptography — `press/` is an arrangement of `composer/`, `git-enough/`,
+`jekyll-enough/` and the probe line.
 
-- `precache()` counts its failures and returns them; `install()` threw them into
-  `console.warn`, so "the shell is incomplete offline" was invisible at exactly
-  the moment nobody can debug it.
-- `checkFirmware()` / `adoptOffer()` write the pin's `rejected` record on a
-  refusal. Nothing has ever read it back — a possessed-origin refusal was silent.
+    node scripts/serve-constellation.mjs   →   http://anecdote.localhost:8137/press/
 
-Both surface on `/shell.html` now, alongside what served the page and what the
-cache actually holds.
+## Two gestures and a verb
 
-## The two levers
+- **go** — a place shown *on ice* (source fetched, its face resolved, read in a sterile `data:` chamber) or
+  *live* (the origin itself, framed).
+- **write** — a statement with an object attached, signed here, printed into a pile here as a commit. Said
+  over a page, it carries a receipt for the **version** it was said over: by hash, copying none of it.
+- **read** — a floor **on another origin** holds the lens; the press does the catching, heals around damage,
+  verifies, opens what arrived sterile, and writes nothing until *slap it down*.
 
-**Refresh the shell** re-fetches every shell path in place. No unregister, no pin
-change, no trove access; worst case you re-download the shell. This is what "roll
-forward" means while firmware pinning is dormant — which is the state production
-is actually in, since no `firmware.json` is deployed.
+## The face of a bottle
 
-**Check for a signed update** renders the decision the worker was already
-replying with and nothing displayed.
+`index.md` wins → `README.md` shown as the index (with `library/EXHIBIT.md`'s canon as buttons and strip as
+tabs) → unbuilt Jekyll rendered from source → *live* when only a built page answers → *none*, which says
+"did not answer" differently from "nothing here yet".
 
-`shellRefresh()` **refuses under a live pin** rather than walking around it. An
-unsigned byte-for-byte overwrite from the same origin would defeat exactly what
-the pin promises, so under a pin the only way forward is a signed manifest — and
-the page names the refusal instead of failing quietly.
+The tree is lazy, and **the renderer is what asks for it**: `buildSite`'s lenient build names what it lacks,
+each round fetches exactly that, and whatever is still missing is printed at the foot of the face. Verified
+against the real thawed group — `library`'s README yields its 9-tab strip; Tell and Atlas render from their
+unbuilt `index.md` + layouts with zero gaps; `journal`, which has no README at all, honestly says so.
 
-## Why this page is in the shell and the hatch is not
+## D18 — the library is the wildcard host; bottles is a driver
 
-`/shell.html` is in `FALLBACK_SHELL`; `/destruct.html` deliberately is not. The
-distinction is the verb. The hatch stays off the shell so you cannot destroy your
-only copy while the origin is dead. This page only **looks** and **refreshes**,
-and looking is precisely what you need when the origin is gone.
+Recorded from the operator's ruling of 2026-09-19. It supersedes D4/D10/D11 on **one point only** — where a
+bottle is served from — and is the record `library/OPEN.md` §1 said was owed here. It lists what it forces
+(`bottle-uri.mjs`'s `BOTTLES`, the `models/` CSP, the missing SAN line) and **fixes none of it**; it names
+"who owns the player" as still open and says what arrangement the press took in the meantime.
 
-It never refuses to show you something. Every probe renders independently, the
-page falls back to reading the Cache API and IndexedDB directly when the worker
-is silent, and failures render as text. There is no path here that ends in a
-blank screen.
+## The four skins
+
+`halt` (single attention: arrive at nothing; one line is the whole interface) · `bench` (bed · sheet · rack)
+· `counter` (two people present: hand over / take) · `overlay` (the *posting-from-a-phone* petition,
+verbatim: a button that drops into posting mode over whatever is already rendering).
+
+## Touched outside `press/`
+
+- `composer/authorize.mjs` — two Rung-0, non-persisting ops graded: `press.follow`, `bottle.catch`.
+- `composer/bottle-embed.mjs` — `embedBottle` gains `allow` (a camera must be delegated *before* the frame
+  loads), `expectOrigin` (the READY's browser-attested origin is checked before the port is handed over —
+  it was checked against nothing), and `title`. Additive; neither file is mirrored into another repo.
+- `sw.js` — **VERSION v7 → v8**; the press and its *eager* import closure join `FALLBACK_SHELL`, digest
+  pinned in `scripts/sw.test.mjs`. The reducer's lazy naming modules are deliberately left out.
+- `scripts/serve-constellation.mjs` — the multi-origin dev server; `scripts/test.mjs` lists `press`.
+
+## Stand-ins, said plainly
+
+`press/floor/` is **not** the library's floor. The signing key is minted per session; the real press asks the
+keeper behind a passkey. Foreign Liquid is rendered — no I/O, no network in the chamber, so the hazard is
+time, not reach — and that wants a second opinion before this is anything but a demo.
+
+## New conduct
+
+None. Nothing is transmitted anywhere, nothing is kept without an explicit act, and the CONSTITUTION is
+untouched. Composition of attested conduct, not new conduct.
 
 ## Tests
 
-`scripts/sw.test.mjs` makes three of `sw.js`'s prose invariants executable:
+`128/128` suites. Seven new Node suites in `press/`, one in `scripts/`, and
+`probe-test/press.ui.test.mjs`: 36 checks in real Chromium on the true hostnames — arriving at the halt
+fetches from no other origin; the chamber cannot reach the network and a bottle's own `<script>` does not
+run in it; a link out of the constellation is announced and moves nothing; a bottle is caught **across
+origins through deliberately damaged frames**; looking writes nothing; one remembered view, no trail; no
+request escaped the constellation in the whole run.
 
-1. The **VERSION / FALLBACK_SHELL bump rule**, via a pinned digest literal.
-   Editing the list without bumping the key strands every existing install on the
-   old copy where no edge purge can reach them. The digest is a literal on
-   purpose — computing it from the list the test just parsed would compare a
-   value to itself and pass forever.
-2. **Every shell path exists.** A typo'd entry cannot be precached, so the
-   offline shell is quietly incomplete.
-3. **The verb split** — `shell.html` in, `destruct.html` out.
+## Found on the way, not fixed
 
-Verified in Chromium: v7 installs, the page reports 49/49 held, the refresh lever
-round-trips, and the page still boots and renders correctly **with the origin
-killed**. `119/119` suites pass.
-
-## Also in here
-
-`docs/coring.md` — a shaping note capturing the redaction/disclosure layer this
-work sits under. Coring proves *possession of the rest*, not derivation, so it
-needs no zero-knowledge machinery; the format's grid picks the redaction size
-rather than the author; chunk chaining asserts edges and count without content.
-Companion to `data-pile/CONTRACT.md` Layer 3, which it does not replace.
-
-## Deliberately not in here
-
-- The **held / rolling two-slot split** and the rolling-by-default, latch-on-
-  intent policy.
-- `sw.js`'s `activate()` deleting the previous shell on a VERSION bump before the
-  replacement is proven whole. That is a live lockout path: kill the network
-  mid-install and the old floor is already gone. This page makes it observable,
-  which is the right order, but the fix changes the possession guarantee's
-  default and wants its own note in `origin.md`.
+- `jekyll-enough`'s fence regex does not accept an **empty** front matter (`---\n---`), which real Jekyll
+  does. `press/face.mjs` deliberately uses the same fence so the two never disagree.
+- `markdown-enough`'s `*emphasis*` misses when a `**bold**` run precedes it on the line.
+- This `.pr` slot still held #239's draft, a merged PR. It is a slot and not an archive.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

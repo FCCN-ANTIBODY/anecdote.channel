@@ -20,7 +20,7 @@ import { pinDecision, verifyFiles } from "/composer/firmware.mjs";
 // and the network is never consulted — and activate() only deletes caches whose key DIFFERS from
 // VERSION. So editing the shell without bumping the key strands every existing install on the old
 // copy, and no amount of edge purging reaches it: the request never leaves the browser.
-const VERSION = "anecdote-shell-v7";
+const VERSION = "anecdote-shell-v8";
 
 // Fallback shell when NO firmware.json is deployed — pinning is dormant, static precache (slice 1a note:
 // arming the guarantee is opt-in). Same set as before + the firmware verify graph so a signed manifest can
@@ -52,6 +52,17 @@ const FALLBACK_SHELL = [
   "/composer/probe-engine.mjs", "/composer/open-engine.mjs", "/composer/install.mjs",
   "/composer/install-loader.mjs", "/composer/bottle-uri.mjs", "/composer/platform-key.mjs",
   "/composer/bottle-embed.mjs",
+  // THE PRESS (/press/) — one engine, four skins, and its full EAGER import closure, so the front door boots
+  // with the origin unreachable: a pile you printed into is still readable, a bottle can still be poured and
+  // (given a floor) caught, and only the places that are genuinely elsewhere say they did not answer. The
+  // reducer's lazy, optional naming modules (pos-reduce, weights) are deliberately NOT here — naming degrades
+  // without them. The stand-in floor (/press/floor/) is served from OTHER origins and is not this shell's.
+  "/press/", "/press/index.html", "/press/halt.html", "/press/bench.html", "/press/counter.html", "/press/overlay.html",
+  "/press/press.css", "/press/press.mjs", "/press/ui.mjs", "/press/hosts.mjs", "/press/face.mjs", "/press/exhibit.mjs",
+  "/press/chamber.mjs", "/press/markdown-more.mjs", "/press/view-state.mjs", "/press/bench.mjs", "/press/pile.mjs", "/press/catch.mjs",
+  "/jekyll-enough/build.mjs", "/jekyll-enough/liquid.mjs", "/jekyll-enough/markdown.mjs", "/jekyll-enough/yaml.mjs",
+  "/composer/route.mjs", "/composer/bottle-book.mjs", "/reducer/embedders.mjs", "/reducer/store.mjs",
+  "/git-enough/repo.mjs", "/git-enough/objects.mjs",
 ];
 
 // ---- a tiny IndexedDB for the pin (fingerprint + held version + last rejection) ----------------------
