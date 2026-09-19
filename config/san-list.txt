@@ -31,6 +31,13 @@ anecdote.channel
 # under it.
 *.tell.anecdote.channel
 
+# --- the shelf: the library's wildcard-served bottles (docs/decisions.md D18) ---
+# <label>.library.anecdote.channel — the leaf label is the library's labelling of a bottle.
+# Same one-label rule as the Floor above: *.anecdote.channel covers the bare `library`
+# host and NOTHING under it. `bottles` is a driver, not a host (D18), so there is
+# deliberately no *.bottles line and there never was one.
+*.library.anecdote.channel
+
 # --- per-state wildcards (covers <city>.<state>.anecdote.channel) --------------
 *.colorado.anecdote.channel
 
