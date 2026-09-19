@@ -1,0 +1,60 @@
+<!doctype html>
+<!-- press/floor/ — A STAND-IN FLOOR for *.library.<apex>. NOT the library's floor: that is the library's to
+     lay, with the bottles driver (.bottles-engine) mounted in it. This exists so the press has a doorway to
+     stand in front of while that is unbuilt, and it is written to the rules the real one will keep
+     (docs/flooring.md):
+
+       1. IDENTICAL AT EVERY LABEL. These bytes never learn what name they were served at from the server;
+          the page reads its own hostname. There is nothing here to provision and nobody to ask.
+       2. A LABEL IS A RENDEZVOUS, NEVER A CAPABILITY. Anyone who types it gets this tile.
+       3. A FLOOR HAS NO CONTENTS. A miss on the rack is an invitation rather than a 404 — so the tile says
+          nothing is shelved here, and offers the two things a doorway can: bring something, or read one.
+
+     THE READER IS HERE ON PURPOSE. Reading a bottle video is the bottles driver's affair, mounted by whoever
+     holds what is moving — the library. So the lens lives on the floor, not in the press. It is only a lens:
+     it turns light (or a recording of light) into frame strings and streams them up the probe line to
+     whoever embedded it (`bottle.catch`). It verifies nothing, keeps nothing, and decides nothing — the
+     press does the catching (press/catch.mjs), and the person does the keeping.
+
+     The driver code is imported from the apex at runtime, cross-origin. A real floor would carry its own. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a floor</title>
+<style>
+  :root { --ink:#0A0A0A; --ink-faint:#6B6E6E; --paper:#FFFFFF; --paper-edge:#ECEAE6; --slate:#3F4F50; --cream:#F4F1EC; --lilac:#E9D6E8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--paper); color: #2B2B2B; font: 16px/1.55 'Space Mono','Courier New',ui-monospace,monospace; padding: 32px 24px 64px; }
+  main { max-width: 38rem; margin: 0 auto; }
+  h1 { font: 400 clamp(2rem, 6vw, 3.25rem)/1.1 'Playfair Display',Georgia,serif; color: var(--ink); margin: 0; letter-spacing: -.01em; word-break: break-word; }
+  .eyebrow { font-size: .6875rem; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); margin: 12px 0 32px; }
+  p { margin: 0 0 16px; }
+  .verbs { display: grid; gap: 12px; margin-top: 32px; }
+  button, label.file { font: inherit; text-align: left; padding: 16px; border: 2px solid var(--ink); background: var(--paper); color: var(--ink); cursor: pointer; display: block; }
+  button:hover, label.file:hover { background: var(--lilac); }
+  button small, label.file small { display: block; color: var(--ink-faint); font-size: .8125rem; margin-top: 4px; }
+  input[type=file] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  video { width: 100%; background: var(--slate); margin-top: 16px; display: none; }
+  #status { margin-top: 16px; font-size: .8125rem; color: var(--ink-faint); min-height: 1.5em; }
+  body.embedded { padding: 16px; } body.embedded h1 { font-size: 1.6rem; } body.embedded .eyebrow { margin-bottom: 16px; }
+  body.embedded .alone { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="label">a floor</h1>
+  <p class="eyebrow" id="host"></p>
+  <p>Nothing is shelved at this name. It answered anyway, because every name here does — nobody was asked, and nothing was set up.</p>
+  <p class="alone">Choosing a name is how a space gets made. If this is yours, bring something to it from the press.</p>
+  <div class="verbs">
+    <button id="camera" type="button">Read a bottle with the camera<small>Point this device at a looping bottle. Damaged frames are fine — it heals.</small></button>
+    <label class="file">Bring a recording<small>A saved pour, one frame per line. A recording is a slower path to the same bytes, not a lossy one.</small><input id="recording" type="file" accept=".txt,text/plain"></label>
+  </div>
+  <video id="cam" playsinline muted></video>
+  <canvas id="work" hidden></canvas>
+  <p id="status" role="status"></p>
+</main>
+<script type="module" src="floor.mjs"></script>
+</body>
+</html>

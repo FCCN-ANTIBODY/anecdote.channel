@@ -1,0 +1,13 @@
+---
+layout: default
+title: This week
+---
+<h1>{{ page.title }} on {{ site.title }}</h1>
+{% include nav.html here="this week" %}
+<p>{{ site.tagline }}. There is no <code>_site</code> directory and no build ever ran; what you are reading was
+rendered from these source files, in your tab, a moment ago.</p>
+<ul>
+{% for s in site.data.sheets %}  <li><strong>{{ s.day }}</strong> — {{ s.note }}</li>
+{% endfor %}</ul>
+{% include weather.html %}
+<p>Read <a href="about.md">about this almanac</a>.</p>
