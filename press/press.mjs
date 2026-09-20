@@ -311,8 +311,8 @@ export async function createPress({ stage, skin = "press", storage = globalThis.
 
 // Draw one carrier frame as a QR. 4-module quiet zone: this rendering is for a CAMERA (bottles README calls
 // it "projected"); the stored rendering, which no camera reads, is the driver's and is not drawn here.
-export function drawFrame(canvas, frame, { scale = 4 } = {}) {
-  const q = encodeQR(frame, { ecLevel: "M" });
+export function drawFrame(canvas, frame, { scale = 4, ecLevel = "M" } = {}) {
+  const q = encodeQR(frame, { ecLevel });
   const quiet = 4, n = q.size, W = (n + 2 * quiet) * scale;
   canvas.width = W; canvas.height = W;
   const ctx = canvas.getContext("2d");

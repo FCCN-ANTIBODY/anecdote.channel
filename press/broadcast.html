@@ -1,0 +1,160 @@
+<!doctype html>
+<!-- press/broadcast.html — THE TARGET. A page that does nothing but broadcast.
+     (press/broadcast.mjs for the profiles; docs/preview-paradigm.md for why this exists.)
+
+     It is deliberately not a skin and not an experience. It is the thing you point the OTHER phone at, so
+     that "two phones doing this on front cams and screens" produces numbers instead of impressions. It
+     takes a file (or makes one of a size you pick), cuts it the way you choose, shows it, and states the
+     floor it is working against. Nothing else: no navigation, no pile, no keeper, no storage.
+
+     THE MEASUREMENT IT SETS UP. Every plan reports `floorScreens` — the fewest screen-reads a perfect
+     camera would need. The catcher on the other phone reports what it actually took. Observed ÷ floor is
+     the YIELD, and it is the only number here that cannot be computed in advance: it is the camera, the
+     screen, the glare, the distance and the hands. Everything else on this page is arithmetic, printed so
+     that the one measured number has something to be measured against.
+
+     RUN IT AGAINST: press/counter.html's "Take", any press skin's "read a bottle", or the bare floor at
+     <label>.library.<apex>. All three end in the same catcher (press/catch.mjs). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>anecdote — the broadcast target</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/assets/ds/colors.css">
+<link rel="stylesheet" href="/assets/ds/spacing.css">
+<link rel="stylesheet" href="/assets/ds/typography.css">
+<link rel="stylesheet" href="/assets/ds/fonts.css">
+<link rel="stylesheet" href="press.css">
+<style>
+  body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+  header { padding: var(--space-4) var(--space-5); border-bottom: var(--rule) solid var(--border); }
+  header h1 { font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--display-3); margin: 0; color: var(--text-strong); }
+  #screen { flex: 1; display: grid; place-content: center; gap: 2px; padding: var(--space-4); background: #fff; }
+  #screen canvas { display: block; image-rendering: pixelated; max-width: 100%; height: auto; }
+  #tune { padding: var(--space-3) var(--space-5); border-top: var(--rule) solid var(--border); font-size: var(--mono-small); white-space: pre-wrap; }
+  .knobs { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border-faint); align-items: center; }
+  .knobs label { font-size: var(--mono-caption); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-muted); display: inline-flex; gap: var(--space-2); align-items: center; }
+  .knobs select, .knobs input[type=number] { border: 0; border-bottom: var(--rule) solid var(--border); background: transparent; padding: var(--space-1) 0; font-size: var(--mono-small); text-transform: none; letter-spacing: 0; }
+  .knobs input[type=number] { width: 6ch; }
+  body.full header, body.full .knobs, body.full #source { display: none; }
+  body.full #tune { border: 0; position: fixed; bottom: 0; left: 0; right: 0; background: var(--paper); }
+  #source { padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border-faint); display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; font-size: var(--mono-small); }
+  #source input[type=file] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  body.over { background: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>The broadcast target</h1>
+  <p class="note" style="margin-top:var(--space-1)">A page that does nothing but broadcast. Point another phone at it. <a href="./">the press</a></p>
+</header>
+
+<div id="screen" role="img" aria-label="a bottle, as light"></div>
+<p id="tune" role="status">idle</p>
+
+<div class="knobs">
+  <label>profile <select id="profile"><option value="stream">stream · one at a time, endless</option><option value="collage" selected>collage · n at once</option><option value="still">still · one glance</option></select></label>
+  <label>cut <select id="cut"><option value="droplets">droplets · any subset</option><option value="blocks">blocks · each once</option></select></label>
+  <label>tiles <input type="number" id="tiles" value="9" min="1" max="64" step="1"></label>
+  <label>block <input type="number" id="blockSize" value="128" min="16" max="2048" step="16"> B</label>
+  <label>ec <select id="ecLevel"><option>L</option><option selected>M</option><option>Q</option><option>H</option></select></label>
+  <label>fps <input type="number" id="fps" value="8" min="1" max="30" step="1"></label>
+  <button class="chip" type="button" id="run">start</button>
+  <button class="chip" type="button" id="full">full screen</button>
+</div>
+
+<div id="source">
+  <label class="chip">take a file<input type="file" id="file"></label>
+  <label>or make one <input type="number" id="synth" value="4" min="0" max="500" step="1"> KB</label>
+  <button class="chip" type="button" id="make">make it</button>
+  <span id="what" class="note" style="margin:0"></span>
+</div>
+
+<script type="module">
+import { planBroadcast, tuningLine } from "./broadcast.mjs";
+import { drawFrame } from "./press.mjs";
+import { packTransfer } from "../composer/transfer.mjs";
+import { generateIdentity } from "../composer/sign.mjs";
+
+const $ = (id) => document.getElementById(id);
+const me = await generateIdentity();
+let transfer = null, plan = null, timer = null, screen = 0, started = 0;
+
+const knobs = () => ({ profile: $("profile").value, cut: $("cut").value, tiles: +$("tiles").value,
+                       blockSize: +$("blockSize").value, ecLevel: $("ecLevel").value, fps: +$("fps").value });
+
+// The payload. A file taken here is NOT kept, sent or signed as yours in any meaningful sense — it is
+// wrapped as a transfer so it has the shape a catcher recognises, and this page has no storage at all.
+async function take(kind, bytes, what) {
+  transfer = await packTransfer("data-pile", bytes, me);
+  $("what").textContent = what;
+  await build();
+}
+async function build() {
+  stop();
+  if (!transfer) return;
+  plan = await planBroadcast(transfer, knobs());
+  $("tune").textContent = tuningLine(plan);
+  screen = 0;
+  draw();
+}
+function draw() {
+  const frames = plan.frames(screen);
+  const box = $("screen");
+  const cols = Math.ceil(Math.sqrt(frames.length || 1));
+  box.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+  while (box.children.length > frames.length) box.lastChild.remove();
+  while (box.children.length < frames.length) box.append(document.createElement("canvas"));
+  // Tiles share the screen, so the scale each can take is what is left after dividing it up. A collage is
+  // legible or it is not, and that is the trade the profile is making — so it is made visible here rather
+  // than hidden by a scrollbar.
+  const room = Math.min(box.clientWidth, box.clientHeight) / cols;
+  const scale = Math.max(1, Math.floor(room / (plan.size + 8)));
+  frames.forEach((f, i) => drawFrame(box.children[i], f, { scale, ecLevel: plan.ecLevel }));
+}
+function tick() {
+  screen++;
+  draw();
+  if (plan.profile !== "still") {
+    const secs = (performance.now() - started) / 1000;
+    $("tune").textContent = tuningLine(plan) + `\nshown ${screen} screens · ${(screen * plan.perScreen)} pieces · ${secs.toFixed(1)}s · a perfect camera would be done at ${plan.floorScreens}`;
+  }
+}
+function stop() { if (timer) clearInterval(timer); timer = null; $("run").textContent = "start"; }
+$("run").addEventListener("click", () => {
+  if (timer || !plan || !plan.ok) return stop();
+  started = performance.now();
+  $("run").textContent = "stop";
+  timer = setInterval(tick, 1000 / Math.max(1, knobs().fps));
+});
+for (const id of ["profile", "cut", "tiles", "blockSize", "ecLevel"]) $(id).addEventListener("change", build);
+$("fps").addEventListener("change", () => { if (timer) { stop(); $("run").click(); } });
+$("full").addEventListener("click", () => { document.body.classList.toggle("full"); if (plan) draw(); });
+addEventListener("resize", () => { if (plan) draw(); });
+
+$("file").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  await take("file", new Uint8Array(await f.arrayBuffer()), `${f.name} · ${f.size.toLocaleString()} B`);
+});
+$("make").addEventListener("click", async () => {
+  const kb = Math.max(0, +$("synth").value);
+  // Incompressible on purpose: a payload of zeroes would flatter every profile, because deflate would eat
+  // it and the number on screen would be about the filler rather than about the optics.
+  const bytes = new Uint8Array(kb * 1024);
+  crypto.getRandomValues(bytes);
+  await take("synthetic", bytes, `${kb} KB of random bytes`);
+});
+for (const ev of ["dragenter", "dragover"]) addEventListener(ev, (e) => { e.preventDefault(); document.body.classList.add("over"); });
+for (const ev of ["dragleave", "drop"]) addEventListener(ev, (e) => { e.preventDefault(); document.body.classList.remove("over"); });
+addEventListener("drop", async (e) => {
+  const f = e.dataTransfer && e.dataTransfer.files[0]; if (!f) return;
+  await take("file", new Uint8Array(await f.arrayBuffer()), `${f.name} · ${f.size.toLocaleString()} B`);
+});
+
+// The headless seam: a suite drives the same path the hands do.
+globalThis.__broadcast = { take, build, draw, tick, plan: () => plan, screens: () => screen, knobs };
+await take("synthetic", crypto.getRandomValues(new Uint8Array(4096)), "4 KB of random bytes");
+</script>
+</body>
+</html>

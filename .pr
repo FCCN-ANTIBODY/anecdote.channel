@@ -50,14 +50,36 @@ assets-only-Worker fallback if it fails.
 · `counter` (two people present: hand over / take) · `overlay` (the *posting-from-a-phone* petition,
 verbatim: a button that drops into posting mode over whatever is already rendering).
 
+## The broadcast target, and `docs/preview-paradigm.md`
+
+Added at the operator's request before a reboot, to make research about The Counter sturdier: **a page that
+does nothing but broadcast**, and the three ways to cut a bottle up that she named — *still* (one code, one
+glance), *collage* (n at once, redundancy in space), *stream* (endless, redundancy in time) — plus a second
+axis for what a piece IS: *droplets* (any subset) or *blocks* (each once). Every plan reports the **floor**
+of screen-reads a perfect camera would need, so the one number two phones actually produce has something to
+be measured against.
+
+`docs/preview-paradigm.md` writes down the UI observation it came from (iOS Preview/Runestone's half-screen
+file browser; what a trivialized Expo app of that shape would feel like with the bottle engine in the other
+half) and why The Counter is congruent with it — *"not the winner design"* but *"obviously a complete version
+of the concept"*. Explicitly a shaping note: the app is ideation, the instrument is built.
+
+**It already found things.** A block cut with no loss is *exactly* its floor — zero overhead, better than the
+fountain's ~1.18× — and the fountain wins only once anything goes wrong. Nine tiles divide the floor by nine
+at the same code size per tile. The still's ceiling is 2,953 frame bytes at level L, so a ~1 KB anecdote
+hands over in a single glance with no video at all, which is a product fact rather than a format detail.
+
 ## Touched outside `press/`
 
 - `composer/authorize.mjs` — two Rung-0, non-persisting ops graded: `press.follow`, `bottle.catch`.
 - `composer/bottle-embed.mjs` — `embedBottle` gains `allow` (a camera must be delegated *before* the frame
   loads), `expectOrigin` (the READY's browser-attested origin is checked before the port is handed over —
   it was checked against nothing), and `title`. Additive; neither file is mirrored into another repo.
-- `sw.js` — **VERSION v7 → v8**; the press and its *eager* import closure join `FALLBACK_SHELL`, digest
-  pinned in `scripts/sw.test.mjs`. The reducer's lazy naming modules are deliberately left out.
+- `sw.js` — **VERSION v7 → v9**; the press, its *eager* import closure, and the broadcast target join
+  `FALLBACK_SHELL` (79 paths), digests pinned in `scripts/sw.test.mjs`. The reducer's lazy naming modules
+  are deliberately left out. The target is in the shell because two phones in a field with no network is
+  precisely when it has to boot.
+- `press/press.mjs`'s `drawFrame` takes an `ecLevel` — it hardcoded `"M"`, so the target's knob did nothing.
 - `scripts/serve-constellation.mjs` — the multi-origin dev server; `scripts/test.mjs` lists `press`.
 
 ## Stand-ins, said plainly
@@ -73,7 +95,7 @@ untouched. Composition of attested conduct, not new conduct.
 
 ## Tests
 
-`128/128` suites. Seven new Node suites in `press/`, one in `scripts/`, and
+`129/129` suites. Eight new Node suites in `press/`, one in `scripts/`, and
 `probe-test/press.ui.test.mjs`: 36 checks in real Chromium on the true hostnames — arriving at the halt
 fetches from no other origin; the chamber cannot reach the network and a bottle's own `<script>` does not
 run in it; a link out of the constellation is announced and moves nothing; a bottle is caught **across

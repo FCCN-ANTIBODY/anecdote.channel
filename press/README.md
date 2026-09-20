@@ -66,6 +66,23 @@ after another, and compared by feel.
 
 Piles are shared across skins (one origin, one store), so a sheet printed in one is on the rack in another.
 
+## The broadcast target, and the three ways to cut a bottle up
+
+[`broadcast.html`](broadcast.html) is not a skin. It is **a page that does nothing but broadcast** — the
+thing you point the *other* phone at, so that two phones produce numbers instead of impressions. Take a file
+or make one, pick how it is cut, press full screen. [`broadcast.mjs`](broadcast.mjs) is the pure half.
+
+| profile | | cut |
+| --- | --- | --- |
+| **still** | one code, one glance — no loop, no playhead, while it fits (≈2 KB at level L) | **droplets** — rateless; any sufficient subset rebuilds it, so a miss costs nothing |
+| **collage** | n codes at once: redundancy in **space** | **blocks** — a fixed set, each needed once; no overhead at all, but a miss waits for the loop |
+| **stream** | one at a time, endless: redundancy in **time** | |
+
+Every plan reports a **floor** — the fewest screen-reads a perfect camera would need. Everything else on the
+page is arithmetic; the one number that is not is what the second phone tells you. See
+[`../docs/preview-paradigm.md`](../docs/preview-paradigm.md) for the measured baselines and the two-phone
+procedure.
+
 ## What it refuses, because `docs/decisions.md` already did
 
 - **No daisy chains (D8).** Nothing a framed page asks is forwarded to the keeper, or anywhere.
@@ -90,6 +107,6 @@ Piles are shared across skins (one origin, one store), so a sheet printed in one
 
 ## Tests
 
-`node scripts/test.mjs` runs the seven Node suites here. `probe-test/press.ui.test.mjs` runs the whole
+`node scripts/test.mjs` runs the eight Node suites here. `probe-test/press.ui.test.mjs` runs the whole
 composition in real Chromium on the true hostnames — including a bottle caught across origins through
 deliberately damaged frames — and self-skips where there is no browser.
