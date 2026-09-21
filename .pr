@@ -1,33 +1,38 @@
-config: saas.txt — the third case, and the row budget it deliberately does not spend
+config/saas.txt: the fallback origin and the www rule, stranded by a mid-flight merge
 
-## What this adds
+## Why this exists separately
 
-`sites.txt` records names. `san-list.txt` records the certificate those names need. Neither has a
-place for **somebody else's domain pointed into one of our names**, which is what a trade node is for
-and what `discoverywritten.com` is about to be. `config/saas.txt` is that record.
+#246 merged at head `83d9a26` while two further commits were being pushed to the same branch, so
+`config/saas-arrangement` still carries them and `main` does not. Nothing was lost and nothing was
+deleted — the branch outlived the merge because this repo keeps branches — but `main`'s copy of
+`config/saas.txt` is 127 lines where the branch's is 163, and the missing 36 lines are the part an
+operator reads *before* touching the dashboard. Cherry-picked onto current `main`, byte-identical to
+what the stranded branch held.
 
-## The property worth noticing
+## What the two commits say
 
-**A consumer's certificate is not a SAN row.** Cloudflare for SaaS issues one certificate per custom
-hostname, so the advanced-certificate pack — capped at 50 hosts, aborting rather than truncating —
-does not grow by a row per consumer. The cost model `san-list.txt` reasons so carefully about applies
-to our own name space only. The fallback origin needs no row either; `*.anecdote.channel` covers it.
+**`73d223b` — the fallback origin is one record and one field, and one per zone.** Checked against
+Cloudflare's pages: a proxied `A`/`AAAA`/`CNAME` in this zone plus one dashboard field, and grey
+cloud will not do because the whole mechanism is Cloudflare being in the path to read the `Host`
+header. The consequence is the load-bearing part — **there is one fallback origin per zone, shared
+by every custom hostname.** Pointed at a single Pages project, every consumer domain gets that one
+site: correct for one consumer, wrong for two. So consumer two needs the fallback origin to be a
+*router* rather than a site, which is the assets-only Worker `docs/flooring.md` already names as its
+second answer to serving a name it was never told about. Two open questions, one answer.
 
-## The state it records honestly
+Also records that the standalone-zone case is documented: a zone's hostname priority takes
+precedence over a *wildcard* custom hostname and the resolution is to register hostnames
+individually — so an individual custom hostname for a domain that is also a zone here is the
+documented path rather than a refusal. The zone still wins while it answers, so the sequencing
+constraint stands.
 
-- **Fallback origin** `fallback.anecdote.channel`, `pending` — one dashboard action, not in this repo.
-- **`www.discoverywritten.com` first, apex second.** The apex is an active zone in the same account
-  serving its own content, and a custom hostname for a name Cloudflare is already authoritative for
-  is the one untested part. `www` does not resolve at all (measured), so it is a free subject: prove
-  the mechanism where there is no traffic to break, then decide about the apex.
-- **Nothing for FCPM.** Different account; holding both is not a shortcut.
-
-Also: a note under the `discoverywritten.trade…` entry in `sites.txt` recording why `repo:` is still
-correct (the name has no DNS yet) and what drops it.
+**`962ea2f` — `www` is a test subject, not a name.** The operator does not keep a `www` ("redundant
+and ugly"); approving it here was approving a staging subject. Recorded so nothing later proposes
+serving consumers at `www.<their-domain>` as a way around the apex problem, which would trade a real
+answer for a name she would not have kept and make the toll somebody else's problem.
 
 ## Merge qualifications
 
-- [x] no SAN change needed — `*.trade.fort-collins.colorado.anecdote.channel` already covers the
-      service name, `*.anecdote.channel` covers the fallback origin
-- [x] declaration only; nothing here provisions anything
-- [ ] the dashboard actions, which are the operator's
+- [x] cherry-picked clean; no conflict with anything merged in #246
+- [x] declaration and documentation only; nothing here provisions anything
+- [ ] `config/saas-arrangement` can be deleted once this lands — it holds nothing else
