@@ -65,6 +65,14 @@ fallback   fallback.anecdote.channel   pending
 # local organisations that did not choose their infrastructure, "you must move your DNS to us" is a
 # real toll — better written here than discovered in a conversation with somebody's board.
 #
+# THE REGISTRAR IS IRRELEVANT TO ALL THREE DOORS, and it is the easiest thing in here to conflate.
+# What door one needs is that the consumer's DNS is HOSTED somewhere that can alias at an apex; who
+# SELLS them the name does not enter into it. Our own domain is the clean demonstration, measured
+# 2026-09-21 with the two facts visible at the same moment: `dig NS discoverywritten.com` answers
+# houston/mariah.ns.cloudflare.com while `whois` says `Registrar: Tucows Domains Inc.` — the DNS
+# moved, the registrar never did. The record also carries `clientTransferProhibited`, so a registrar
+# transfer is presently locked at the losing registrar. Nothing in this file waits on that.
+#
 # NOT VERIFIED, AND NOT TO BE PROMISED UNTIL IT IS: `apex:flattened` should not require moving to
 # Cloudflare specifically. Route 53, DNSimple, NS1, DNS Made Easy and easyDNS all offer apex aliasing,
 # and an ALIAS pointed at our fallback origin would return our addresses carrying their apex in the
