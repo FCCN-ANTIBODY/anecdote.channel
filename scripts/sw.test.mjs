@@ -42,6 +42,7 @@ assert.ok(shell.length > 10, `sw.js: FALLBACK_SHELL parsed as only ${shell.lengt
 // check this file exists to prevent.
 const PINNED = {
   "v8": "sha256:54149854117e1582ec14099267bca9353bf533bad0ead7156c222aefaf711654",
+  "v9": "sha256:0920fd20b045aadc91c427a548c11b9aebc31f6c8cdcc58fb1f9cc513c6d90ef",   // + the press (/press/), its eager import closure, and the broadcast target
 };
 const EXPECTED_SHELL_DIGEST = "sha256:" + createHash("sha256").update(shell.join("\n")).digest("hex");
 assert.ok(

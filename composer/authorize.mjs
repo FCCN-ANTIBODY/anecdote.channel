@@ -60,6 +60,8 @@ export const OP_CATALOG = {
   "presence.witness":        { rung: 1, persists: false },  // countersign a shown claim — witnessing is a knowing act
   "presence.met":            { rung: 1, persists: false },  // bind a scanned Tell token to my placement — the met-record
   "constituency.where":      { rung: 0, persists: false },  // bisect held atlas dumps locally — the position never leaves
+  "press.follow":            { rung: 0, persists: false },  // a sterile face ASKS where a pressed link leads; the press decides, in its own pixels, and nothing is kept
+  "bottle.catch":            { rung: 0, persists: false },  // a floor streams what its reader catches up to the press — loaded is not persisted (D15); keeping is a separate, deliberate act
 };
 
 // Build an op descriptor from the catalog (unknown → consequential+persisting). `extra` adds behavior/scope.

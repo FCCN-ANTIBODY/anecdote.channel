@@ -31,6 +31,7 @@ Scope: decisions that span repos (anecdote.channel + tell / atlas / antidote / d
 - **D15 — Only bottles are caught.** What travels over gravel is a bottle; scanning one brings the app up and opens it in the clean room, sterile always; loaded is not persisted; a diff-type bottle fast-forwards a clone; the thin anecdote is the spec and the nested bottle is its fullest form.
 - **D16 — Registration is the back half of consent.** The respondent's install broadcasts back an acknowledgment the collector's checkout holds; it buys an address without DNS or GitHub; it is not subscription and not a mailbox.
 - **D17 — The bottle is the unit that travels, and a data bottle is the owner's to write.** Any file rides inside a bottle, so the native poll QR is fountain-only and needs no URL; a reply is an anecdote pointing at a *version* of the poll; the pile's read-only posture faces Tell, never its owner.
+- **D18 — The library is the wildcard host; bottles is a driver.** `<label>.library.<apex>` is where a bottle is shelved and served; `bottles` names the machinery that makes, reads and plays them, mounted by whoever holds what is moving. Supersedes D4/D10/D11 on *where a bottle is served from*, and nothing else in them.
 - **O1 (open) — The delivery signer's committed public half.** `tell.fpr`/`pub`/`signers` under the D1 lens.
 
 ---
@@ -953,6 +954,93 @@ survive — in a pile that logs what it witnessed — instead of in a local reco
 advance it" from its own signed starting state, and how collaborators are ever admitted to that. That
 is a policy question about what a *valid* change is, and it is being worked as an open question in
 civic-node rather than settled by fiat here.
+
+---
+
+## D18 · The library is the wildcard host; bottles is a driver
+*Status: accepted 2026-09-19, on the operator's ruling (supersedes D4, D10 and D11 on one point only — where a bottle is served from; the record `library.anecdote.channel/OPEN.md` §1 says was owed here)*
+
+**Context.** D4 put free-form bottles at `bottles.<apex>`, and D10/D11 built on that: the repository
+`bottles.anecdote.channel` "owning the domain's fact the way `tell.anecdote.channel` owns `*.tell`", the
+canonical instance as the intake, a mounted outlet serving `bottles.<their-domain>/<label>`. Meanwhile
+`library` arrived as the category for knowledge, with an engine that enumerates and lends — and every
+mechanic of checking a bottle out, writing to it and putting it back turned out identical under either
+name (`library/OPEN.md` §1). The bottles repository was dissolved, then asked for back by name
+(2026-09-08). That left two readings of one word in circulation, and nothing here said which held.
+
+The operator, 2026-09-19:
+
+> *"i'll restore library as the wildcard source on dns. we had a disassociative split about whether bottles
+> was a host or a driver, and we want it to be a driver. library is mapping a share thing there at its
+> leisure, so it's their labeling of what we transit (bottles)"*
+
+**Decision.**
+
+1. **`*.library.<apex>` is the wildcard.** The grammar is D4's, unchanged — `<label>.<storage>.<apex>`,
+   one invented label, its own hermetic origin — with `library` as the provisioned storage name a bottle
+   is shelved and served under. The label is **the library's labelling of what we transit**: what it calls
+   the thing on its shelf, at its leisure, in whatever structure its share wing settles on.
+2. **`bottles` is a DRIVER, never a host.** It is the machinery that makes a thing carryable and reads it
+   back — minting, signing, the renderings, the reader, the player — mounted by whoever holds what is
+   moving. A library mounts it to pour and to read; this origin composes it to catch. **Nothing is served
+   from a `bottles` name, and no label is invented under one.**
+3. **The two do not collapse.** `library/OPEN.md` §1's answer stands — *they are different jobs even when
+   the lending machinery is shared* — and this is what makes it stand: one is a place with an admission
+   posture, the other is a capability with none. A node may mount the driver without being a library; a
+   library cannot hold bytes without the driver.
+
+**What this supersedes, precisely.** Only the *address*. In D4, read `bottles.<apex>` as `library.<apex>`
+wherever it names where a free-form bottle lives. In D10 §1, the repository `bottles.anecdote.channel` is
+the bottles ENGINE exactly as written — build machinery a distributor mounts — but it does **not** "own the
+domain's fact"; there is no such domain fact any more. In D11, "a mounted outlet serves
+`bottles.<their-domain>/<label>`" becomes a statement about *their* library (or whatever they call their
+shelf); "canonical `bottles.anecdote.channel` is the intake" becomes: **the intake is wherever a floor with
+the driver mounted is standing**, and for this constellation that is the library's.
+
+Everything else in those three entries is untouched and is leaned on harder by this one: the D2 glove as
+the only path for executable code, the signature covering the canonical payload and never the container,
+outlets signing with their own key under a platform endorsement, **an embed scoped to a named bottle and a
+shelf that is never enumerable**, collision on intake resolved by a ref. None of that ever depended on
+which word sat in the hostname.
+
+**Why.** A host and a driver are different kinds of thing, and one word was doing both jobs. The cost was
+paid in every session that met it: is `bottles` somewhere I go, or something I use? Making it a driver
+settles that the way `git` settles it — nobody asks where git is hosted. And putting the wildcard under the
+library is the library's own *no front desk* rule expressed in DNS (`docs/flooring.md`): every name on the
+shelf already answers, a miss is an invitation rather than a 404, and what is shelved at a name is the
+library's to say.
+
+**Consequence — what this forces, recorded so it is not discovered later. None fixed here except where
+noted.**
+
+- **`composer/bottle-uri.mjs` exports `BOTTLES = "bottles"`** and `engineBottleUrl()` resolves a storage
+  adapter to `<adapter>.bottles.<apex>`. Under this decision an engine bottle is shelved like any other,
+  at `<adapter>.library.<apex>`. Tell's floor mirrors that function (`floor.mjs engineBottleUrl`, D5), so
+  it moves in both places or neither.
+- **`models/index.html`'s CSP names `frame-src https://*.bottles.anecdote.channel`.** It will refuse the
+  new host silently — the empty-rectangle failure D9's amendment already warns about.
+- **`config/san-list.txt` carried no `*.library.anecdote.channel`** — *fixed alongside this entry, as its
+  own commit.* A TLS wildcard covers exactly one label, so `*.anecdote.channel` covers the bare `library`
+  host and **nothing under it**. (`*.bottles…` was never in the list, and now never will be.) The
+  certificate is half of a floor; the serving half is unbuilt for `*.library` **and for `*.tell`** — see
+  `docs/flooring.md`, "Laying one on Cloudflare".
+- **`press/hosts.mjs` is written to this decision** (`SHELF = "library"`; `<label>.bottles` classifies as
+  nothing in particular), and `press/floor/` is a **stand-in** for the floor the library will lay.
+
+**Not decided here, and deliberately.**
+
+- **Who owns the player.** `bottles/OPEN.md` §1 and `library/OPEN.md` §1 both leave it between `bottles`
+  and `anecdote.channel`. The operator's words today divide it by sense rather than by repository: *"The
+  camera thing for reading a bottle video is totally a bottle.anecdote.channel affair, though a library will
+  be the holder of what's moving and possible live encoding."* (Said earlier the same day, before the ruling above, so
+  read `bottle.anecdote.channel` there as *the driver*, not as a host.) The
+  press follows that line — the **lens** lives on the floor with the driver; the **catching**, the sterile
+  **opening**, and the README-as-index renderer (`library/EXHIBIT.md`: "which renderer draws the strip…
+  belongs to `anecdote.channel`") live here. That is a working arrangement in a demo, not a ruling.
+- **Which origin runs a library floor's WebAuthn ceremony.** `docs/flooring.md` already names this seam for
+  floors in general against D12's single RP ID. Shelving bottles under the library does not move it.
+- **What the share wing's labels look like** — flat, nested, per-branch. That is the library's
+  (`library` petition *the-share-wing…*), and this entry takes no view.
 
 ---
 

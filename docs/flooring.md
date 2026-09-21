@@ -155,6 +155,53 @@ we want**, which is a decision this repository makes in `docs/decisions.md` and 
 - `anecdote.channel/config/san-list.txt` — the wildcard SAN entries and the one-label-per-wildcard
   rule that shapes how deep a floor can sit.
 
+## Laying one on Cloudflare — what is known, and the one-minute test that settles the rest
+
+`checked 2026-09-19.` The operator, the same day: *"i don't think i ever truly served a floor to
+\*.tell.anecdote.channel, nor to library yet, but i could with it readied as deployable to a cloudflare
+Pages project each."* So as of this writing **no floor is laid anywhere** — `tell/docs/floor.md` describes
+the masking and `bin/floor-build` emits the site, but nothing serves it. This section is what stands
+between that and a floor that answers.
+
+There are two halves and they are independent. **Do not let a green first half read as a working floor.**
+
+| half | what it needs | state |
+| --- | --- | --- |
+| **the certificate** | one single-label wildcard SAN per floored namespace, in `config/san-list.txt`. This is what Advanced Certificate Manager is for — Universal SSL stops at `*.anecdote.channel`, one label deep | `*.tell.anecdote.channel` has been listed since the Floor shipped; `*.library.anecdote.channel` was added with D18 |
+| **the serving** | one proxied wildcard DNS record (`*.tell`, `*.library`), and **something that answers for a hostname it was never told about** | unbuilt, and the second clause is the whole question |
+
+**The serving half has two candidate answers, and two sources disagree about the first.**
+
+1. **A Pages project with a wildcard custom domain.** Cloudflare's dashboard assistant, asked on this
+   account, said: *"Wildcard custom domains on Pages require the zone to have Advanced Certificate
+   Manager."* — which this zone has. But the public Pages documentation does not mention wildcard custom
+   domains at all, and community threads as recent as 2026 describe them as unsupported. What the docs *do*
+   say matters either way: pointing a CNAME at a Pages site **without** associating the hostname in the
+   Pages dashboard "will result in your domain failing to resolve… and display a 522 error." So a wildcard
+   DNS record alone is not a floor; the project has to accept the wildcard as a custom domain.
+
+   **The test:** in the Pages project's *Custom domains*, add `*.library.anecdote.channel`. Accepted →
+   this is the floor, with no worker anywhere, which is the posture this constellation prefers. Refused →
+   the assistant was wrong, and it is answer 2.
+
+2. **A Worker that is only static assets, on a wildcard route.** Workers routes do take a leading-wildcard
+   hostname (`*.library.anecdote.channel/*` "matches all subhosts"), requests that hit a static asset are
+   "free and unlimited", and an assets-only project runs no code of ours. It needs the same proxied DNS
+   record. It is a Worker in name and a file server in fact — but it *is* one more credential and one more
+   deploy surface than answer 1, which is why it is second.
+
+**What to deploy.** A floor is a directory of constant files, so either answer takes a directory and no
+build: `tell/bin/floor-build` emits Tell's; `press/floor/` is the library's **stand-in** (two files). The
+stand-in is honest about one thing it gets wrong: it imports its reader from the apex at runtime, and
+property 2 above wants a tile that fetches nothing. That is the library's to fix when it lays the real one
+with the bottles driver mounted (D18).
+
+**The failure mode to expect.** A half-laid floor fails *quietly and per-name*: the apex works, the bare
+`library` host works (it is covered by `*.anecdote.channel`), and only `<label>.library…` breaks — as a
+TLS error if the SAN is missing, or a 522 if the project never accepted the wildcard. Neither looks like
+"the floor is not laid" from the outside. `press/` says *"this name did not answer"* for exactly this case
+rather than pretending the shelf is empty.
+
 ## Not settled here
 
 - **Which origin runs a floor's WebAuthn ceremony.** The operator describes minting *at the label*

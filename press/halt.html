@@ -1,0 +1,138 @@
+<!doctype html>
+<!-- press/halt.html — THE HALT. One of several total-experience demos over press/press.mjs (press/README.md).
+
+     docs/single-attention.md, taken literally: "On entry, the system does not rush you into one of the usual
+     activities it thinks you want. It rushes you into a fresh data-pile… A data-pile is a kind of halt
+     instruction: nothing is happening, and the empty pile is in charge of the focus now."
+
+     So the page opens on nothing, and says so. There is ONE LINE, at the bottom, and it is the whole
+     interface: what you type is a statement unless it starts with @ (a place) or ~ (one of your piles).
+     Drop an object anywhere and it rides with the next thing you say. Going somewhere fills the page with
+     that place; the line stays. "stop" returns you to nothing. Exactly one thing is on purpose at a time. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>anecdote — the halt</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/assets/ds/colors.css">
+<link rel="stylesheet" href="/assets/ds/spacing.css">
+<link rel="stylesheet" href="/assets/ds/typography.css">
+<link rel="stylesheet" href="/assets/ds/fonts.css">
+<link rel="stylesheet" href="press.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+  .stage { flex: 1; display: flex; }
+  .stage > iframe { flex: 1; }
+  #nothing { flex: 1; display: grid; align-content: center; padding: var(--space-7) var(--gutter); gap: var(--space-5); }
+  #nothing .loud { font-size: var(--display-1); text-shadow: var(--shadow-display); }
+  #nothing p { max-width: var(--measure); margin: 0; }
+  #nothing kbd { font: inherit; border: 1px solid var(--border); padding: 0 .35em; border-radius: var(--radius-sm); }
+  #side { border-top: 1px solid var(--border-faint); padding: var(--space-4) var(--gutter); max-height: 50vh; overflow: auto; }
+  #line { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--gutter) calc(var(--space-3) + env(safe-area-inset-bottom));
+    border-top: var(--rule) solid var(--border); background: var(--paper); }
+  #line input[type=text] { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: var(--mono-lead); padding: var(--space-2) 0; }
+  #line input[type=text]::placeholder { color: var(--text-muted); }
+  #held { font-size: var(--mono-small); }
+  body.over #line { background: var(--accent); }
+  @media (max-width: 34rem) { #line input[type=text] { font-size: var(--mono-body); } .ribbon .name { font-size: 1.4rem; } }
+</style>
+</head>
+<body>
+<header class="ribbon" id="ribbon"></header>
+<div id="leaving" hidden></div>
+<nav id="strip" aria-label="this bottle's pages" hidden></nav>
+
+<section id="nothing" aria-live="polite">
+  <p class="loud">Nothing is happening.</p>
+  <p>This is an empty pile, and it is yours. Nothing was loaded for you, nothing is being fetched, and nothing will start unless you start it.</p>
+  <p>Say a thing on the line below and it is signed here and printed here. Begin with <kbd>@</kbd> to go somewhere — <a href="#/field-guide.library/">@field-guide.library</a>, <a href="#/atlas/">@atlas</a>, <a href="#//README.md">@ (this place)</a> — or <kbd>~</kbd> for one of your own piles. Drop an object anywhere and it goes with what you say next.</p>
+  <p class="note"><a href="./">the other ways to stand here</a></p>
+</section>
+<main class="stage" id="stage" hidden></main>
+<section id="side" hidden></section>
+
+<form id="line" autocomplete="off">
+  <input type="text" id="say" placeholder="say a thing  ·  @place  ·  ~pile" aria-label="say a thing, or name a place" enterkeyhint="send" autocapitalize="sentences">
+  <span id="held" class="chip" hidden></span>
+  <button class="chip" type="button" id="read">read a bottle</button>
+</form>
+
+<script type="module">
+import { createPress } from "./press.mjs";
+import { ribbon, strip, leaving, pourPanel, catchPanel, wire, h } from "./ui.mjs";
+import { isLabel } from "./hosts.mjs";
+
+const $ = (id) => document.getElementById(id);
+const PILE = "notes";
+let object = null, parts = {}, catching = null;
+
+const press = await createPress({ stage: $("stage"), skin: "halt", on: {
+  view: (info) => { $("nothing").hidden = !!info; $("stage").hidden = !info; parts.ribbon.update(info); parts.strip.update(info); parts.leaving.hide(); },
+  leaving: (l) => parts.leaving.show(l),
+  refused: ({ reason }) => parts.leaving.say(reason),
+  struck: (s) => {
+    side();
+    const holder = h("div");
+    $("side").append(h("div", { class: "slate", style: "padding:var(--space-5)" },
+      h("p", { class: "eyebrow", text: "printed · now it can leave as light" }), holder,
+      h("p", {}, h("button", { type: "button", class: "chip", text: "done", onclick: side }))));
+    $("side").hidden = false;
+    parts.pour = pourPanel(holder, press); parts.pour.show(s);
+    press.go({ pile: s.pile, path: "" });
+  },
+  catching: (d) => catching && catching.on.catching(d), catchUnavailable: (d) => catching && catching.on.catchUnavailable(d),
+  progress: (d) => catching && catching.on.progress(d), passed: (d) => catching && catching.on.passed(d), caught: (d) => catching && catching.on.caught(d),
+  kept: () => {},
+} });
+globalThis.__press = press;
+
+parts.ribbon = ribbon($("ribbon"), press, { halted: "an empty pile", onHalt: side });
+parts.strip = strip($("strip"), press);
+parts.leaving = leaving($("leaving"));
+wire(document.body, press);
+
+// The side panel holds the ONE other thing that may be open: a pour, or a catch. Opening one closes the other.
+function side() { if (parts.pour) parts.pour.stop(); if (catching) catching.stop(); parts.pour = catching = null; $("side").textContent = ""; $("side").hidden = true; }
+
+$("read").addEventListener("click", () => {
+  side(); $("side").hidden = false;
+  $("side").append(h("p", { class: "eyebrow", text: "read a bottle" }));
+  const holder = document.createElement("div"); $("side").append(holder, h("p", {}, h("button", { type: "button", class: "chip", text: "done", onclick: side })));
+  catching = catchPanel(holder, press, { pile: PILE }); catching.start();
+});
+
+// THE LINE. @place, ~pile, or a statement. Nothing else to learn.
+$("line").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const said = $("say").value.trim();
+  if (!said) return;
+  if (said.startsWith("@")) {
+    const [address, ...rest] = said.slice(1).split("/");
+    $("say").value = ""; return void press.go({ address, path: rest.join("/") });
+  }
+  if (said.startsWith("~")) {
+    const [pile, ...rest] = said.slice(1).toLowerCase().split("/");
+    if (!isLabel(pile)) return parts.leaving.say("A pile's name is plain: letters, digits and hyphens.");
+    $("say").value = ""; return void press.go({ pile, path: rest.join("/") });
+  }
+  $("say").disabled = true;
+  try { await press.strike({ text: said, object, pileId: PILE, about: !!press.info() }); $("say").value = ""; object = null; $("held").hidden = true; }
+  catch (err) { parts.leaving.say(String(err && err.message || err)); }
+  $("say").disabled = false; $("say").focus();
+});
+
+// An object dropped ANYWHERE rides with the next thing said.
+for (const ev of ["dragenter", "dragover"]) addEventListener(ev, (e) => { e.preventDefault(); document.body.classList.add("over"); });
+for (const ev of ["dragleave", "drop"]) addEventListener(ev, (e) => { e.preventDefault(); document.body.classList.remove("over"); });
+addEventListener("drop", async (e) => {
+  const f = e.dataTransfer && e.dataTransfer.files[0]; if (!f) return;
+  object = { name: f.name, mediaType: f.type || "application/octet-stream", bytes: new Uint8Array(await f.arrayBuffer()) };
+  $("held").textContent = "with " + f.name + " ×"; $("held").hidden = false; $("say").focus();
+});
+$("held").addEventListener("click", () => { object = null; $("held").hidden = true; });
+
+await press.restore();
+</script>
+</body>
+</html>

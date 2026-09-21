@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- press/index.html — the shelf of skins. Four total experiences over one engine (press/press.mjs); this page
+     only says what each is for, so they can be stood in one after another and compared by feel. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anecdote — the press</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/assets/ds/colors.css">
+<link rel="stylesheet" href="/assets/ds/spacing.css">
+<link rel="stylesheet" href="/assets/ds/typography.css">
+<link rel="stylesheet" href="/assets/ds/fonts.css">
+<link rel="stylesheet" href="press.css">
+<style>
+  body { padding: var(--space-8) var(--gutter) var(--space-9); }
+  .loud.hero { font-size: var(--display-hero); text-shadow: var(--shadow-display); }
+  .lede { max-width: var(--measure); margin: var(--space-5) 0 var(--space-8); font-size: var(--mono-lead); line-height: var(--leading-snug); color: var(--text-strong); }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border-top: var(--rule) solid var(--border); }
+  li { display: grid; grid-template-columns: minmax(10rem, 22rem) 1fr; gap: var(--space-6); padding: var(--space-6) 0; border-bottom: 1px solid var(--border-faint); align-items: baseline; }
+  li a { font-family: var(--font-display); font-size: var(--display-2); line-height: var(--leading-tight); text-decoration: none; letter-spacing: var(--tracking-display); }
+  li a:hover { text-decoration: underline; text-underline-offset: 8px; text-decoration-thickness: var(--rule); }
+  li p { margin: 0; max-width: var(--measure); } li .eyebrow { margin-bottom: var(--space-2); }
+  #standing { margin-top: var(--space-8); max-width: var(--measure); }
+  @media (max-width: 44rem) { li { grid-template-columns: 1fr; gap: var(--space-3); } }
+</style>
+</head>
+<body>
+<p class="eyebrow">anecdote.channel</p>
+<h1 class="loud hero">the press</h1>
+<p class="lede">One page that feels like one place. Under it, every view is a frame onto some other origin in the subdomain world — and two gestures: say a thing with an object attached, or read an object and put it down where bottles go.</p>
+
+<ol>
+  <li><a href="halt.html">The Halt</a><div><p class="eyebrow">single attention</p><p>You arrive at nothing, and it says so. One line at the bottom is the whole interface: a statement, an <code>@place</code>, or a <code>~pile</code>. Exactly one thing is on purpose at a time.</p></div></li>
+  <li><a href="bench.html">The Press</a><div><p class="eyebrow">bed · sheet · rack</p><p>A printing press, left to right: where a statement is set, what is in front of you, and what is within reach. Three panes you swipe between on a phone.</p></div></li>
+  <li><a href="counter.html">The Counter</a><div><p class="eyebrow">two people, present</p><p>A phone held between two people and two verbs, each half the screen: hand over, or take. Reading is a sheet that opens over the counter and closes back to it.</p></div></li>
+  <li><a href="overlay.html">Posting mode</a><div><p class="eyebrow">over whatever is rendering</p><p>The page <em>is</em> the place you are looking at, edge to edge. One button drops a posting surface over it, and what you say points at the version you were reading.</p></div></li>
+</ol>
+
+<p id="standing" class="note"></p>
+<script type="module">
+import { standing } from "./hosts.mjs";
+const w = standing();
+document.getElementById("standing").textContent = w.standing
+  ? "Standing at " + w.apex + ": neighbours and the library's shelf resolve beside this page."
+  : "This page is not standing in a constellation (a bare localhost), so neighbours resolve to the deployed anecdote.channel. For the whole subdomain world on one port: node scripts/serve-constellation.mjs";
+</script>
+</body>
+</html>

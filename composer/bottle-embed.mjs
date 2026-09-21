@@ -12,15 +12,25 @@ import { connectProbeLine, READY, INIT } from "./probe-line.mjs";
 // Iframe a bottle by URL, wait for its READY, hand it a private MessagePort, and return a connected probe
 // client. Cross-origin: a bottle serves whoever holds its port, so the consent that decides what RUNS rides in
 // each request (composer/bottle-grant operateTag + the user's grant). Returns { client, iframe, teardown }.
-export function embedBottle(url, { document: doc = globalThis.document, targetWindow = globalThis, mount = null, sandbox = null } = {}) {
+//
+// `allow` is the iframe's Permissions-Policy delegation (e.g. "camera" for a floor whose reader drinks a
+// billboard) — it must be set BEFORE the frame loads, which is why it is an option here and not something a
+// caller can add afterwards. `expectOrigin`, when given, is checked against the browser-attested
+// `event.origin` of the READY: the port is a capability, and it should not be handed to a frame that
+// navigated somewhere other than the bottle that was named (D11: an embed is scoped to a NAMED bottle).
+export function embedBottle(url, { document: doc = globalThis.document, targetWindow = globalThis, mount = null, sandbox = null,
+                                   allow = null, expectOrigin = null, title = null } = {}) {
   const iframe = doc.createElement("iframe");
   if (sandbox) iframe.setAttribute("sandbox", sandbox);
+  if (allow) iframe.setAttribute("allow", allow);
+  if (title) iframe.setAttribute("title", title);
   iframe.src = url;
   (mount || doc.body).appendChild(iframe);
   const channel = new MessageChannel();
   return new Promise((resolve) => {
     const onReady = (event) => {
       if (event.source !== iframe.contentWindow || !event.data || event.data.type !== READY) return;
+      if (expectOrigin && event.origin !== expectOrigin) return;   // not the bottle that was named: no port
       targetWindow.removeEventListener("message", onReady);
       iframe.contentWindow.postMessage({ type: INIT }, "*", [channel.port2]); // transfer the capability
       resolve({

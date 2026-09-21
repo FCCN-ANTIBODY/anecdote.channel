@@ -1,0 +1,127 @@
+<!doctype html>
+<!-- press/overlay.html — POSTING MODE. One of several total-experience demos over press/press.mjs.
+
+     The petition `posting-from-a-phone` asks for exactly this, in these words: "It does not need to stop
+     iframing to get there. A button that drops into posting mode over whatever is already rendering is
+     enough. The embed and the posting surface are separate concerns."
+
+     So the page IS whatever is rendering — a place, edge to edge — and one lilac button floats over it. Press
+     it and a slate sheet comes up from the bottom, leaving the thing you were looking at visible above it,
+     because that is what you are talking about: by default the statement carries a receipt for the version
+     on the page (D13 — a way to speak about a document without changing it). Print it and the same sheet
+     becomes the bottle, pouring.
+
+     It is built for a thumb. The two floating controls are the whole chrome: where (bottom left) and say
+     (bottom right). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>anecdote — posting mode</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/assets/ds/colors.css">
+<link rel="stylesheet" href="/assets/ds/spacing.css">
+<link rel="stylesheet" href="/assets/ds/typography.css">
+<link rel="stylesheet" href="/assets/ds/fonts.css">
+<link rel="stylesheet" href="press.css">
+<style>
+  body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  .ribbon { padding: var(--space-2) var(--space-4); border-bottom-width: 1px; }
+  .ribbon .name { font-size: 1.35rem; }
+  .stage { flex: 1; display: flex; } .stage > iframe { flex: 1; }
+  .fab { position: fixed; bottom: calc(var(--space-5) + env(safe-area-inset-bottom)); z-index: 6; padding: var(--space-3) var(--space-5); font-size: var(--mono-body);
+    box-shadow: var(--shadow-card); }
+  #say { right: var(--space-5); } #where { left: var(--space-5); }
+  .drawer { position: fixed; z-index: 8; overflow: auto; box-shadow: var(--shadow-inverse); transition: transform .22s ease; }
+  #rackdrawer { background: var(--paper); top: 0; bottom: 0; left: 0; width: min(22rem, 88vw); padding: var(--space-6) var(--space-5); border-right: var(--rule) solid var(--border); transform: translateX(-105%); }
+  #rackdrawer.open { transform: none; }
+  #posting { left: 0; right: 0; bottom: 0; max-height: 72vh; padding: var(--space-5) var(--gutter) calc(var(--space-6) + env(safe-area-inset-bottom)); transform: translateY(105%); }
+  #posting.open { transform: none; }
+  #posting .inner { max-width: 44rem; margin: 0 auto; display: grid; gap: var(--space-4); }
+  #posting .top { display: flex; align-items: baseline; gap: var(--space-3); }
+  #posting .loud { font-size: var(--display-3); flex: 1; }
+  #scrim { position: fixed; inset: 0; z-index: 7; background: rgba(10,10,10,.18); }
+</style>
+</head>
+<body>
+<header class="ribbon" id="ribbon"></header>
+<div id="leaving" hidden></div>
+<nav id="strip" hidden aria-label="this bottle's pages"></nav>
+<main class="stage" id="stage"></main>
+
+<button class="chip fab" id="where" type="button" aria-expanded="false" aria-controls="rackdrawer">where</button>
+<button class="chip accent fab" id="say" type="button" aria-expanded="false" aria-controls="posting">say something</button>
+<div id="scrim" hidden></div>
+
+<aside class="drawer" id="rackdrawer" aria-label="where to go" inert>
+  <div id="rack"></div>
+  <p class="note" style="margin-top:var(--space-6)"><a href="./">Other ways to stand here.</a></p>
+</aside>
+
+<section class="drawer slate" id="posting" aria-label="posting mode" inert>
+  <div class="inner">
+    <div class="top"><h2 class="loud" id="posttitle">Say it.</h2><button class="chip" type="button" id="postclose">close</button></div>
+    <p class="eyebrow" id="aboutline"></p>
+    <div id="bed"></div>
+    <div id="pour"></div>
+    <p class="note" id="after" hidden></p>
+  </div>
+</section>
+
+<script type="module">
+import { createPress } from "./press.mjs";
+import { ribbon, strip, leaving, bed, pourPanel, rack, wire, h } from "./ui.mjs";
+import { viewToHash } from "./hosts.mjs";
+
+const $ = (id) => document.getElementById(id);
+const parts = {};
+
+const press = await createPress({ stage: $("stage"), skin: "overlay", on: {
+  view: (info) => { parts.ribbon.update(info); parts.strip.update(info); parts.leaving.hide(); close(); if (!info) press.go({ address: "", path: "README.md" }); },
+  leaving: (l) => parts.leaving.show(l), refused: ({ reason }) => parts.leaving.say(reason),
+  struck: (s) => {
+    parts.rack.update(); $("posttitle").textContent = "Printed."; $("bed").hidden = true; parts.pour.show(s);
+    $("after").hidden = false; $("after").textContent = "";
+    $("after").append("It is in your pile — ", h("a", { href: viewToHash({ pile: s.pile, path: s.path }), text: s.pile + "/" + s.path, style: "color:inherit" }),
+      s.about ? ". It points at the version of this page you were reading; none of the page was copied." : ".");
+  },
+} });
+globalThis.__press = press;
+
+parts.ribbon = ribbon($("ribbon"), press, { halted: "…" });
+parts.strip = strip($("strip"), press);
+parts.leaving = leaving($("leaving"));
+parts.bed = bed($("bed"), press, { pile: "posted", about: true, verb: "Print it", placeholder: "Say a thing once, about this or about anything." });
+parts.pour = pourPanel($("pour"), press);
+parts.rack = rack($("rack"), press);
+wire(document.body, press);
+
+// Two drawers, one scrim, and `inert` so a closed drawer is closed to a keyboard and a screen reader too.
+function open(id) {
+  close();
+  const el = $(id); el.classList.add("open"); el.inert = false; $("scrim").hidden = false;
+  $(id === "posting" ? "say" : "where").setAttribute("aria-expanded", "true");
+  if (id === "posting") {
+    const i = press.info();
+    $("posttitle").textContent = "Say it."; $("bed").hidden = false; $("after").hidden = true; parts.pour.stop();
+    $("aboutline").textContent = i && !i.view.caught ? "over " + i.host + (i.face && i.face.path ? " · " + i.face.path : "") : "";
+    parts.bed.setAbout(!!(i && i.view.mode !== "live" && !i.view.caught));
+    parts.bed.focus();
+  }
+}
+function close() {
+  for (const id of ["posting", "rackdrawer"]) { $(id).classList.remove("open"); $(id).inert = true; }
+  $("scrim").hidden = true; parts.pour && parts.pour.stop();
+  $("say").setAttribute("aria-expanded", "false"); $("where").setAttribute("aria-expanded", "false");
+}
+$("say").addEventListener("click", () => open("posting"));
+$("where").addEventListener("click", () => open("rackdrawer"));
+$("postclose").addEventListener("click", close);
+$("scrim").addEventListener("click", close);
+addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+
+// Something is always rendering here — that is the premise. With nothing to come back to, it is this place.
+if (!(await press.restore())) await press.go({ address: "", path: "README.md" });
+</script>
+</body>
+</html>

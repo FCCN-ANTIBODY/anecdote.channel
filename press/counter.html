@@ -1,0 +1,110 @@
+<!doctype html>
+<!-- press/counter.html — THE COUNTER. One of several total-experience demos over press/press.mjs.
+
+     D14: "The default poll becomes an act between two people who are present." D17: "two people with phones
+     and no network can ask, answer, and carry a result home." This skin is that moment and nothing else: a
+     phone held between two people, and two verbs, each half the screen.
+
+       HAND OVER   say it, attach the object, and the screen becomes the bottle — a loop of light to be read
+       TAKE        open a floor's lens, drink what is shown to you, LOOK at it sterile, and only then keep it
+
+     Reading other places is here too, but it is secondary and it looks secondary: what you took opens over
+     the counter as a sheet, and closing it puts you back between the two verbs. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3F4F50">
+<title>anecdote — the counter</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/assets/ds/colors.css">
+<link rel="stylesheet" href="/assets/ds/spacing.css">
+<link rel="stylesheet" href="/assets/ds/typography.css">
+<link rel="stylesheet" href="/assets/ds/fonts.css">
+<link rel="stylesheet" href="press.css">
+<style>
+  body { height: 100vh; height: 100dvh; display: grid; grid-template-rows: 1fr 1fr; }
+  .half { border: 0; text-align: left; padding: var(--space-6) var(--gutter); display: grid; align-content: end; gap: var(--space-2); cursor: pointer; width: 100%; }
+  .half .loud { font-size: var(--display-1); }
+  .half p { margin: 0; max-width: 34ch; }
+  #give { padding-top: calc(var(--space-6) + env(safe-area-inset-top)); }
+  #take { background: var(--paper); border-top: var(--rule) solid var(--border); padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); }
+  #take:hover { background: var(--accent); } #give:hover { background: var(--slate-deep); }
+  .sheet { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; overflow: auto; }
+  .sheet > .body { padding: var(--space-6) var(--gutter) var(--space-9); display: grid; gap: var(--space-5); max-width: 44rem; width: 100%; margin: 0 auto; }
+  .sheet .top { display: flex; align-items: baseline; gap: var(--space-4); padding: var(--space-4) var(--gutter); }
+  .sheet .top .loud { font-size: var(--display-3); flex: 1; }
+  #pouring .pour canvas { max-width: min(100%, 78vh, 34rem); width: 100%; }
+  #reading { background: var(--paper); overflow: hidden; }
+  #reading .stage { flex: 1; display: flex; } #reading .stage > iframe { flex: 1; }
+  #foot { position: fixed; right: var(--space-4); top: 50%; transform: translateY(-50%); z-index: 2; }
+</style>
+</head>
+<body>
+<button class="half slate" id="give" type="button"><span class="loud">Hand over.</span><p>Say a thing, attach what goes with it, and this screen becomes the bottle.</p></button>
+<button class="half" id="take" type="button"><span class="loud">Take.</span><p>Read the bottle someone is showing you. Look first. Keep it only if you want it.</p></button>
+<a id="foot" class="chip" href="./">other ways</a>
+
+<section class="sheet slate" id="setting" hidden aria-label="hand over">
+  <div class="top"><h2 class="loud">Hand over.</h2><button class="chip" type="button" data-close>back</button></div>
+  <div class="body"><div id="bed"></div>
+    <p class="note">Signed on this device, by a key minted for this session, and printed into your own pile before it leaves — you keep what you gave.</p></div>
+</section>
+
+<section class="sheet slate" id="pouring" hidden aria-label="the bottle, leaving as light">
+  <div class="top"><h2 class="loud" id="pourtitle">Hold it up.</h2><button class="chip" type="button" data-close>done</button></div>
+  <div class="body"><div id="pour"></div></div>
+</section>
+
+<section class="sheet" id="taking" hidden aria-label="take" style="background:var(--paper)">
+  <div class="top" style="border-bottom:var(--rule) solid var(--border)"><h2 class="loud">Take.</h2><button class="chip" type="button" data-close>back</button></div>
+  <div class="body"><div id="catch"></div></div>
+</section>
+
+<section class="sheet" id="reading" hidden aria-label="what you are looking at">
+  <header class="ribbon" id="ribbon"></header>
+  <div id="leaving" hidden></div>
+  <nav id="strip" hidden aria-label="this bottle's pages"></nav>
+  <main class="stage" id="stage"></main>
+</section>
+
+<script type="module">
+import { createPress } from "./press.mjs";
+import { ribbon, strip, leaving, bed, pourPanel, catchPanel, wire } from "./ui.mjs";
+
+const $ = (id) => document.getElementById(id);
+const parts = {};
+const PILE = "handed";
+
+const press = await createPress({ stage: $("stage"), skin: "counter", memory: false, on: {
+  view: (info) => { $("reading").hidden = !info; parts.ribbon.update(info); parts.strip.update(info); parts.leaving.hide(); },
+  leaving: (l) => parts.leaving.show(l), refused: ({ reason }) => parts.leaving.say(reason),
+  struck: (s) => { $("setting").hidden = true; $("pourtitle").textContent = "Hold it up."; $("pouring").hidden = false; parts.pour.show(s, { fps: 10 }); },
+  catching: (d) => parts.catch.on.catching(d), catchUnavailable: (d) => parts.catch.on.catchUnavailable(d),
+  progress: (d) => parts.catch.on.progress(d), passed: (d) => parts.catch.on.passed(d), caught: (d) => parts.catch.on.caught(d),
+} });
+globalThis.__press = press;
+
+parts.ribbon = ribbon($("ribbon"), press, { halted: "the counter" });     // its "stop" closes the reading sheet
+parts.strip = strip($("strip"), press);
+parts.leaving = leaving($("leaving"));
+parts.bed = bed($("bed"), press, { pile: PILE, verb: "Make it a bottle", placeholder: "What are you handing over? Say it once." });
+parts.pour = pourPanel($("pour"), press);
+parts.catch = catchPanel($("catch"), press, { pile: "taken" });
+wire(document.body, press);
+
+$("give").addEventListener("click", () => { $("setting").hidden = false; parts.bed.focus(); });
+$("take").addEventListener("click", () => { $("taking").hidden = false; parts.catch.start(); });
+for (const b of document.querySelectorAll("[data-close]")) b.addEventListener("click", () => {
+  const sheet = b.closest(".sheet"); sheet.hidden = true;
+  if (sheet.id === "pouring") parts.pour.stop();
+  if (sheet.id === "taking") parts.catch.stop();
+});
+addEventListener("keydown", (e) => { if (e.key === "Escape") { const open = [...document.querySelectorAll(".sheet:not([hidden])")].pop(); if (open) (open.querySelector("[data-close]") || { click: () => press.halt() }).click(); } });
+
+// The counter keeps no view across visits on purpose: you come back to the two verbs. A link into a view
+// (a #/… fragment somebody sent you) is still honoured.
+await press.restore();
+</script>
+</body>
+</html>
