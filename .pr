@@ -1,1 +1,30 @@
-no draft yet - replace this file: line 1 becomes the PR title, the rest the body
+inflate: find the zlib member boundary from its Adler-32 trailer, not the engine's wording
+
+`git-enough/inflate.mjs` located each pack member's end by galloping and then binary-searching on
+*how* `DecompressionStream` failed — "too short" versus "trailing junk" — read from the exception
+message. That worked in Node, where the words are `Z_BUF_ERROR` and
+`ERR_TRAILING_JUNK_AFTER_STREAM_END`. In Chrome the stream was being read through
+`new Response(...).arrayBuffer()`, which reports **both** failures as `TypeError: Failed to fetch`
+(measured, Chrome 153), so every overshoot classified as too-short, the gallop grew to the end of
+the pack, and `readPack` threw *"stream did not terminate within the buffer"* on a pack `git bundle
+verify` was happy with. The read side of the Castle had never actually run in a browser tab.
+
+## What changes
+
+- Probes read through a **reader**, so the engine's real error and the bytes already produced both
+  survive. (Chrome, via a reader: "Compressed input was truncated." / "Junk found after end of
+  compressed data." — measured the same day.)
+- The boundary is found from the **member's own Adler-32 trailer**: Chrome and Node both flush the
+  whole output before raising either error, so once a probe reaches past the member, the Adler-32 of
+  what came out is in the slice and the member ends four bytes after it. The candidate is confirmed
+  by probing exactly that length. Usually one or two probes, no binary search, and nothing depends
+  on wording — which matters because Safari's is a third unknown.
+- The wording route stays as a fallback, with both engines' phrases, and an unclassifiable error now
+  names itself instead of galloping into a misleading one.
+
+## Tests
+
+`inflate.test.mjs` and `unpack.test.mjs` unchanged and green — the deltified-pack case still resolves
+every object against `git cat-file`. Full suite 129/129. First real reader: `you.discoverywritten.com`'s
+bottle page, which decodes a control-branch bundle from a GIF in the tab and hands the pack to
+`readPack`.
