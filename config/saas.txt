@@ -29,6 +29,26 @@
 # `*.anecdote.channel` already covers.
 #
 # ------------------------------------------------------------------------- fallback origin --------
+# ONE PROXIED DNS RECORD IN THIS ZONE, AND ONE DASHBOARD FIELD. That is the whole of it:
+#
+#   * a proxied A, AAAA or CNAME record here. Cloudflare's words, checked 2026-09-21: "Create a
+#     proxied A, AAAA, or CNAME record pointing to the IP address of your fallback origin." Grey
+#     cloud will not do — the entire mechanism is Cloudflare being in the path to read the Host.
+#   * that hostname entered under SSL/TLS → Custom Hostnames as the fallback origin.
+#
+# It has to actually SERVE the content, so the cheapest arrangement is to make it a custom domain on
+# the same Pages project the site already deploys to, which creates the proxied record for us.
+#
+# ONE PER ZONE, SHARED BY EVERY CUSTOM HOSTNAME, and that is the constraint that decides what this
+# can grow into. Pointed at one Pages project, EVERY consumer domain gets that one site. Correct for
+# one consumer and wrong for two.
+#
+# SO CONSUMER TWO NEEDS THE FALLBACK ORIGIN TO BE A ROUTER, NOT A SITE — something reading the Host
+# header and answering from the right tenant. That is an assets-only Worker, which is the same thing
+# `docs/flooring.md` already names as its second answer to serving a name it was never told about.
+# The two open questions have one answer, and it is worth knowing before the first consumer hardens
+# the wrong shape around it.
+#
 # Proxied, in this zone, and `system` in `sites.txt`: verified, never published. It is plumbing, not
 # a place to send a person.
 fallback   fallback.anecdote.channel   pending
@@ -118,6 +138,15 @@ www.discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecd
 # probed hostnames nobody wrote down would be reporting on its own guesses. Staging is the
 # provider's business; asking the consumer to carry it would make our sequencing into their
 # identity.
+#
+# ANSWERED SINCE THIS FILE WAS WRITTEN, and it narrows the worry rather than removing it.
+# Cloudflare's troubleshooting page describes exactly our case — "the requested hostname is
+# associated with a domain that exists in Cloudflare as a standalone zone" — and says the standalone
+# zone's hostname priority TAKES PRECEDENCE, with the resolution being to add each hostname as an
+# individual custom hostname instead of relying on a wildcard. So an individual custom hostname for a
+# domain that is also a zone here is the documented path, not a refusal. But the zone still wins for
+# as long as it answers, which means the apex record in the consumer's own zone has to stop answering
+# before the custom hostname can take effect. Sequence, do not overlap. That part is unchanged.
 #
 # discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecdote.channel  pending  apex:flattened
 
