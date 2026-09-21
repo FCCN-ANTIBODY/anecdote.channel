@@ -43,6 +43,17 @@ fallback   fallback.anecdote.channel   pending
 # A line here is a DECLARATION, not an action: nothing in this repository provisions a custom
 # hostname. It is the record of what was agreed, in the same posture as `recipients.txt` on a
 # control point — a person writes the line, and no request adds one.
+#
+# THE STATE COLUMN IS THIS SIDE'S RECORD OF WHAT IT HAS DONE, and it is deliberately the same
+# vocabulary the consumer side computes from outside. station-node's `bin/sites resolve` prints these
+# three words for a mounted site by measuring: no address is `pending`; resolves but refuses the TLS
+# handshake is `probing`; answers is `live`. The two ask different questions — ours is "have we
+# registered this", theirs is "does it answer" — and in a healthy arrangement they agree.
+#
+# SO A DISAGREEMENT IS THE FINDING, and it is the reason the words match rather than each side
+# inventing its own. `live` here against `pending` there means we believe we provisioned something
+# that is not answering. `pending` here against `live` there means somebody else is serving that
+# hostname. Neither is visible from one side alone.
 
 www.discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecdote.channel  pending
 # The apex is deliberately SECOND. `discoverywritten.com` is an active zone in this same account and
@@ -50,6 +61,12 @@ www.discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecd
 # elsewhere is the one part of this arrangement nobody here has tested. `www` costs nothing to try:
 # measured 2026-09-21, it does not resolve at all, so there is no traffic to break and no live site
 # to take down. Prove the mechanism on the name that is empty, then decide about the one that is not.
+#
+# `www` IS OUR STAGING SUBJECT AND NOT PART OF THE SITE'S IDENTITY, so this line lives here and
+# nowhere else. A consumer declares what it IS — `docs/NAME`, `docs/CNAME` — and a station that
+# probed hostnames nobody wrote down would be reporting on its own guesses. Staging is the
+# provider's business; asking the consumer to carry it would make our sequencing into their
+# identity.
 #
 # discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecdote.channel  pending
 
