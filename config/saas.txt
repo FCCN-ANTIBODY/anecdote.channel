@@ -1,0 +1,127 @@
+# saas.txt — domains that are not ours, served by this zone. Cloudflare for SaaS.
+#
+# THE SAME MOVE THIS CONSTELLATION ALREADY MAKES EVERYWHERE, pointed outward. A thing has a NAME
+# (canonical, ours, under anecdote.channel) and an ADDRESS it happens to be reached at (a fact, and
+# movable). `sites.txt` records names; `san-list.txt` records the certificate those names need. This
+# file records the third case: somebody else's domain, pointed INTO one of our names, with the
+# content living at the name and never copied to the domain.
+#
+# It is what makes a trade node a service rather than a website. `discoverywritten.com` is the first
+# consumer and it is ours, on purpose: be your own first customer before anyone else is.
+#
+# ------------------------------------------------------------------- what Cloudflare needs --------
+# Three parts, and only the first is a fact about this zone:
+#
+#   1. A FALLBACK ORIGIN — one proxied hostname in THIS zone that all custom hostnames resolve to.
+#      Set once, in the dashboard (SSL/TLS → Custom Hostnames). Listed below.
+#   2. A CUSTOM HOSTNAME per consumer domain, registered on this zone. Cloudflare issues and renews
+#      a certificate FOR THAT HOSTNAME, per hostname.
+#   3. A DNS RECORD IN THE CONSUMER'S OWN DNS — a CNAME to the fallback origin. Their record, their
+#      zone, their decision to stop. That is the whole reason this is a service and not a hosting
+#      arrangement: they can leave by changing one record, and nothing of theirs is here.
+#
+# CONSUMER CERTIFICATES ARE NOT IN `san-list.txt`, AND THAT IS THE LOAD-BEARING PROPERTY. Each custom
+# hostname gets its own Cloudflare-issued certificate. So the advanced-certificate pack — capped at
+# 50 hosts, and which ABORTS rather than truncates — does not grow by one row per consumer. The row
+# budget `san-list.txt` agonises over is spent on OUR name space only. Consumers are free of it.
+#
+# The fallback origin needs no new SAN row either: it is one label under the apex, which
+# `*.anecdote.channel` already covers.
+#
+# ------------------------------------------------------------------------- fallback origin --------
+# Proxied, in this zone, and `system` in `sites.txt`: verified, never published. It is plumbing, not
+# a place to send a person.
+fallback   fallback.anecdote.channel   pending
+
+# ----------------------------------------------------------------------------- the apex ----------
+# THE ONE FACT THAT DECIDES WHAT WE CAN PROMISE A CONSUMER, AND IT IS NOT OURS TO FIX.
+#
+# RFC 1912 §2.4: a CNAME may not sit at a zone apex, because the apex already holds SOA and NS and a
+# CNAME may not coexist with other data. Verified on our own zone 2026-09-21 — `dig CNAME
+# discoverywritten.com` is empty while `dig SOA` answers, and the apex serves A records instead. So
+# "point your domain at us" is a sentence that is ordinary at a subdomain and illegal at an apex, and
+# every apex-on-a-platform arrangement anywhere is one of these three doors.
+#
+#   apex:flattened   Their DNS provider synthesises A records at the apex from a hostname target.
+#                    Cloudflare calls it CNAME flattening; elsewhere it is sold as ALIAS or ANAME.
+#                    This is the door Cloudflare Pages itself uses for root custom domains — so Pages
+#                    did not solve the apex problem, it made a condition of entry out of it. Costs
+#                    nobody anything, and is available only if their DNS can do it.
+#
+#   apex:none        Subdomain only. `www.` or any label answers immediately; the bare name cannot be
+#                    served without one of the other two doors. Not a failure — an honest limit, and
+#                    for most consumers a 301 from the apex at their own registrar is an acceptable
+#                    answer that we do not have to host and they do not have to move anything for.
+#
+#   apex:static-ip   We hold addresses, so they write an ordinary A record. Cloudflare for SaaS calls
+#                    it apex proxying. VERIFIED GATED 2026-09-21: the docs say "Only certain customers
+#                    have access to this feature", and static IP prefixes have "cost associated, reach
+#                    out to your account team". A purchase, not a setting.
+#
+# THE TOLL ARRIVES AT THE SECOND CONSUMER, NOT THE FIRST. Cloudflare is already authoritative for
+# discoverywritten.com (measured), so door one is open and the apex is available to us here for free.
+# A constituent org whose domain is parked wherever it was sold to them gets a subdomain today and its
+# apex only by moving its DNS or by ANTIBODY buying addresses. For a provider whose pitch is serving
+# local organisations that did not choose their infrastructure, "you must move your DNS to us" is a
+# real toll — better written here than discovered in a conversation with somebody's board.
+#
+# THE REGISTRAR IS IRRELEVANT TO ALL THREE DOORS, and it is the easiest thing in here to conflate.
+# What door one needs is that the consumer's DNS is HOSTED somewhere that can alias at an apex; who
+# SELLS them the name does not enter into it. Our own domain is the clean demonstration, measured
+# 2026-09-21 with the two facts visible at the same moment: `dig NS discoverywritten.com` answers
+# houston/mariah.ns.cloudflare.com while `whois` says `Registrar: Tucows Domains Inc.` — the DNS
+# moved, the registrar never did. The record also carries `clientTransferProhibited`, so a registrar
+# transfer is presently locked at the losing registrar. Nothing in this file waits on that.
+#
+# NOT VERIFIED, AND NOT TO BE PROMISED UNTIL IT IS: `apex:flattened` should not require moving to
+# Cloudflare specifically. Route 53, DNSimple, NS1, DNS Made Easy and easyDNS all offer apex aliasing,
+# and an ALIAS pointed at our fallback origin would return our addresses carrying their apex in the
+# Host header, which is the same mechanism. But Cloudflare's own apex-proxying page does not mention
+# ALIAS or ANAME at all, so this is mechanically plausible and undocumented by them — and an ALIAS at
+# a third party caches whatever addresses it resolved, while the stability of those addresses is
+# precisely what apex proxying sells. Test it on a real third-party zone before telling anyone.
+#
+# ------------------------------------------------------------------------------- consumers --------
+# Format: <consumer hostname>  ->  <the name in this zone it consumes>  <state>  apex:<door>
+#
+# The `apex:` flag is a fact about the consumer's ZONE, not about the hostname on this line: it
+# says whether their bare name is available to us at all. See `the apex` above.
+#
+#   pending   declared here and not yet registered with Cloudflare
+#   probing   registered; certificate not yet issued, or the consumer's CNAME not yet in place
+#   live      Cloudflare holds a certificate for it and it answers from the name it consumes
+#
+# A line here is a DECLARATION, not an action: nothing in this repository provisions a custom
+# hostname. It is the record of what was agreed, in the same posture as `recipients.txt` on a
+# control point — a person writes the line, and no request adds one.
+#
+# THE STATE COLUMN IS THIS SIDE'S RECORD OF WHAT IT HAS DONE, and it is deliberately the same
+# vocabulary the consumer side computes from outside. station-node's `bin/sites resolve` prints these
+# three words for a mounted site by measuring: no address is `pending`; resolves but refuses the TLS
+# handshake is `probing`; answers is `live`. The two ask different questions — ours is "have we
+# registered this", theirs is "does it answer" — and in a healthy arrangement they agree.
+#
+# SO A DISAGREEMENT IS THE FINDING, and it is the reason the words match rather than each side
+# inventing its own. `live` here against `pending` there means we believe we provisioned something
+# that is not answering. `pending` here against `live` there means somebody else is serving that
+# hostname. Neither is visible from one side alone.
+
+www.discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecdote.channel  pending  apex:flattened
+# The apex is deliberately SECOND. `discoverywritten.com` is an active zone in this same account and
+# already serves its own content, and a custom hostname for a name Cloudflare is authoritative for
+# elsewhere is the one part of this arrangement nobody here has tested. `www` costs nothing to try:
+# measured 2026-09-21, it does not resolve at all, so there is no traffic to break and no live site
+# to take down. Prove the mechanism on the name that is empty, then decide about the one that is not.
+#
+# `www` IS OUR STAGING SUBJECT AND NOT PART OF THE SITE'S IDENTITY, so this line lives here and
+# nowhere else. A consumer declares what it IS — `docs/NAME`, `docs/CNAME` — and a station that
+# probed hostnames nobody wrote down would be reporting on its own guesses. Staging is the
+# provider's business; asking the consumer to carry it would make our sequencing into their
+# identity.
+#
+# discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecdote.channel  pending  apex:flattened
+
+# ---------------------------------------------------------------------- what is not here ----------
+# NOTHING FOR FC PUBLIC MEDIA. That is a different Cloudflare account, and an arrangement made from
+# one account cannot speak for another. When FCPM consumes a name here it will be as a real consumer
+# with its own line, and the fact that the operator holds both accounts is not a shortcut.

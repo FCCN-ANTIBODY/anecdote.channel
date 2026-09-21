@@ -59,6 +59,11 @@ north.voices.fort-collins.colorado.anecdote.channel  was:voices.north.colorado.a
 # Naturally plural — nobody is THE business of a place — so it takes monikers from the start
 # rather than pretending to a canonical occupant.
 discoverywritten.trade.fort-collins.colorado.anecdote.channel  repo:DiscoveryWritten/discoverywritten.com
+# `repo:` is still right: the name does not serve yet (no DNS, measured 2026-09-21) and the repo's
+# Pages cname is where it actually answers. The repo already declares the intent -- `docs/NAME` is
+# this name, `docs/CNAME` is the address it is reached at today -- so the day the name serves
+# directly, drop the flag per the rule above and `config/saas.txt` takes over describing the
+# consumer side.
 
 # --- shells: names we assert over things we do not run ----------------------------------
 # The name is the claim. Putting a neighbour in the same predictable place as our own nodes

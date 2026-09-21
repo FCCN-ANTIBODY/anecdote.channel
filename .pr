@@ -1,1 +1,33 @@
-no draft yet - replace this file: line 1 becomes the PR title, the rest the body
+config: saas.txt — the third case, and the row budget it deliberately does not spend
+
+## What this adds
+
+`sites.txt` records names. `san-list.txt` records the certificate those names need. Neither has a
+place for **somebody else's domain pointed into one of our names**, which is what a trade node is for
+and what `discoverywritten.com` is about to be. `config/saas.txt` is that record.
+
+## The property worth noticing
+
+**A consumer's certificate is not a SAN row.** Cloudflare for SaaS issues one certificate per custom
+hostname, so the advanced-certificate pack — capped at 50 hosts, aborting rather than truncating —
+does not grow by a row per consumer. The cost model `san-list.txt` reasons so carefully about applies
+to our own name space only. The fallback origin needs no row either; `*.anecdote.channel` covers it.
+
+## The state it records honestly
+
+- **Fallback origin** `fallback.anecdote.channel`, `pending` — one dashboard action, not in this repo.
+- **`www.discoverywritten.com` first, apex second.** The apex is an active zone in the same account
+  serving its own content, and a custom hostname for a name Cloudflare is already authoritative for
+  is the one untested part. `www` does not resolve at all (measured), so it is a free subject: prove
+  the mechanism where there is no traffic to break, then decide about the apex.
+- **Nothing for FCPM.** Different account; holding both is not a shortcut.
+
+Also: a note under the `discoverywritten.trade…` entry in `sites.txt` recording why `repo:` is still
+correct (the name has no DNS yet) and what drops it.
+
+## Merge qualifications
+
+- [x] no SAN change needed — `*.trade.fort-collins.colorado.anecdote.channel` already covers the
+      service name, `*.anecdote.channel` covers the fallback origin
+- [x] declaration only; nothing here provisions anything
+- [ ] the dashboard actions, which are the operator's
