@@ -1,26 +1,22 @@
 <!doctype html>
 <html lang="en">
-<!-- anecdote.channel/shell.html — THE CONTROL PAGE: what you are holding, and the lever to move it.
-     The shell is deliberately hard to dislodge — sw.js is cache-first over FALLBACK_SHELL and the
-     network is never consulted for a hit — which is the possession guarantee working. But the
-     aggression had no lever pointed at the HOLDER: short of destruct.html there was no way to ask the
-     cache to go forward, and two signals the worker already records were going nowhere (precache's
-     failure count into console.warn, the firmware pin's `rejected` record into IndexedDB, read by
-     nothing). This page is where both surface, and where you can refresh the shell without demolishing
-     anything.
+<!-- anecdote.channel/shell.html — THE CONTROL PAGE: what you are holding, and the levers to move it.
+     Two slots (sw.js): HELD is the floor that boots with the origin dead; ROLLING is what you run and
+     what accumulates. Promotion is a MERGE — rolling's bytes where it has them, held's where it does
+     not — so the floor is whole by construction and completeness is a number shown here rather than a
+     veto anywhere.
+
+     THE SWITCH IS ONE AXIS. free / hold / guard is monotone in how much motion is allowed, which is
+     why it reads as a gradient rather than three buttons. It governs what may REPLACE what you hold.
+     It never governs what you may SEE: every mode reaches every slot, and there is no position on it
+     that can blank a screen.
 
      IN FALLBACK_SHELL, ON PURPOSE — the opposite of destruct.html, and the distinction is the verb.
-     destruct.html stays OFF the shell so you cannot destroy your only copy while the origin is dead.
-     This page only LOOKS and REFRESHES, and looking is exactly what you need when the origin is gone,
-     so it has to boot offline like everything else. It says which cache served it rather than pretending
-     to be fresh.
+     The hatch stays OFF the shell so you cannot destroy your only copy while the origin is dead. This
+     page looks, refreshes and promotes, and looking is exactly what you need when the origin is gone.
 
-     IT NEVER REFUSES TO SHOW YOU SOMETHING. Every probe is independent and every failure renders as
-     text in its own section; there is no path here that ends in a blank screen. If the worker is absent
-     or silent, the page reads the Cache API and IndexedDB directly and says that is what it did.
-
-     Zero imports, like destruct.html: the surface that diagnoses a broken cache must not be served by
-     the modules a broken cache would hand it. -->
+     Zero imports: the surface that diagnoses a broken cache must not be served by the modules a broken
+     cache would hand it. -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>anecdote — your shell</title>
@@ -33,35 +29,61 @@
   header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
   header a { color: var(--fg); text-decoration: none; font-weight: 700; }
   header .tag { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-left: .6rem; }
-  main { max-width: 44rem; margin: 1.5rem auto; padding: 0 1.25rem; }
+  main { max-width: 46rem; margin: 1.5rem auto; padding: 0 1.25rem; }
   .lede { color: var(--muted); font-size: .95rem; }
   .card { border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); padding: .8rem 1rem; margin-top: 1rem; }
   .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-  pre { font: .78rem/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; color: var(--fg); margin: .5rem 0 0; }
-  button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--fg); border-radius: .5rem; padding: .6rem 1rem; cursor: pointer; margin: .6rem .4rem 0 0; }
+  pre { font: .78rem/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; color: var(--fg); margin: .5rem 0 0; }
+  button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--fg); border-radius: .5rem; padding: .55rem 1rem; cursor: pointer; margin: .6rem .4rem 0 0; }
   button[disabled] { opacity: .5; cursor: default; }
   .note { color: var(--muted); font-size: .85rem; margin-top: .5rem; }
   .warn { color: var(--warn); } .ok { color: var(--ok); }
-  a.home, a.hatch { color: var(--fg); }
+  a.hatch { color: var(--fg); }
+
+  /* The switch: one axis, three stops, drawn as a gradient because that is what it is. */
+  .switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: .7rem;
+            border: 1px solid var(--line); border-radius: .6rem; overflow: hidden;
+            background: linear-gradient(90deg, #2c4a3a 0%, #3a3f2c 50%, #4a2c33 100%); }
+  .switch button { margin: 0; border: 0; border-radius: 0; background: rgba(31,37,40,.72); padding: .7rem .4rem;
+                   font-size: .82rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .switch button + button { border-left: 1px solid var(--line); }
+  .switch button[aria-pressed="true"] { background: transparent; color: var(--fg); font-weight: 700; }
+  .modeline { margin-top: .5rem; font-size: .88rem; color: var(--fg); }
 </style>
 <body>
 <header><a href="/">anecdote.channel</a><span class="tag">your shell</span></header>
 <main>
-  <p class="lede">What this device is holding, where it came from, and the lever to ask it to go
-  forward. Nothing here touches your data — the trove is a separate store the worker never opens.</p>
+  <p class="lede">What this device is holding, where it came from, and the levers to move it. Nothing
+  here touches your data — the trove is a separate store the worker never opens.</p>
+
+  <div class="card">
+    <div class="k">How freely it may change</div>
+    <div class="switch" role="group" aria-label="Update posture">
+      <button id="m-free"  aria-pressed="false">Free</button>
+      <button id="m-hold"  aria-pressed="false">Hold</button>
+      <button id="m-guard" aria-pressed="false">Guard</button>
+    </div>
+    <div class="modeline" id="modeline">reading…</div>
+    <div class="note">This decides what may <em>replace</em> what you hold. It never decides what you
+    can see — every setting still shows you everything on this device.</div>
+    <pre id="mode-out"></pre>
+  </div>
 
   <div class="card">
     <div class="k">What served this page</div>
     <pre id="served">reading…</pre>
+    <button id="take" hidden>Take the waiting worker now</button>
   </div>
 
   <div class="card">
-    <div class="k">The shell</div>
-    <pre id="shell">reading…</pre>
-    <button id="refresh">Refresh the shell</button>
-    <div class="note">Re-fetches every shell file and overwrites it in place. Does not unregister the
-    worker, touch the pin, or touch your data. Worst case: you re-download the shell.</div>
-    <pre id="refresh-out"></pre>
+    <div class="k">The two slots</div>
+    <pre id="slots">reading…</pre>
+    <button id="refresh">Refresh — pull the newest copy</button>
+    <button id="promote">Promote — make it the floor</button>
+    <div class="note">Refresh fills <strong>rolling</strong> from the network; it never touches the
+    floor, so it is safe in any mode. Promote merges rolling into <strong>held</strong> — rolling's
+    files where it has them, the floor's where it does not, so the floor can never gain a hole.</div>
+    <pre id="slots-out"></pre>
   </div>
 
   <div class="card">
@@ -87,11 +109,16 @@
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var PIN_DB = "anecdote-firmware";
-  var SHELL_PREFIX = "anecdote-shell-";
+  var SLOTS = { held: "anecdote-held", rolling: "anecdote-rolling", runtime: "anecdote-runtime" };
+  var MODE_COPY = {
+    free:  "Free — updates arrive on their own. The newest copy runs; the floor follows behind it.",
+    hold:  "Hold — you keep what you have. New copies still pile up underneath, ready when you are.",
+    guard: "Guard — held, and a shell signed by anyone else is refused and recorded."
+  };
 
-  // Ask the controlling worker something over a private port. Resolves to null when there is no
-  // controller or it does not answer in time — a silent worker is a FINDING, not an exception, so
-  // every caller renders the fallback instead of dying.
+  // Ask the controlling worker something over a private port. Resolves null when there is no
+  // controller or it does not answer — a silent worker is a FINDING, not an exception, so every
+  // caller renders a fallback instead of dying.
   function askWorker(message, ms) {
     return new Promise(function (resolve) {
       var c = navigator.serviceWorker && navigator.serviceWorker.controller;
@@ -104,7 +131,16 @@
     });
   }
 
-  // ---- where this copy of the page came from ---------------------------------------------------
+  function slotLine(label, slot, total) {
+    if (!slot) return label + ": unknown";
+    var have = total - slot.missing.length;
+    var s = label + have + "/" + total;
+    if (slot.complete) s += "  complete";
+    else s += "  MISSING " + slot.missing.length;
+    return s;
+  }
+
+  // ---- where this copy of the page came from -----------------------------------------------------
   async function renderServed() {
     var lines = [];
     try {
@@ -115,55 +151,76 @@
         var w = r.active || r.waiting || r.installing;
         return r.scope + (w ? " [" + w.state + "]" : " [empty]");
       }).join("  ") : "none"));
-      if (regs.some(function (r) { return r.waiting; })) lines.push("             a newer worker is WAITING — it takes over when every tab of this site closes");
+      var waiting = regs.some(function (r) { return r.waiting; });
+      if (waiting) {
+        lines.push("             a NEWER WORKER IS WAITING. It takes over when every tab of this site");
+        lines.push("             closes — the worker sits still on purpose. Take it now if you like.");
+        $("take").hidden = false;
+      }
     } catch (e) { lines.push("service worker probe failed: " + e); }
     try {
-      var names = (await caches.keys()).filter(function (n) { return n.indexOf(SHELL_PREFIX) === 0; });
       var holder = null;
-      for (var i = 0; i < names.length; i++) if (await (await caches.open(names[i])).match("/shell.html")) { holder = names[i]; break; }
-      lines.push("this page  : " + (holder ? "held in " + holder : "not in any shell cache — served from the network"));
+      for (var key in SLOTS) {
+        if (await (await caches.open(SLOTS[key])).match("/shell.html")) { holder = key; break; }
+      }
+      lines.push("this page  : " + (holder ? "served from the " + holder + " slot" : "not in any slot — came from the network"));
       // navigator.onLine is the NETWORK INTERFACE, not whether this origin answers. Saying "online"
       // flatly would overclaim: the origin can be gone while the interface is up, which is exactly the
       // case this page is for. Name what is actually measured.
-      lines.push("interface  : " + (navigator.onLine ? "up (this says nothing about whether the origin answers)" : "DOWN — everything below is what you hold, with no origin to ask"));
+      lines.push("interface  : " + (navigator.onLine ? "up (says nothing about whether the origin answers)" : "DOWN — everything below is what you hold, with no origin to ask"));
     } catch (e) { lines.push("cache probe failed: " + e); }
     $("served").textContent = lines.join("\n");
   }
 
-  // ---- the shell: ask the worker (it owns the list), else read the caches directly ---------------
-  async function renderShell() {
-    var status = await askWorker({ type: "shell-status" });
+  // ---- the slots ---------------------------------------------------------------------------------
+  async function renderSlots() {
+    var st = await askWorker({ type: "shell-status" });
     var lines = [];
-    if (status && !status.error) {
-      lines.push("cache      : " + status.version);
-      lines.push("held       : " + (status.total - status.missing.length) + "/" + status.total + " shell files");
-      if (status.missing.length) {
-        lines.push("MISSING    : " + status.missing.length + " — these will not be there if the origin goes away:");
-        for (var i = 0; i < status.missing.length; i++) lines.push("             " + status.missing[i]);
-      } else {
-        lines.push("             complete — this boots with the origin dead");
+    if (st && !st.error) {
+      lines.push("generation : " + st.generation + (st.heldGeneration && st.heldGeneration !== st.generation ? "   (floor was laid at " + st.heldGeneration + ")" : ""));
+      lines.push(slotLine("held       : ", st.held, st.total) + "   — the floor: boots with the origin dead");
+      lines.push(slotLine("rolling    : ", st.rolling, st.total) + "   — what you run, and what keeps arriving");
+      lines.push("runtime    : " + st.runtime + " other responses kept");
+      if (st.legacy && st.legacy.length) lines.push("legacy     : " + st.legacy.join(", ") + " — kept until the floor stands without it");
+      if (!st.held.complete) {
+        lines.push("");
+        lines.push("The floor is short these files. They will not be there if the origin goes away:");
+        for (var i = 0; i < st.held.missing.length; i++) lines.push("  " + st.held.missing[i]);
+        lines.push("Refresh, then Promote, to close the gap.");
+      } else if (!st.rolling.complete && st.rolling.missing.length) {
+        lines.push("");
+        lines.push("Rolling is short " + st.rolling.missing.length + " file(s); the floor covers them, so nothing is lost.");
       }
+      if (st.promotedAt) lines.push("\nfloor last moved: " + new Date(st.promotedAt).toISOString());
     } else {
-      // No worker, or it did not answer. Say so, and report what the caches hold anyway.
       lines.push("the worker did not answer — reading the caches directly");
       try {
-        var names = (await caches.keys()).filter(function (n) { return n.indexOf(SHELL_PREFIX) === 0; });
+        var names = await caches.keys();
         if (!names.length) lines.push("caches     : none held");
         for (var j = 0; j < names.length; j++) {
           var keys = await (await caches.open(names[j])).keys();
           lines.push("cache      : " + names[j] + " — " + keys.length + " entries");
         }
-        lines.push("(the shell's own file list lives in the worker, so completeness cannot be judged from here)");
+        lines.push("(the shell's file list lives in the worker, so completeness cannot be judged here)");
       } catch (e) { lines.push("cache probe failed: " + e); }
     }
-    $("shell").textContent = lines.join("\n");
-    return status;
+    $("slots").textContent = lines.join("\n");
+    return st;
   }
 
-  // ---- the pin: prefer the worker's read, fall back to opening the store here --------------------
-  async function renderPin(status) {
+  // ---- the switch --------------------------------------------------------------------------------
+  function renderMode(mode) {
+    var known = MODE_COPY[mode] ? mode : "free";
+    ["free", "hold", "guard"].forEach(function (m) {
+      $("m-" + m).setAttribute("aria-pressed", String(m === known));
+    });
+    $("modeline").textContent = MODE_COPY[known];
+  }
+
+  // ---- the pin -----------------------------------------------------------------------------------
+  async function renderPin(st) {
     var lines = [];
-    var pin = status && status.pin;
+    var pin = st && st.pin;
     if (!pin) {
       pin = await readPinDirect().catch(function () { return null; });
       if (pin) lines.push("(read directly from " + PIN_DB + " — the worker did not answer)");
@@ -172,12 +229,12 @@
       lines.push("pin        : could not be read");
     } else if (!pin.by) {
       lines.push("pin        : none — firmware pinning is DORMANT");
-      lines.push("             no /firmware.json adopted — the shell is held by its cache key");
-      lines.push("             alone. Refreshing the shell is the way forward while that is so.");
+      lines.push("             no /firmware.json adopted, so nothing names a signer yet. Guard still");
+      lines.push("             holds what you have; it just cannot name who may move it.");
     } else {
       lines.push("pinned to  : " + pin.by);
       lines.push("held ver   : v" + pin.held);
-      lines.push("             only a manifest signed by this same key, at a higher version, will be adopted.");
+      lines.push("             only a manifest signed by this key, at a higher version, is adopted.");
     }
     if (pin && pin.rejected) {
       var r = pin.rejected;
@@ -200,46 +257,96 @@
         var out = {}, store = db.transaction("pin").objectStore("pin"), left = 3;
         var grab = function (key, as) {
           var g = store.get(key);
-          g.onsuccess = function () { out[as] = g.result === undefined ? null : g.result; if (--left === 0) resolve({ by: out.by, held: out.held || 0, rejected: out.rejected }); };
-          g.onerror = function () { out[as] = null; if (--left === 0) resolve({ by: out.by, held: out.held || 0, rejected: out.rejected }); };
+          var settle = function () { out[as] = g.result === undefined ? null : g.result; if (--left === 0) resolve({ by: out.by, held: out.held || 0, rejected: out.rejected }); };
+          g.onsuccess = settle; g.onerror = function () { out[as] = null; if (--left === 0) resolve({ by: out.by, held: out.held || 0, rejected: out.rejected }); };
         };
         grab("by", "by"); grab("version", "held"); grab("rejected", "rejected");
       };
     });
   }
 
-  // ---- levers ------------------------------------------------------------------------------------
+  // ---- levers -------------------------------------------------------------------------------------
+  async function refreshAll() {
+    var st = await renderSlots();
+    renderPin(st);
+    if (st && st.mode) renderMode(st.mode);
+    return st;
+  }
+
+  ["free", "hold", "guard"].forEach(function (m) {
+    $("m-" + m).addEventListener("click", async function () {
+      $("mode-out").textContent = "setting…";
+      var r = await askWorker({ type: "shell-mode", mode: m });
+      if (!r) $("mode-out").textContent = "no worker answered — the setting is unchanged.";
+      else if (r.mode === "error") $("mode-out").textContent = "error: " + r.reason;
+      else $("mode-out").textContent = "";
+      renderMode(m);
+      refreshAll();
+    });
+  });
+
   $("refresh").addEventListener("click", async function () {
-    var b = $("refresh"), out = $("refresh-out");
-    b.disabled = true; out.textContent = "refetching the shell…";
+    var b = $("refresh"), out = $("slots-out");
+    b.disabled = true; out.textContent = "pulling the newest copy…";
     var r = await askWorker({ type: "shell-refresh" }, 60000);
-    if (!r) out.textContent = "no worker answered — nothing was changed. If no worker is registered, reload this page from the network first.";
+    if (!r) out.textContent = "no worker answered — nothing changed.";
+    else if (r.mode === "error") out.textContent = "error: " + r.reason;
+    else {
+      var msg = r.mode === "partial"
+        ? "rolling refreshed with gaps — " + r.failed.length + "/" + r.total + " did not come back:\n  " + r.failed.join("\n  ")
+        : "rolling refreshed — all " + r.total + " files";
+      if (r.promoted && r.promoted.mode === "promoted") msg += "\nfloor moved too (Free): " + r.promoted.moved + " file(s) promoted";
+      else if (r.promoted && r.promoted.mode === "refused") msg += "\nfloor not moved: " + r.promoted.reason;
+      out.textContent = msg;
+    }
+    b.disabled = false;
+    refreshAll();
+  });
+
+  $("promote").addEventListener("click", async function () {
+    var b = $("promote"), out = $("slots-out");
+    b.disabled = true; out.textContent = "moving the floor…";
+    var r = await askWorker({ type: "shell-promote" }, 60000);
+    if (!r) out.textContent = "no worker answered — the floor is unchanged.";
     else if (r.mode === "refused") out.textContent = "REFUSED: " + r.reason;
     else if (r.mode === "error") out.textContent = "error: " + r.reason;
-    else if (r.mode === "partial") out.textContent = "refreshed with gaps — " + r.failed.length + "/" + r.total + " did not come back:\n  " + r.failed.join("\n  ");
-    else out.textContent = "refreshed — all " + r.total + " shell files re-fetched into " + r.version;
+    else out.textContent = "floor moved — " + r.moved + " file(s) promoted"
+      + (r.missing && r.missing.length ? ", still short " + r.missing.length : ", and it is whole");
     b.disabled = false;
-    renderPin(await renderShell());
+    refreshAll();
   });
 
   $("check").addEventListener("click", async function () {
     var b = $("check"), out = $("check-out");
     b.disabled = true; out.textContent = "asking…";
     var r = await askWorker({ type: "firmware-check" }, 30000);
-    if (!r) out.textContent = "no worker answered — nothing was changed.";
+    if (!r) out.textContent = "no worker answered — nothing changed.";
     else if (r.mode === "unpinned") out.textContent = "no /firmware.json is deployed — pinning stays dormant and the shell is unchanged.";
     else if (r.mode === "refused") out.textContent = "REFUSED: " + r.reason + (r.by ? "\n  offered by: " + r.by : "") + "\nWhat you hold was kept.";
     else if (r.mode === "pinned") out.textContent = "first contact — pinned to " + r.by + " at v" + r.version;
     else if (r.mode === "rolled-forward") out.textContent = "rolled forward to v" + r.version + " (same key: " + r.by + ")";
     else out.textContent = JSON.stringify(r, null, 2);
     b.disabled = false;
-    renderPin(await renderShell());
+    refreshAll();
+  });
+
+  $("take").addEventListener("click", async function () {
+    $("take").disabled = true;
+    await askWorker({ type: "take-waiting" }, 5000);
+    // The new worker activates and claims; reload so this page is served by it.
+    setTimeout(function () { location.reload(); }, 600);
+  });
+
+  // A first visit is not controlled yet — the worker claims the page a moment after it activates, so
+  // re-render when control arrives rather than showing the uncontrolled reading forever.
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("controllerchange", function () {
+    renderServed().catch(function () {}); refreshAll().catch(function () {});
   });
 
   // Each section renders independently: one failing probe must not blank the others.
   renderServed().catch(function (e) { $("served").textContent = "failed: " + e; });
-  renderShell().then(function (s) { return renderPin(s); }).catch(function (e) {
-    $("shell").textContent = "failed: " + e; $("pin").textContent = "failed: " + e;
+  refreshAll().catch(function (e) {
+    $("slots").textContent = "failed: " + e; $("pin").textContent = "failed: " + e;
   });
 })();
 </script>

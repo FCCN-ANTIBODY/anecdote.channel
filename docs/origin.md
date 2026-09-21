@@ -81,6 +81,41 @@ The full analysis of this residual — why the browser makes it unpreventable, t
 origin-bypass) — plus the consent-as-platform-gesture model, the "cracked judge," and the tamper-evident
 authority journal (where even a deletion leaves a scar), is in [consent-surface.md](consent-surface.md).
 
+**Built (two slots, and the holder's lever — the aggression finally points both ways).** [`sw.js`](../sw.js)
+now keeps the shell in **two** caches instead of one. `anecdote-held` is the **floor**: proven-whole,
+boots with the origin dead, and moves only on a deliberate **promote**. `anecdote-rolling` is **what you
+run**: always accumulating, allowed to be partial. (`anecdote-runtime` holds everything that is not
+shell, network-first as before.) The slot names are **not versioned** — a cache key carrying the version
+is exactly what stranded installs — so a generation change is a *merge*, not a discard.
+
+**Promotion is a merge, never a swap:** rolling's bytes for every path it has, held's for every path it
+lacks. The floor is whole by construction and cannot acquire a hole, which is why completeness is a
+number the control page *shows* rather than a veto anywhere in the code.
+
+**The lockout this fixes was real and shipped.** The old `activate()` deleted every shell cache whose key
+differed from `VERSION` the moment a new worker took over. Kill the network mid-install and the holder was
+left with a half-filled new cache and no floor — the system locking someone out of their own copy, which
+is the one outcome the whole design exists to prevent. Deletion is now a **consequence of a proven floor**
+(`retireLegacy()`, gated on the floor being whole, reachable from both activate and promote) and never of
+activation. *Verified in Chromium:* an upgrade from the one-cache worker on a crippled network **rescued
+46 of 49 files** out of the old cache into the floor and **kept the old cache** because the floor was
+still short three; a later refresh completed the floor and only then was the old cache retired.
+
+**One axis, three stops** — `free` / `hold` / `guard`, monotone in how much motion is allowed, kept in the
+same IndexedDB as the pin and surfaced as a switch in the apex masthead and on [`shell.html`](../shell.html).
+`free` runs rolling and revalidates behind the response; `hold` runs held and stops revalidating while
+rolling keeps filling underneath; `guard` is hold with the pin enforced and refusals recorded. **The
+setting governs what may REPLACE what you hold. It never governs what you may SEE:** every mode reaches
+every slot, every read is layered (rolling → held → network → navigate fallback), and an unparseable mode
+reads as `free` so a setting we cannot understand can never lock anybody down. A branch here that ends in
+"so we don't show it" is a bug regardless of its reason.
+
+**Stillness is a feature.** `install()` no longer calls `skipWaiting()`: a new worker waits until every tab
+closes, the way firmware should sit still. Mismatch between a held shell and a newer worker is the
+**steady state**, not an error — on the gravel path you do not get to dictate your update frequency — so
+nothing gates on generation skew, and an *old* worker is never treated as a foreign one. The holder can
+pull a waiting worker forward from `shell.html` whenever they want it; that is their gesture, not ours.
+
 ## Home base: the trove is Origin
 
 The **trove of nonces** `anecdote.channel` keeps of your submitted data is **home base — where Your Shit

@@ -22,6 +22,66 @@
 <link rel="stylesheet" href="/assets/ds/fonts.css">
 <!-- Hold the app shell so anecdote boots with no connection / origin unreachable (sw.js, docs/origin.md). -->
 <script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{type:"module"}).then(function(){return navigator.serviceWorker.ready;}).then(function(){if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:"firmware-check"});}).catch(function(){});});</script>
+<!-- The posture control. Deliberately NOT part of the directory's module script: the listing depends on
+     sites.json and an import, and this must still work on a page where that failed. -->
+<script>
+(function () {
+  "use strict";
+  var COPY = { free: "updates arrive on their own", hold: "you keep what you have", guard: "held, and anything foreign is refused" };
+  function ask(message) {
+    return new Promise(function (resolve) {
+      var c = navigator.serviceWorker && navigator.serviceWorker.controller;
+      if (!c) return resolve(null);
+      var ch = new MessageChannel(), done = false;
+      var finish = function (v) { if (!done) { done = true; resolve(v); } };
+      ch.port1.onmessage = function (e) { finish(e.data); };
+      setTimeout(function () { finish(null); }, 8000);
+      try { c.postMessage(message, [ch.port2]); } catch (e) { finish(null); }
+    });
+  }
+  function paint(mode) {
+    var box = document.getElementById("posture");
+    if (!box) return;
+    var known = COPY[mode] ? mode : "free";
+    box.hidden = false;
+    var bs = box.querySelectorAll("button[data-mode]");
+    for (var i = 0; i < bs.length; i++) {
+      var on = bs[i].getAttribute("data-mode") === known;
+      bs[i].setAttribute("aria-pressed", String(on));
+      bs[i].title = COPY[bs[i].getAttribute("data-mode")];
+    }
+  }
+  addEventListener("load", function () {
+    if (!("serviceWorker" in navigator)) return;      // no worker, no posture — leave it hidden
+    navigator.serviceWorker.ready.then(function () {
+      var box = document.getElementById("posture");
+      if (!box) return;
+      box.addEventListener("click", function (ev) {
+        var b = ev.target.closest && ev.target.closest("button[data-mode]");
+        if (!b) return;
+        var m = b.getAttribute("data-mode");
+        paint(m);                                      // answer the tap immediately; confirm below
+        ask({ type: "shell-mode", mode: m }).then(function () {
+          ask({ type: "shell-status" }).then(function (st) { if (st && st.mode) paint(st.mode); });
+        });
+      });
+      // A FIRST VISIT IS NOT CONTROLLED YET. `ready` resolves once a worker is active, but this page
+      // only gets a controller when the new worker claims it — so asking once means the switch stays
+      // hidden until the next load, which is precisely the visit where someone is least likely to
+      // come back. Ask now, ask again when control arrives, and give up quietly after a few tries.
+      var tries = 0;
+      var probe = function () {
+        ask({ type: "shell-status" }).then(function (st) {
+          if (st && st.mode) return paint(st.mode);
+          if (++tries < 8) setTimeout(probe, 750);
+        });
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", probe);
+      probe();
+    }).catch(function () {});
+  });
+})();
+</script>
 <style>
   /* The page's own use of the design system. Tokens come from /assets/ds/ — never redefined here.
      Two voices, no third (typography.css): Playfair says the loud thing, Space Mono says the small
@@ -44,6 +104,40 @@
     padding: var(--space-8) var(--gutter) var(--space-5);
     border-bottom: var(--rule) solid var(--border);
   }
+  /* The masthead is a row only when there is room for one; the posture control drops below the
+     wordmark on a phone rather than squeezing the name. */
+  .mast-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
+  .mast-name { min-width: 0; }
+
+  .posture { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
+  .posture-k {
+    font-size: var(--text-eyebrow); letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-muted, currentColor); opacity: .65;
+  }
+  /* THE GRADIENT IS THE AXIS — permissive at one end, guarded at the other — but it sits UNDER the
+     track as a rule rather than behind the labels. Behind them it has to win a contrast fight against
+     whatever the theme's text colour is, in both schemes, and it loses one of them every time. */
+  .posture-track {
+    display: inline-grid; grid-auto-flow: column;
+    border: var(--rule) solid var(--border); border-radius: .4rem; overflow: hidden;
+  }
+  .posture-track button {
+    font: inherit; font-size: var(--text-eyebrow); letter-spacing: .06em; text-transform: uppercase;
+    border: 0; border-bottom: 3px solid transparent;
+    background: transparent; color: var(--text-body); opacity: .5;
+    padding: .34rem .7rem .24rem; cursor: pointer;
+  }
+  .posture-track button + button { border-left: var(--rule) solid var(--border); }
+  .posture-track button[aria-pressed="true"] { opacity: 1; font-weight: 700; }
+  .posture-track button[data-mode="free"][aria-pressed="true"]  { border-bottom-color: #2f7d52; }
+  .posture-track button[data-mode="hold"][aria-pressed="true"]  { border-bottom-color: #a98a1f; }
+  .posture-track button[data-mode="guard"][aria-pressed="true"] { border-bottom-color: #a3324f; }
+  .posture-axis {
+    height: 3px; border-radius: 2px; margin-top: .25rem;
+    background: linear-gradient(90deg, #2f7d52 0%, #a98a1f 50%, #a3324f 100%);
+    opacity: .5;
+  }
+  .posture-more { font-size: var(--text-eyebrow); color: var(--text-body); opacity: .7; }
   .wordmark {
     margin: 0;
     font-family: var(--font-display);
@@ -185,8 +279,28 @@
 </head>
 <body>
 <header class="masthead">
-  <h1 class="wordmark">anecdote</h1>
-  <p class="eyebrow" id="eyebrow">Please Stand By.</p>
+  <div class="mast-row">
+    <div class="mast-name">
+      <h1 class="wordmark">anecdote</h1>
+      <p class="eyebrow" id="eyebrow">Please Stand By.</p>
+    </div>
+
+    <!-- THE UPDATE POSTURE, ON THE PAGE THAT IS ALWAYS THE FIRST ONE OPENED.
+         One axis, three stops, monotone in how much motion is allowed — which is why it is drawn as a
+         gradient rather than three unrelated buttons. It decides what may REPLACE what this device
+         holds; it never decides what can be SEEN. Hidden until a worker is actually controlling this
+         page, because a switch wired to nothing is worse than no switch. -->
+    <div class="posture" id="posture" hidden>
+      <span class="posture-k">updates</span>
+      <div class="posture-track" role="group" aria-label="Update posture">
+        <button type="button" data-mode="free"  aria-pressed="false">free</button>
+        <button type="button" data-mode="hold"  aria-pressed="false">hold</button>
+        <button type="button" data-mode="guard" aria-pressed="false">guard</button>
+      </div>
+      <div class="posture-axis" aria-hidden="true"></div>
+      <a class="posture-more" href="/shell.html">what you’re holding</a>
+    </div>
+  </div>
 </header>
 <nav id="directory"></nav>
 

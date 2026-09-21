@@ -21,56 +21,25 @@
 # Format: one hostname per line. Blank lines and `#` comments are ignored.
 # Whitespace is trimmed and entries are lowercased + de-duplicated.
 
-# --- apex + state-level leaves -------------------------------------------------
 anecdote.channel
+
 *.anecdote.channel
 
-# --- the Floor: Tell's wildcard-served pile rooms (#93; tell repo docs/floor.md) -
-# <pile-name>.tell.anecdote.channel — the leaf label IS the pile name. One label
-# per wildcard, so *.anecdote.channel covers the bare tell host but not names
-# under it.
-*.tell.anecdote.channel
+    *.tell.anecdote.channel
+    *.library.anecdote.channel
 
-# --- the shelf: the library's wildcard-served bottles (docs/decisions.md D18) ---
-# <label>.library.anecdote.channel — the leaf label is the library's labelling of a bottle.
-# Same one-label rule as the Floor above: *.anecdote.channel covers the bare `library`
-# host and NOTHING under it. `bottles` is a driver, not a host (D18), so there is
-# deliberately no *.bottles line and there never was one.
-*.library.anecdote.channel
+    *.colorado.anecdote.channel
+    *.fort-collins.colorado.anecdote.channel
+        *.media.fort-collins.colorado.anecdote.channel
+        *.trade.fort-collins.colorado.anecdote.channel
+        *.voices.fort-collins.colorado.anecdote.channel
+        *.city.fort-collins.colorado.anecdote.channel
+        *.land.fort-collins.colorado.anecdote.channel
+        *.library.fort-collins.colorado.anecdote.channel
 
-# --- per-state wildcards (covers <city>.<state>.anecdote.channel) --------------
-*.colorado.anecdote.channel
+    *.longmont.colorado.anecdote.channel
+        *.media.longmont.colorado.anecdote.channel
 
-# --- per-city / per-region wildcards (covers <leaf>.<region>.<state>.anecdote.channel) ---
-# `north` is a REGION label sitting at the same DNS level as a city — deliberately not
-# `northern-colorado.colorado`, which stutters. The per-level rule is identical either way:
-# *.colorado.anecdote.channel covers `north.colorado...`, but the varying leaf beneath it
-# (e.g. voices.north.colorado...) needs its own wildcard.
-*.fort-collins.colorado.anecdote.channel
-# A shell's canonical name needs coverage exactly like our own: it is served from this zone
-# (as a redirect out), so a visitor reaching it meets this certificate first.
-*.longmont.colorado.anecdote.channel
+    *.loveland.colorado.anecdote.channel
 
-# NOTE ON COST. Reserving the five-part slot for civic nodes means a category occupant is always
-# at six, so every (place, category) that holds anything needs its own wildcard — even a category
-# with exactly one occupant. That gives up the singleton exemption that used to make a lone
-# occupant free, and it is the multiplicative term: places x categories-in-use.
-#
-# It buys a five-part slot that means one thing, and monikers that can never shadow a category
-# word because they cannot reach that level. Worth it while the numbers are small; worth
-# re-checking when a place routinely holds four or five categories.
-
-# Reserved, nothing in them yet. A place costs ONE wildcard whether it holds one site or forty —
-# which is the whole reason places are the unit and categories are not.
-*.loveland.colorado.anecdote.channel
-*.wellington.colorado.anecdote.channel
-
-# --- per-category wildcards: only where plurality actually arrived ----------------------
-# A category with ONE occupant costs nothing — media.fort-collins… is already covered by
-# *.fort-collins.colorado.anecdote.channel. These exist because a second occupant showed up and
-# needed a moniker beneath the category. Never add one speculatively: the whole point of the
-# demand-driven rule is that the vocabulary is free and only plurality is billed.
-*.media.fort-collins.colorado.anecdote.channel
-*.trade.fort-collins.colorado.anecdote.channel
-*.voices.fort-collins.colorado.anecdote.channel
-*.media.longmont.colorado.anecdote.channel
+    *.wellington.colorado.anecdote.channel
