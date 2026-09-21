@@ -139,6 +139,13 @@ www.discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecd
 # provider's business; asking the consumer to carry it would make our sequencing into their
 # identity.
 #
+# AND THE LINE IS RETIRED WHEN THE TEST PASSES. The operator's standing view, 2026-09-21: `www` is
+# "redundant and ugly" and she does not keep one. Approving it here was approving a TEST SUBJECT, not
+# a name — so nothing in this arrangement may propose serving consumers at `www.<their-domain>` as a
+# way around the apex problem. That would trade a real answer for a name she would not have kept, and
+# it would quietly make the toll above somebody else's problem. Delete the line from the zone and
+# from here once a certificate has been seen to issue.
+#
 # ANSWERED SINCE THIS FILE WAS WRITTEN, and it narrows the worry rather than removing it.
 # Cloudflare's troubleshooting page describes exactly our case — "the requested hostname is
 # associated with a domain that exists in Cloudflare as a standalone zone" — and says the standalone
