@@ -1,0 +1,59 @@
+# saas.txt — domains that are not ours, served by this zone. Cloudflare for SaaS.
+#
+# THE SAME MOVE THIS CONSTELLATION ALREADY MAKES EVERYWHERE, pointed outward. A thing has a NAME
+# (canonical, ours, under anecdote.channel) and an ADDRESS it happens to be reached at (a fact, and
+# movable). `sites.txt` records names; `san-list.txt` records the certificate those names need. This
+# file records the third case: somebody else's domain, pointed INTO one of our names, with the
+# content living at the name and never copied to the domain.
+#
+# It is what makes a trade node a service rather than a website. `discoverywritten.com` is the first
+# consumer and it is ours, on purpose: be your own first customer before anyone else is.
+#
+# ------------------------------------------------------------------- what Cloudflare needs --------
+# Three parts, and only the first is a fact about this zone:
+#
+#   1. A FALLBACK ORIGIN — one proxied hostname in THIS zone that all custom hostnames resolve to.
+#      Set once, in the dashboard (SSL/TLS → Custom Hostnames). Listed below.
+#   2. A CUSTOM HOSTNAME per consumer domain, registered on this zone. Cloudflare issues and renews
+#      a certificate FOR THAT HOSTNAME, per hostname.
+#   3. A DNS RECORD IN THE CONSUMER'S OWN DNS — a CNAME to the fallback origin. Their record, their
+#      zone, their decision to stop. That is the whole reason this is a service and not a hosting
+#      arrangement: they can leave by changing one record, and nothing of theirs is here.
+#
+# CONSUMER CERTIFICATES ARE NOT IN `san-list.txt`, AND THAT IS THE LOAD-BEARING PROPERTY. Each custom
+# hostname gets its own Cloudflare-issued certificate. So the advanced-certificate pack — capped at
+# 50 hosts, and which ABORTS rather than truncates — does not grow by one row per consumer. The row
+# budget `san-list.txt` agonises over is spent on OUR name space only. Consumers are free of it.
+#
+# The fallback origin needs no new SAN row either: it is one label under the apex, which
+# `*.anecdote.channel` already covers.
+#
+# ------------------------------------------------------------------------- fallback origin --------
+# Proxied, in this zone, and `system` in `sites.txt`: verified, never published. It is plumbing, not
+# a place to send a person.
+fallback   fallback.anecdote.channel   pending
+
+# ------------------------------------------------------------------------------- consumers --------
+# Format: <consumer hostname>  ->  <the name in this zone it consumes>  <state>
+#
+#   pending   declared here and not yet registered with Cloudflare
+#   probing   registered; certificate not yet issued, or the consumer's CNAME not yet in place
+#   live      Cloudflare holds a certificate for it and it answers from the name it consumes
+#
+# A line here is a DECLARATION, not an action: nothing in this repository provisions a custom
+# hostname. It is the record of what was agreed, in the same posture as `recipients.txt` on a
+# control point — a person writes the line, and no request adds one.
+
+www.discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecdote.channel  pending
+# The apex is deliberately SECOND. `discoverywritten.com` is an active zone in this same account and
+# already serves its own content, and a custom hostname for a name Cloudflare is authoritative for
+# elsewhere is the one part of this arrangement nobody here has tested. `www` costs nothing to try:
+# measured 2026-09-21, it does not resolve at all, so there is no traffic to break and no live site
+# to take down. Prove the mechanism on the name that is empty, then decide about the one that is not.
+#
+# discoverywritten.com  ->  discoverywritten.trade.fort-collins.colorado.anecdote.channel  pending
+
+# ---------------------------------------------------------------------- what is not here ----------
+# NOTHING FOR FC PUBLIC MEDIA. That is a different Cloudflare account, and an arrangement made from
+# one account cannot speak for another. When FCPM consumes a name here it will be as a real consumer
+# with its own line, and the fact that the operator holds both accounts is not a shortcut.
