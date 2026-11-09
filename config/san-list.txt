@@ -32,7 +32,6 @@ anecdote.channel
     *.fort-collins.colorado.anecdote.channel
         *.media.fort-collins.colorado.anecdote.channel
         *.trade.fort-collins.colorado.anecdote.channel
-        *.voices.fort-collins.colorado.anecdote.channel
         *.city.fort-collins.colorado.anecdote.channel
         *.land.fort-collins.colorado.anecdote.channel
         *.library.fort-collins.colorado.anecdote.channel
