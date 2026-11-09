@@ -40,7 +40,7 @@
 @place fort-collins.colorado.anecdote.channel
 @place longmont.colorado.anecdote.channel
 # Loveland: a journal site and nothing else — no Atlas, no Tell, no Antidote. Another ANTIBODY
-# under different branding, the way Voices is. When it arrives it declares `journal` and files
+# under different branding, the way Voices was. When it arrives it declares `journal` and files
 # itself; nothing here needs changing but the removal of this comment.
 @place loveland.colorado.anecdote.channel
 @place wellington.colorado.anecdote.channel
@@ -51,9 +51,10 @@ tell.anecdote.channel                            system
 atlas.anecdote.channel                           system
 
 # --- destinations we run ---------------------------------------------------------------
-# `north` is a region label sitting at city level.
 antibody.fort-collins.colorado.anecdote.channel
-north.voices.fort-collins.colorado.anecdote.channel  was:voices.north.colorado.anecdote.channel
+# Voices (`north`, a region label at city level) is out while it is renamed (2026-11-09). Whatever
+# name it comes back at carries
+# was:north.voices.fort-collins.colorado.anecdote.channel was:voices.north.colorado.anecdote.channel
 
 # --- trade: what you can buy here, what you can sell here -------------------------------
 # Naturally plural — nobody is THE business of a place — so it takes monikers from the start
